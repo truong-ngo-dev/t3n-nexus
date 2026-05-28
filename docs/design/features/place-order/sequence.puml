@@ -1,0 +1,103 @@
+@startuml sequence-place-order
+title Place Order — Saga Choreography
+
+actor Buyer
+participant "order-service" as OS
+participant "inventory-service" as INV
+participant "payment-service" as PAY
+participant "fulfillment-service" as FUL
+participant "notification-service" as NOTIF
+queue "Kafka" as K
+
+== Happy Path ==
+
+Buyer -> OS : POST /orders\n{cartId, shippingAddress, paymentMethod}
+activate OS
+OS -> OS : create Order (PENDING)
+OS -> K : OrderCreated\n{orderId, items[], paymentMethod}
+deactivate OS
+
+K -> INV : OrderCreated
+activate INV
+INV -> INV : reserve stock
+INV -> K : InventoryReserved\n{orderId, items[]}
+deactivate INV
+
+K -> OS : InventoryReserved
+activate OS
+OS -> K : PaymentRequested\n{orderId, amount, idempotencyKey}
+deactivate OS
+
+K -> PAY : PaymentRequested
+activate PAY
+PAY -> PAY : process payment (async)
+PAY -> K : PaymentSucceeded\n{orderId, paymentId, amount}
+deactivate PAY
+
+K -> OS : PaymentSucceeded
+activate OS
+OS -> OS : Order → CONFIRMED
+OS -> K : OrderConfirmed\n{orderId, sellerId, shippingAddress}
+deactivate OS
+
+K -> FUL : OrderConfirmed
+activate FUL
+FUL -> FUL : assign shipper\n(Rule Engine)
+FUL -> K : ShipmentAssigned\n{orderId, shipperId, estimatedPickup}
+deactivate FUL
+
+K -> NOTIF : OrderConfirmed
+K -> NOTIF : ShipmentAssigned
+activate NOTIF
+NOTIF -> Buyer : "Đơn hàng đã xác nhận"
+NOTIF -> Buyer : "Shipper đã được phân công"
+deactivate NOTIF
+
+== Compensating: Inventory Failed ==
+
+K -> INV : OrderCreated
+activate INV
+INV -> K : InventoryReservationFailed\n{orderId, reason}
+deactivate INV
+
+K -> OS : InventoryReservationFailed
+activate OS
+OS -> OS : Order → CANCELLED
+OS -> K : OrderCancelled\n{orderId, reason="INVENTORY_FAILED"}
+deactivate OS
+
+K -> NOTIF : OrderCancelled
+activate NOTIF
+NOTIF -> Buyer : "Đơn hàng đã bị huỷ\n(hết hàng)"
+deactivate NOTIF
+
+== Compensating: Payment Failed ==
+
+K -> PAY : PaymentRequested
+activate PAY
+PAY -> K : PaymentFailed\n{orderId, reason}
+deactivate PAY
+
+K -> OS : PaymentFailed
+activate OS
+OS -> OS : Order → CANCELLED
+OS -> K : OrderCancelled\n{orderId, reason="PAYMENT_FAILED"}
+deactivate OS
+
+K -> INV : OrderCancelled
+activate INV
+INV -> INV : release reservation
+deactivate INV
+
+K -> NOTIF : OrderCancelled
+activate NOTIF
+NOTIF -> Buyer : "Đơn hàng đã bị huỷ\n(thanh toán thất bại)"
+deactivate NOTIF
+
+note over OS, PAY
+  Mọi event publish đều qua Outbox Pattern
+  Consumer dedup theo eventId
+  Kafka partition key = orderId
+end note
+
+@enduml

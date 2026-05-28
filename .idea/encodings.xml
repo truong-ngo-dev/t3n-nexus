@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/services/customer-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/email-worker/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/identity-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/common-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/common-events/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/common-utils/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/common-web/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/idempotency-support/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/observability-starter/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/outbox-starter/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/rate-limiter-starter/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/libs/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/notification-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/src/main/resources" charset="UTF-8" />
+  </component>
+</project>

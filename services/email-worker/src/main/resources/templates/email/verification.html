@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Xác nhận email của bạn</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .wrapper { max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .header { background-color: #1a1a2e; padding: 32px 40px; }
+    .header h1 { margin: 0; color: #ffffff; font-size: 20px; font-weight: 600; letter-spacing: 0.5px; }
+    .body { padding: 40px; color: #374151; }
+    .body p { margin: 0 0 16px; line-height: 1.6; font-size: 15px; }
+    .btn-wrap { margin: 32px 0; text-align: center; }
+    .btn { display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 6px; font-size: 15px; font-weight: 600; }
+    .link-fallback { word-break: break-all; color: #4f46e5; font-size: 13px; }
+    .divider { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+    .footer { padding: 0 40px 32px; color: #9ca3af; font-size: 12px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header">
+    <h1>T3Nexus</h1>
+  </div>
+
+  <div class="body">
+    <p>Xin chào <strong th:text="${fullName ?: 'bạn'}">bạn</strong>,</p>
+    <p>Cảm ơn bạn đã đăng ký tài khoản T3Nexus. Vui lòng xác nhận địa chỉ email bằng cách nhấn vào nút bên dưới.</p>
+
+    <div class="btn-wrap">
+      <a class="btn"
+         th:href="|${baseUrl}/verify?token=${#uris.escapeQueryParam(verificationToken)}|"
+         href="#">Xác nhận email</a>
+    </div>
+
+    <p>Link có hiệu lực trong <strong>24 giờ</strong>. Nếu nút không hoạt động, sao chép đường dẫn sau vào trình duyệt:</p>
+    <p class="link-fallback"
+       th:text="|${baseUrl}/verify?token=${#uris.escapeQueryParam(verificationToken)}|">
+      http://localhost:3000/verify?token=...
+    </p>
+
+    <hr class="divider"/>
+
+    <p>Nếu bạn không thực hiện đăng ký này, hãy bỏ qua email này — tài khoản sẽ không được kích hoạt.</p>
+  </div>
+
+  <div class="footer">
+    <p>© 2026 T3Nexus. Email này được gửi tự động, vui lòng không trả lời.</p>
+  </div>
+
+</div>
+</body>
+</html>

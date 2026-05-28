@@ -1,0 +1,118 @@
+@startuml sequence-customer-registration
+title Customer Registration
+
+actor Buyer
+participant "web-gateway" as WG
+participant "identity-service" as ID
+participant "customer-service" as CS
+participant "notification-service" as NOTIF
+queue "Kafka" as K
+
+== Happy Path ==
+
+Buyer -> WG : POST /api/users/register\n{email, password, fullName}
+activate WG
+
+WG -> ID : forward request
+activate ID
+
+ID -> ID : validate + hash password \ncreate User (role=CUSTOMER, status=PENDING)\ngenerate verificationToken
+ID -> K : identity.customer.registered\n{userId, email, fullName, role, verificationToken}\n[via Outbox]
+ID --> WG : 201 Created\n{userId}
+deactivate ID
+
+WG --> Buyer : 201 Created
+deactivate WG
+
+note right of Buyer
+  Buyer nhận response ngay.
+  status=PENDING — chưa thể login.
+  Không phát token — yêu cầu verify email trước.
+  Phần dưới xử lý async.
+end note
+
+== Async downstream ==
+
+K -> CS : identity.customer.registered
+activate CS
+CS -> CS : create CustomerProfile\n(loyaltyBalance=0)
+deactivate CS
+
+K -> NOTIF : identity.customer.registered
+activate NOTIF
+NOTIF -> Buyer : Verification email\n(link kích hoạt chứa verificationToken)
+deactivate NOTIF
+
+== Email Verification — Happy Path ==
+
+Buyer -> WG : GET /api/users/verify?token={verificationToken}
+activate WG
+WG -> ID : forward request
+activate ID
+ID -> ID : validate token:\n- tồn tại trong verification_tokens\n- chưa hết hạn (TTL 24h)\nset status=ACTIVE\nxóa verification_token
+ID --> WG : 200 OK
+deactivate ID
+WG --> Buyer : 200 OK\n{"message": "Account activated. Please log in."}
+deactivate WG
+
+note right of Buyer
+  Buyer có thể login qua\nPOST /api/auth/token (oauth2-service).
+end note
+
+== Email Verification — Token hết hạn ==
+
+Buyer -> WG : GET /api/users/verify?token={expired token}
+activate WG
+WG -> ID : forward request
+activate ID
+ID -> ID : validate token → hết hạn
+ID --> WG : 400 TokenExpired
+deactivate ID
+WG --> Buyer : 400 Bad Request\n{"message": "Verification link expired. Request a new one."}
+deactivate WG
+
+== Email Verification — Resend ==
+
+Buyer -> WG : POST /api/users/resend-verification\n{email}
+activate WG
+
+note right of WG
+  Rate limit: 3 resend/giờ per email.
+end note
+
+WG -> ID : forward request
+activate ID
+ID -> ID : validate:\n- user tồn tại & status=PENDING\n- chưa vượt rate limit\ninvalidate token cũ\ngenerate verificationToken mới (TTL 24h)
+ID -> K : identity.user.verification-resent\n{userId, email, verificationToken}\n[via Outbox]
+ID --> WG : 200 OK
+deactivate ID
+WG --> Buyer : 200 OK\n{"message": "Verification email resent"}
+deactivate WG
+
+K -> NOTIF : identity.user.verification-resent
+activate NOTIF
+NOTIF -> Buyer : Verification email (mới)\n(link kích hoạt chứa verificationToken mới)
+deactivate NOTIF
+
+note over ID
+  Nếu status=ACTIVE hoặc email không tồn tại:\n→ trả về 400 (không tiết lộ thông tin tài khoản).
+end note
+
+== Error: Email đã tồn tại ==
+
+Buyer -> WG : POST /api/users/register\n{email đã tồn tại}
+activate WG
+WG -> ID : forward request
+activate ID
+ID --> WG : 409 EmailAlreadyExists
+deactivate ID
+WG --> Buyer : 409 Conflict\n{"message": "Email already exists"}
+deactivate WG
+
+note over ID, CS
+  Outbox Pattern tại identity-service
+  đảm bảo identity.customer.registered không bị mất
+  kể cả khi Kafka tạm thời không available.
+end note
+
+@enduml

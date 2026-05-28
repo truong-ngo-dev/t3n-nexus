@@ -1,0 +1,159 @@
+@startuml Use Case Overview — Ecommerce Platform
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor White
+  BorderColor #444
+  ArrowColor #444
+}
+skinparam actor {
+  BorderColor #444
+}
+
+' ─── Actors ────────────────────────────────────────────
+actor Guest              as G
+actor Customer           as C
+actor Seller             as S
+actor Shipper            as SH
+actor Admin              as A
+actor Scheduler          as SC #EEE
+
+' ─── Use Case Groups ───────────────────────────────────
+
+rectangle "Catalog & Search" {
+  (Duyệt danh mục)             as UC_BROWSE
+  (Tìm kiếm & lọc sản phẩm)   as UC_SEARCH
+  (Xem chi tiết sản phẩm)      as UC_DETAIL
+}
+
+rectangle "Account" {
+  (Đăng ký)                        as UC_REGISTER
+  (Đăng nhập)                      as UC_LOGIN
+  (Đăng nhập với Google)           as UC_LOGIN_GOOGLE
+  (Quản lý hồ sơ & địa chỉ)       as UC_PROFILE
+  (Xem lịch sử đăng nhập)          as UC_LOGIN_HISTORY
+  (Quản lý thiết bị đăng nhập)      as UC_DEVICES
+}
+
+rectangle "Shopping" {
+  (Quản lý giỏ hàng)                  as UC_CART
+  (Áp dụng voucher / điểm thưởng)     as UC_VOUCHER
+  (Đặt hàng & thanh toán)             as UC_ORDER
+}
+
+rectangle "Order Management" {
+  (Theo dõi đơn hàng)               as UC_TRACK
+  (Huỷ đơn hàng)                    as UC_CANCEL
+  (Yêu cầu hoàn hàng & hoàn tiền)   as UC_RETURN
+}
+
+rectangle "Seller Operations" {
+  (Quản lý sản phẩm & SKU)      as UC_PRODUCTS
+  (Quản lý tồn kho)             as UC_INVENTORY
+  (Xác nhận & xử lý đơn hàng)  as UC_PROCESS
+  (Xem báo cáo doanh số)        as UC_ANALYTICS
+}
+
+rectangle "Fulfillment & Delivery" {
+  (Xem đơn giao được phân công)    as UC_VIEW_DELIVERY
+  (Cập nhật trạng thái giao hàng)  as UC_UPDATE_STATUS
+  (Tải ảnh xác nhận giao hàng)     as UC_POD
+}
+
+rectangle "Communication" {
+  (Nhắn tin với người bán / khách hàng)  as UC_CHAT
+  (Nhận thông báo)                       as UC_NOTIF
+}
+
+rectangle "Review & Rating" {
+  (Đánh giá sản phẩm & người bán)  as UC_RATE_SELLER
+  (Đánh giá người giao hàng)       as UC_RATE_SHIPPER
+}
+
+rectangle "Platform Administration" {
+  (Duyệt / từ chối người bán)         as UC_APPROVE_SELLER
+  (Duyệt / từ chối người giao hàng)   as UC_APPROVE_SHIPPER
+  (Quản lý tài khoản người dùng)      as UC_MANAGE_USERS
+  (Quản lý voucher & khuyến mãi)      as UC_PROMO
+  (Giải quyết tranh chấp)             as UC_DISPUTE
+  (Xem báo cáo nền tảng)              as UC_REPORTS
+}
+
+rectangle "Scheduled Automation" {
+  (Tự động huỷ đơn prepaid chưa thanh toán)  as UC_AUTO_CANCEL
+  (Chi hoa hồng hàng loạt cho người bán)  as UC_PAYOUT
+  (Hết hạn điểm thưởng)                   as UC_EXPIRE_POINTS
+  (Dọn dẹp giỏ hàng bỏ quên)              as UC_CLEANUP_CART
+}
+
+' ─── Guest ─────────────────────────────────────────────
+G --> UC_BROWSE
+G --> UC_SEARCH
+G --> UC_DETAIL
+G --> UC_REGISTER
+G --> UC_CART
+
+' ─── Customer ──────────────────────────────────────────
+C --> UC_LOGIN
+C --> UC_LOGIN_GOOGLE
+C --> UC_PROFILE
+C --> UC_LOGIN_HISTORY
+C --> UC_DEVICES
+C --> UC_BROWSE
+C --> UC_SEARCH
+C --> UC_DETAIL
+C --> UC_CART
+C --> UC_VOUCHER
+C --> UC_ORDER
+C --> UC_TRACK
+C --> UC_CANCEL
+C --> UC_RETURN
+C --> UC_CHAT
+C --> UC_NOTIF
+C --> UC_RATE_SELLER
+C --> UC_RATE_SHIPPER
+
+' ─── Seller ────────────────────────────────────────────
+S --> UC_LOGIN
+S --> UC_LOGIN_GOOGLE
+S --> UC_LOGIN_HISTORY
+S --> UC_DEVICES
+S --> UC_PRODUCTS
+S --> UC_INVENTORY
+S --> UC_PROCESS
+S --> UC_ANALYTICS
+S --> UC_CHAT
+S --> UC_NOTIF
+
+' ─── Shipper ───────────────────────────────────────────
+SH --> UC_LOGIN
+SH --> UC_LOGIN_HISTORY
+SH --> UC_DEVICES
+SH --> UC_VIEW_DELIVERY
+SH --> UC_UPDATE_STATUS
+SH --> UC_POD
+SH --> UC_NOTIF
+
+' ─── Admin ─────────────────────────────────────────────
+A --> UC_LOGIN
+A --> UC_APPROVE_SELLER
+A --> UC_APPROVE_SHIPPER
+A --> UC_MANAGE_USERS
+A --> UC_PROMO
+A --> UC_DISPUTE
+A --> UC_REPORTS
+
+' ─── Scheduler ─────────────────────────────────────────
+SC --> UC_AUTO_CANCEL
+SC --> UC_PAYOUT
+SC --> UC_EXPIRE_POINTS
+SC --> UC_CLEANUP_CART
+
+' ─── Relationships ─────────────────────────────────────
+UC_LOGIN_GOOGLE  ..> UC_LOGIN    : <<extend>>
+UC_ORDER         ..> UC_CART     : <<include>>
+UC_ORDER         ..> UC_VOUCHER  : <<extend>>
+UC_RETURN        ..> UC_DISPUTE  : <<extend>>
+
+@enduml

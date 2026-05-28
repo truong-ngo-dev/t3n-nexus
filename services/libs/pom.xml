@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>vn.t3nexus</groupId>
+		<artifactId>services</artifactId>
+		<version>1.0.0</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>libs</artifactId>
+	<packaging>pom</packaging>
+	<name>libs</name>
+	<description>Container POM for T3Nexus shared libraries</description>
+
+	<modules>
+		<module>common-utils</module>
+		<module>common-domain</module>
+		<module>common-events</module>
+		<module>common-web</module>
+		<module>observability-starter</module>
+		<module>outbox-starter</module>
+		<module>idempotency-support</module>
+		<module>rate-limiter-starter</module>
+	</modules>
+
+</project>

@@ -1,0 +1,21 @@
+{
+  "name": "notification-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "plugin.name": "pgoutput",
+    "database.hostname": "postgres-notification",
+    "database.port": "5432",
+    "database.user": "t3nexus",
+    "database.password": "t3nexus",
+    "database.dbname": "notification_db",
+    "topic.prefix": "cdc",
+    "table.include.list": "public.notification_log",
+    "transforms": "unwrap,router",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.router.type": "io.debezium.transforms.ContentBasedRouter",
+    "transforms.router.language": "jsr223.groovy",
+    "transforms.router.topic.expression": "if (value.channel == 'EMAIL' && value.tier == 'TRANSACTIONAL') { return 'notification.email.transactional'; } else if (value.channel == 'EMAIL' && value.tier == 'BULK') { return 'notification.email.bulk'; } else if (value.channel == 'IN_APP') { return 'notification.inapp.dispatch'; } else { return null; }",
+    "snapshot.mode": "no_data"
+  }
+}

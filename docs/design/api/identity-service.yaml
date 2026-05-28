@@ -1,0 +1,276 @@
+openapi: 3.0.3
+info:
+  title: identity-service API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local (via web-gateway)
+
+tags:
+  - name: Registration
+    description: Đăng ký và kích hoạt tài khoản
+
+paths:
+
+  /api/users/register:
+    post:
+      tags: [Registration]
+      summary: Đăng ký tài khoản mới
+      description: |
+        Tạo user với `status=PENDING`. Không phát token.
+        Verification email được gửi async sau khi đăng ký.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: buyer@example.com
+              password: "Test@1234"
+              fullName: Nguyen Van A
+      responses:
+        '201':
+          description: Đăng ký thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_RegisterResult'
+              example:
+                success: true
+                data:
+                  userId: 01HZ9KQPWXYZ1234567890ABCD
+                timestamp: "2026-05-24T10:00:00Z"
+        '400':
+          description: Dữ liệu không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                success: false
+                error:
+                  code: VALIDATION_FAILED
+                  message: Password must be at least 8 characters and contain uppercase, lowercase, digit, and special character
+                timestamp: "2026-05-24T10:00:00Z"
+        '409':
+          description: Email đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                success: false
+                error:
+                  code: EMAIL_ALREADY_EXISTS
+                  message: Email already exists
+                timestamp: "2026-05-24T10:00:00Z"
+        '429':
+          description: Vượt rate limit (5 req/phút per IP — enforced tại web-gateway)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                success: false
+                error:
+                  code: RATE_LIMIT_EXCEEDED
+                  message: Too many requests. Please try again later.
+                timestamp: "2026-05-24T10:00:00Z"
+        '503':
+          description: identity-service không available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/users/verify:
+    get:
+      tags: [Registration]
+      summary: Kích hoạt tài khoản qua email verification
+      description: |
+        Validate verificationToken, set `status=ACTIVE`, xóa token.
+        Token có TTL 24h và chỉ dùng được một lần.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Opaque verification token từ email
+          example: a1b2c3d4e5f6...
+      responses:
+        '200':
+          description: Tài khoản đã được kích hoạt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_MessageResult'
+              example:
+                success: true
+                data:
+                  message: Account activated. Please log in.
+                timestamp: "2026-05-24T10:05:00Z"
+        '400':
+          description: Token không hợp lệ hoặc đã hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                expired:
+                  summary: Token hết hạn
+                  value:
+                    success: false
+                    error:
+                      code: TOKEN_EXPIRED
+                      message: Verification link expired. Request a new one.
+                    timestamp: "2026-05-24T10:05:00Z"
+                invalid:
+                  summary: Token không tồn tại hoặc đã dùng
+                  value:
+                    success: false
+                    error:
+                      code: TOKEN_INVALID
+                      message: Verification link is invalid or has already been used.
+                    timestamp: "2026-05-24T10:05:00Z"
+
+  /api/users/resend-verification:
+    post:
+      tags: [Registration]
+      summary: Gửi lại verification email
+      description: |
+        Invalidate token cũ, generate token mới (TTL 24h), gửi lại email.
+        Giới hạn 3 lần/giờ per email.
+        Response đồng nhất cho mọi trường hợp email không hợp lệ
+        (user ACTIVE, email không tồn tại) để tránh lộ thông tin tài khoản.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendVerificationRequest'
+            example:
+              email: buyer@example.com
+      responses:
+        '200':
+          description: Verification email đã được gửi lại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_MessageResult'
+              example:
+                success: true
+                data:
+                  message: Verification email resent.
+                timestamp: "2026-05-24T10:10:00Z"
+        '400':
+          description: Không thể resend (user đã ACTIVE hoặc email không tồn tại)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                success: false
+                error:
+                  code: RESEND_NOT_ALLOWED
+                  message: Unable to resend verification email.
+                timestamp: "2026-05-24T10:10:00Z"
+        '429':
+          description: Vượt rate limit resend (3 lần/giờ per email)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                success: false
+                error:
+                  code: RATE_LIMIT_EXCEEDED
+                  message: Too many resend attempts. Please try again later.
+                timestamp: "2026-05-24T10:10:00Z"
+
+components:
+  schemas:
+
+    RegisterRequest:
+      type: object
+      required: [email, password, fullName]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          description: Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số, ký tự đặc biệt
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    ResendVerificationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+
+    RegisterResult:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: ULID của user vừa tạo
+          example: 01HZ9KQPWXYZ1234567890ABCD
+
+    ApiResponse_RegisterResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/RegisterResult'
+        timestamp:
+          type: string
+          format: date-time
+
+    MessageResult:
+      type: object
+      properties:
+        message:
+          type: string
+
+    ApiResponse_MessageResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/MessageResult'
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+            message:
+              type: string
+              description: Human-readable error message
+        timestamp:
+          type: string
+          format: date-time

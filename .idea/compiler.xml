@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile default="true" name="Default" enabled="true" />
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="idempotency-support" />
+        <module name="observability-starter" />
+        <module name="customer-service" />
+        <module name="common-domain" />
+        <module name="common-utils" />
+        <module name="common-web" />
+        <module name="email-worker" />
+        <module name="rate-limiter-starter" />
+        <module name="outbox-starter" />
+        <module name="identity-service" />
+        <module name="common-events" />
+        <module name="notification-service" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="notification" target="21" />
+      <module name="web-commons" target="21" />
+    </bytecodeTargetLevel>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="common-domain" options="-parameters" />
+      <module name="common-events" options="-parameters" />
+      <module name="common-utils" options="-parameters" />
+      <module name="common-web" options="-parameters" />
+      <module name="customer-service" options="-parameters" />
+      <module name="email-worker" options="-parameters" />
+      <module name="idempotency-support" options="-parameters" />
+      <module name="identity-service" options="-parameters" />
+      <module name="notification" options="-parameters" />
+      <module name="notification-service" options="-parameters" />
+      <module name="observability-starter" options="-parameters" />
+      <module name="outbox-starter" options="-parameters" />
+      <module name="rate-limiter-starter" options="-parameters" />
+    </option>
+  </component>
+</project>
