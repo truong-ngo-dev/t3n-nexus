@@ -11,6 +11,27 @@ Schema quản lý bởi Confluent Schema Registry (Avro/Protobuf).
 
 ---
 
+## oauth2-service
+
+| Event                | Topic                          | Consumers        | Pattern        | Key Payload                                                             |
+|----------------------|--------------------------------|------------------|----------------|-------------------------------------------------------------------------|
+| `UserRegistered`     | `oauth2.user.registered`       | identity-service | Projection     | `userId`, `email`, `fullName`, `role`, `registrationMethod`             |
+| `DeviceLoginRecorded`| `oauth2.device.login-recorded` | identity-service | Projection     | `deviceId`, `userId`, `userAgent`, `ip`, `loginStatus`, `loginAt`       |
+
+---
+
+## identity-service
+
+| Event                        | Topic                                   | Consumers            | Pattern    | Key Payload                                            |
+|------------------------------|-----------------------------------------|----------------------|------------|--------------------------------------------------------|
+| `CustomerAccountCreated`     | `identity.customer-account.created`     | customer-service     | Projection | `userId`, `email`, `fullName`                          |
+| `VerificationEmailRequested` | `identity.email-verification.requested` | notification-service | Notify     | `userId`, `email`, `fullName`, `verificationToken`     |
+| `VerificationEmailReissued`  | `identity.email-verification.reissued`  | notification-service | Notify     | `userId`, `email`, `fullName`, `verificationToken`     |
+| `EmailVerified`              | `identity.email-verification.verified`  | notification-service | Notify     | `userId`, `email`, `fullName`                          |
+| `UserActivated`              | `identity.user.activated`               | oauth2-service       | Projection | `userId`                                               |
+
+---
+
 ## catalog-service
 
 | Event                | Topic                         | Consumers      | Pattern    | Key Payload                                                        |

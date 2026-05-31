@@ -1,0 +1,159 @@
+@startuml sequence-registration-refactor
+title Customer Registration — Refactored (ADR-001)\nEntry point chuyển từ identity-service sang oauth2-service
+
+actor Buyer
+participant "web-gateway" as WG
+participant "oauth2-service" as OAUTH
+participant "identity-service" as ID
+participant "customer-service" as CS
+participant "notification-service" as NOTIF
+queue "Kafka" as K
+
+== Happy Path — CREDENTIAL Registration ==
+
+Buyer -> WG : POST /api/auth/register\n{email, password, fullName}
+activate WG
+
+WG -> OAUTH : forward request
+activate OAUTH
+
+OAUTH -> OAUTH : validate input\ncheck email unique (Credential table — local)\nhash password\ntạo UserCredential\n(email, hashedPassword, role=CUSTOMER, status=PENDING)
+OAUTH -> K : oauth2.user.registered\n{userId, email, fullName, role=CUSTOMER, registrationMethod=CREDENTIAL}\n[via Outbox]
+OAUTH --> WG : 201 Created {userId}
+deactivate OAUTH
+
+WG --> Buyer : 201 Created
+deactivate WG
+
+note right of Buyer
+  status=PENDING — chưa thể login.
+  Phần dưới xử lý async.
+end note
+
+== Async downstream — oauth2.user.registered ==
+
+K -> ID : oauth2.user.registered
+activate ID
+ID -> ID : idempotency check (skip nếu userId đã tồn tại)\ntạo UserAccount (status=PENDING)\ntạo EmailVerification (token, expiresAt=now+24h)
+ID -> K : identity.email-verification.requested\n{userId, email, fullName, verificationToken}\n[via Outbox]
+ID -> K : identity.customer-account.created\n{userId, email, fullName}\n[via Outbox]
+deactivate ID
+
+== Async downstream — identity.customer-account.created ==
+
+K -> CS : identity.customer-account.created
+activate CS
+CS -> CS : tạo CustomerProfile\n(loyaltyBalance=0)
+deactivate CS
+
+== Async downstream — identity.email-verification.requested ==
+
+K -> NOTIF : identity.email-verification.requested
+activate NOTIF
+NOTIF -> Buyer : Verification email\n(link kích hoạt chứa verificationToken)
+deactivate NOTIF
+
+== Email Verification — Happy Path ==
+
+Buyer -> WG : GET /api/identity/users/verify?token={verificationToken}
+activate WG
+WG -> ID : forward request
+activate ID
+ID -> ID : validate token\n(tồn tại, chưa expired, status=PENDING)\nUserAccount.status = ACTIVE
+ID -> K : identity.user.activated\n{userId}\n[via Outbox]
+ID --> WG : 200 OK
+deactivate ID
+WG --> Buyer : 200 OK
+deactivate WG
+
+== Async — identity.user.activated ==
+
+K -> OAUTH : identity.user.activated
+activate OAUTH
+OAUTH -> OAUTH : UserCredential.status = ACTIVE
+deactivate OAUTH
+
+note right of Buyer
+  Buyer có thể login qua\nPOST /api/auth/login (oauth2-service).
+end note
+
+== Resend Verification ==
+
+Buyer -> WG : POST /api/identity/users/resend-verification\n{email}
+activate WG
+
+note right of WG
+  Rate limit: 3 resend/giờ per email\n(identity-service enforce).
+end note
+
+WG -> ID : forward request
+activate ID
+ID -> ID : validate:\n- UserAccount tồn tại & status=PENDING\n- chưa vượt rate limit\nreissue token (invalidate cũ, TTL 24h mới)
+ID -> K : identity.email-verification.reissued\n{userId, email, fullName, verificationToken}\n[via Outbox]
+ID --> WG : 204 No Content
+deactivate ID
+WG --> Buyer : 204 No Content
+deactivate WG
+
+K -> NOTIF : identity.email-verification.reissued
+activate NOTIF
+NOTIF -> Buyer : Verification email (mới)
+deactivate NOTIF
+
+== Error: Email đã tồn tại (check tại oauth2-service) ==
+
+Buyer -> WG : POST /api/auth/register\n{email đã tồn tại}
+activate WG
+WG -> OAUTH : forward request
+activate OAUTH
+OAUTH -> OAUTH : check email → đã tồn tại trong UserCredential table
+OAUTH --> WG : 409 EmailAlreadyExists
+deactivate OAUTH
+WG --> Buyer : 409 Conflict
+deactivate WG
+
+note over OAUTH, ID
+  So với flow cũ:
+  ─────────────────────────────────────────────────────
+  CŨ:  identity-service nhận REST → tạo User + Email → publish CustomerRegistered
+  MỚI: oauth2-service nhận REST → tạo UserCredential → publish UserRegistered
+       identity-service consume → tạo UserAccount + EmailVerification
+                                → publish VerificationEmailRequested
+                                → publish CustomerAccountCreated
+       customer-service consume identity.customer-account.created (không consume oauth2 trực tiếp)
+  ─────────────────────────────────────────────────────
+  identity-service không còn có POST /api/users/register
+  UserAccount không chứa hashedPassword và role
+end note
+
+== OAUTH Registration (Social Login — Google) ==
+
+Buyer -> WG : POST /api/auth/register/oauth2\n{provider=GOOGLE, code=...}
+activate WG
+WG -> OAUTH : forward request
+activate OAUTH
+OAUTH -> OAUTH : exchange code → Google profile\ncheck SocialIdentity (provider+sub) chưa exist\ntạo UserCredential (role=CUSTOMER, status=ACTIVE — no password)\ntạo SocialIdentity (provider, providerSub, userId)
+OAUTH -> K : oauth2.user.registered\n{userId, email, fullName, role=CUSTOMER, registrationMethod=OAUTH}\n[via Outbox]
+OAUTH --> WG : 200 OK + tokens (cookie)
+deactivate OAUTH
+WG --> Buyer : login thành công ngay
+deactivate WG
+
+K -> ID : oauth2.user.registered (registrationMethod=OAUTH)
+activate ID
+ID -> ID : tạo UserAccount (status=ACTIVE)\n(không tạo EmailVerification — OAUTH đã verified)
+ID -> K : identity.customer-account.created\n{userId, email, fullName}\n[via Outbox]
+deactivate ID
+
+K -> CS : identity.customer-account.created
+activate CS
+CS -> CS : tạo CustomerProfile
+deactivate CS
+
+note over ID
+  OAUTH: UserAccount.status=ACTIVE ngay từ đầu.
+  Không publish VerificationEmailRequested.
+  Không cần email verification step.
+end note
+
+@enduml

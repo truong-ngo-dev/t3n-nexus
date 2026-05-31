@@ -24,6 +24,7 @@
 	<modules>
 		<module>libs</module>
 		<module>identity-service</module>
+		<module>oauth2-service</module>
 		<module>customer-service</module>
         <module>notification-service</module>
         <module>email-worker</module>

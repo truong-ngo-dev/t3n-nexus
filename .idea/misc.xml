@@ -10,6 +10,7 @@
         <option value="$PROJECT_DIR$/services/notification-service/pom.xml" />
         <option value="$PROJECT_DIR$/services/libs/idempotency-support/pom.xml" />
         <option value="$PROJECT_DIR$/services/libs/rate-limiter-starter/pom.xml" />
+        <option value="$PROJECT_DIR$/services/oauth2-service/pom.xml" />
       </list>
     </option>
   </component>

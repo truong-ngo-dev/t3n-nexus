@@ -7,18 +7,19 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="idempotency-support" />
         <module name="observability-starter" />
         <module name="customer-service" />
-        <module name="common-domain" />
         <module name="common-utils" />
+        <module name="notification-service" />
+        <module name="oauth2-service" />
+        <module name="idempotency-support" />
+        <module name="common-domain" />
         <module name="common-web" />
         <module name="email-worker" />
         <module name="rate-limiter-starter" />
         <module name="outbox-starter" />
         <module name="identity-service" />
         <module name="common-events" />
-        <module name="notification-service" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
@@ -38,6 +39,7 @@
       <module name="identity-service" options="-parameters" />
       <module name="notification" options="-parameters" />
       <module name="notification-service" options="-parameters" />
+      <module name="oauth2-service" options="-parameters" />
       <module name="observability-starter" options="-parameters" />
       <module name="outbox-starter" options="-parameters" />
       <module name="rate-limiter-starter" options="-parameters" />

@@ -1,0 +1,175 @@
+@startuml sequence-login-device
+title User Login — Device Tracking & Login History\n(identity-service chỉ consume event, không tham gia synchronous path)
+
+actor Buyer
+participant "web-gateway" as WG
+participant "oauth2-service" as OAUTH
+participant "identity-service" as ID
+queue "Kafka" as K
+
+== Happy Path — Login thành công ==
+
+Buyer -> WG : POST /api/auth/login\n{email, password}\n+ headers: User-Agent, IP
+activate WG
+
+WG -> OAUTH : forward (Authorization Code Flow + PKCE)
+activate OAUTH
+
+OAUTH -> OAUTH : load Credential(email)\nvalidate hashedPassword\ncheck status=ACTIVE
+
+OAUTH -> OAUTH : deviceId = hash(userAgent + ip + fingerprint)\ntạo OAuthSession (sid, userId, deviceId)\nissue JWT access token (sub=userId, role=CUSTOMER)\nissue opaque refresh token
+
+OAUTH -> K : oauth2.device.login.recorded\n{deviceId, userId, userAgent, ip,\n loginStatus=SUCCESS, loginAt}\n[via Outbox]
+
+OAUTH --> WG : 200 OK + tokens
+deactivate OAUTH
+
+WG -> WG : lưu access_token & refresh_token\nvào httpOnly cookie
+WG --> Buyer : 200 OK (cookie set)
+deactivate WG
+
+note right of Buyer
+  Token không expose ra Angular.
+  web-gateway giữ session — BFF pattern.
+end note
+
+== Async — oauth2.device.login.recorded (SUCCESS) ==
+
+K -> ID : oauth2.device.login.recorded
+activate ID
+
+ID -> ID : upsert Device:\n  nếu deviceId chưa có:\n    Device.record(deviceId, userId, userAgent, ip)\n  nếu đã có:\n    device.refreshLastSeen()
+
+ID -> ID : append LoginActivity\n(userId, deviceId, loginStatus=SUCCESS,\n ip, userAgent, loginAt)
+
+deactivate ID
+
+== Happy Path — MFA Enabled ==
+
+Buyer -> WG : POST /api/auth/login {email, password}
+activate WG
+WG -> OAUTH : forward
+activate OAUTH
+OAUTH -> OAUTH : validate credential → ACTIVE\nMFA enabled → issue MFA challenge
+OAUTH --> WG : 200 (mfa_required=true, mfa_session_token)
+deactivate OAUTH
+WG --> Buyer : MFA required
+deactivate WG
+
+Buyer -> WG : POST /api/auth/mfa/verify {otp, mfa_session_token}
+activate WG
+WG -> OAUTH : forward
+activate OAUTH
+OAUTH -> OAUTH : validate OTP\ngenerate deviceId, issue tokens
+OAUTH -> K : oauth2.device.login.recorded {..., loginStatus=SUCCESS}
+OAUTH --> WG : 200 OK + tokens
+deactivate OAUTH
+WG --> Buyer : 200 OK (cookie set)
+deactivate WG
+
+K -> ID : oauth2.device.login.recorded
+activate ID
+ID -> ID : upsert Device + append LoginActivity
+deactivate ID
+
+== Error — Sai password ==
+
+Buyer -> WG : POST /api/auth/login {email, wrongPassword}
+activate WG
+WG -> OAUTH : forward
+activate OAUTH
+OAUTH -> OAUTH : validate → sai password
+OAUTH -> K : oauth2.device.login.recorded\n{..., loginStatus=FAILED}
+OAUTH --> WG : 401 Unauthorized
+deactivate OAUTH
+WG --> Buyer : 401 Unauthorized
+deactivate WG
+
+K -> ID : oauth2.device.login.recorded (FAILED)
+activate ID
+ID -> ID : KHÔNG upsert Device\nchỉ append LoginActivity (loginStatus=FAILED)
+note right of ID
+  FAILED login không confirm device
+  thuộc về user → không tạo Device.
+  Chỉ ghi nhận để audit trail.
+end note
+deactivate ID
+
+== Error — Account bị lock ==
+
+Buyer -> WG : POST /api/auth/login {email, password}
+activate WG
+WG -> OAUTH : forward
+activate OAUTH
+OAUTH -> OAUTH : Credential.status=LOCKED → reject ngay
+OAUTH -> K : oauth2.device.login.recorded\n{..., loginStatus=BLOCKED}
+OAUTH --> WG : 423 Locked
+deactivate OAUTH
+WG --> Buyer : 423 Locked
+deactivate WG
+
+K -> ID : oauth2.device.login.recorded (BLOCKED)
+activate ID
+ID -> ID : append LoginActivity (loginStatus=BLOCKED)
+deactivate ID
+
+== Error — Email chưa verify ==
+
+Buyer -> WG : POST /api/auth/login {email, password}
+activate WG
+WG -> OAUTH : forward
+activate OAUTH
+OAUTH -> OAUTH : Credential.status=PENDING → reject
+OAUTH --> WG : 403 EmailNotVerified
+deactivate OAUTH
+WG --> Buyer : 403 Forbidden
+note right of OAUTH
+  PENDING → không publish DeviceLoginRecorded.
+  Không có login attempt để record.
+end note
+deactivate WG
+
+== Device Management — Xem danh sách thiết bị ==
+
+Buyer -> WG : GET /api/v1/identity/me/devices
+activate WG
+WG -> ID : forward (với JWT trong header)
+activate ID
+ID -> ID : extract userId từ JWT sub claim\nquery Device WHERE userId=? AND status=ACTIVE
+ID --> WG : 200 OK {devices: [...]}
+deactivate ID
+WG --> Buyer : 200 OK
+deactivate WG
+
+== Device Management — Revoke thiết bị ==
+
+Buyer -> WG : DELETE /api/v1/identity/me/devices/{deviceId}
+activate WG
+WG -> ID : forward
+activate ID
+ID -> ID : load Device\ncheck device.ownedBy(userId) — 403 nếu không phải\ndevice.revoke()\nsave
+
+note right of ID
+  Revoke chỉ đánh dấu REVOKED trong identity-service.
+  Session tại oauth2-service chưa bị terminate
+  (Phase 2: publish DeviceRevoked → oauth2-service consume).
+end note
+
+ID --> WG : 204 No Content
+deactivate ID
+WG --> Buyer : 204 No Content
+deactivate WG
+
+== Login History — Xem lịch sử đăng nhập ==
+
+Buyer -> WG : GET /api/v1/identity/me/login-activity?offset=0&limit=20
+activate WG
+WG -> ID : forward
+activate ID
+ID -> ID : extract userId từ JWT\nquery LoginActivity WHERE userId=?\nORDER BY loginAt DESC\nLIMIT 20 OFFSET 0
+ID --> WG : 200 OK\n{activities: [...], total, offset, limit}
+deactivate ID
+WG --> Buyer : 200 OK
+deactivate WG
+
+@enduml

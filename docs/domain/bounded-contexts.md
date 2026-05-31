@@ -36,8 +36,8 @@ Service mapping: `../architecture/service-mapping.md`. Architecture decisions: `
 
 | BC            | Service                | Trách nhiệm chính                                     |
 |---------------|------------------------|-------------------------------------------------------|
-| IAM           | `oauth2-service`       | Authentication, session, device, social login         |
-| IAM           | `identity-service`     | User profile, roles, ABAC                             |
+| IAM           | `oauth2-service`       | Authentication, authorization code flow, MFA, social login, session |
+| IAM           | `identity-service`     | User profile, credentials, Device, LoginActivity, ABAC              |
 | Notification  | `notification-service` | Email, push, in-app routing qua Redis Pub/Sub         |
 | WebSocket GW  | `websocket-gateway`    | In-app real-time delivery tới browser                 |
 | Chat          | `chat-service`         | MQTT (EMQX), Customer ↔ Seller, persist MongoDB       |
@@ -52,8 +52,8 @@ Service mapping: `../architecture/service-mapping.md`. Architecture decisions: `
 |--------------------|------------------------------------------------------------|
 | `api-gateway`      | Spring Cloud Gateway — entry point, routing, rate limiting |
 | `web-gateway`      | BFF — 1 shared cho 3 Angular app, httpOnly cookie          |
-| `oauth2-service`   | Authentication, session, device, social login (reuse)      |
-| `identity-service` | User profile, credentials, roles, ABAC (reuse)             |
+| `oauth2-service`   | Authentication, authorization code flow, MFA, social login, session (reuse) |
+| `identity-service` | User profile, credentials, Device, LoginActivity, ABAC (reuse)              |
 
 ---
 
@@ -219,10 +219,39 @@ chat            → notification    (Notify — NewMessageReceived khi recipient
 
 #### IAM BC (`oauth2-service` + `identity-service`)
 
+**`oauth2-service`** — Authorization Server (Spring Authorization Server):
+- `UserCredential`: email, hashedPassword, role, status (replica từ identity-service)
+- `SocialIdentity`: provider, providerSub, userId — social login lookup
+- `MfaConfig`: userId, enabled, method (EMAIL)
+- `OAuthSession`: sid, userId, deviceId — wrap SAS OAuth2Authorization
 - Authorization Code Flow + PKCE, opaque refresh token, JWT access token
-- ABAC/RBAC permission model
-- Roles: `GUEST`, `CUSTOMER`, `SELLER`, `SHIPPER`, `ADMIN`
-- Account lock/unlock: domain BC không tự lưu account state — gọi `identity-service` set `UserStatus=LOCKED`
+- Registration entry point — tạo UserCredential, publish `UserRegistered` event
+- Nhận event từ identity-service để sync UserCredential.status
+
+**`identity-service`** — Identity & User Management:
+- `UserAccount`: userId, email, fullName, phoneNumber, status — source of truth
+- `EmailVerification`: token, userId, expiresAt — registration/verification flow
+- `Device`: deviceId, userId, fingerprint, userAgent, ip — consume event từ oauth2-service
+- `LoginActivity`: userId, deviceId, status, ip, timestamp — consume event từ oauth2-service
+- ABAC/RBAC policy management — in-process enforcement, không có network call
+- Account lock/unlock: source of truth, publish `UserLocked`/`UserUnlocked` → oauth2-service sync
+
+**Roles**: `GUEST`, `CUSTOMER`, `SELLER`, `SHIPPER`, `ADMIN` — 1 user 1 role.
+
+**Credential sync flow**:
+```
+identity-service publish → oauth2-service consume
+  UserActivated  → UserCredential.status = ACTIVE
+  UserLocked     → UserCredential.status = LOCKED
+  UserUnlocked   → UserCredential.status = ACTIVE
+```
+
+**Device flow** (oauth2-service generate, identity-service own):
+```
+oauth2-service: hash(userAgent + ip + ...) → deviceId, lưu vào OAuthSession
+                publish DeviceLoginRecorded { deviceId, userId, ... }
+identity-service: consume → upsert Device entity, append LoginActivity
+```
 
 #### Notification BC
 

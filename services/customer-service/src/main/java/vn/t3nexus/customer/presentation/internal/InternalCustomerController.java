@@ -15,7 +15,7 @@ import vn.t3nexus.customer.presentation.internal.model.CustomerRegisteredRequest
 @RequiredArgsConstructor
 public class InternalCustomerController {
 
-    private final CreateCustomerProfile.Handler createCustomerProfile;
+    private final CreateCustomerProfile createCustomerProfile;
 
     @PostMapping("/events/registered")
     public ResponseEntity<Void> onCustomerRegistered(@Valid @RequestBody CustomerRegisteredRequest request) {

@@ -20,7 +20,7 @@ public class NotificationOutboxEventConsumer {
     private final NotificationDispatchService dispatchService;
 
     @KafkaListener(
-            topics  = {"${app.kafka.topic.customer-registered}", "${app.kafka.topic.verification-resent}", "${app.kafka.topic.email-verified}"},
+            topics  = {"${app.kafka.topic.email-verification-requested}", "${app.kafka.topic.email-verification-reissued}", "${app.kafka.topic.email-verification-verified}"},
             groupId = "${app.kafka.consumer-group}"
     )
     public void consume(String message) {

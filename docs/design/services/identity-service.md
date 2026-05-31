@@ -1,147 +1,96 @@
 # identity-service
 
-**Vai trò**: User management — tạo, quản lý user accounts, credentials, roles và email verification.  
+**Vai trò**: User account management — tạo và quản lý `UserAccount`, email verification, Device, LoginActivity.  
 **DB**: PostgreSQL  
-**Libs**: `common-domain`, `outbox-starter`, `common-web`, `observability-starter`, `security-commons`
+**Libs**: `common-domain`, `outbox-starter`, `common-events`, `common-web`, `observability-starter`
+
+---
+
+## Domain Model
+
+| Aggregate | Fields | Notes |
+|---|---|---|
+| `UserAccount` | userId, email, fullName, phoneNumber, status | Source of truth cho account state |
+| `EmailVerification` | id, userId, email, token, expiresAt, status | Token TTL 24h, rotate khi reissue |
+| `Device` | deviceId, userId, fingerprint, userAgent, ip | Populated từ event, user-facing revoke |
+| `LoginActivity` | userId, deviceId, status, ip, timestamp | Append-only, read-only với user |
 
 ---
 
 ## API
 
-### POST /api/users/register
+### GET /api/users/verify?token={token}
 
-Tạo user mới với `role=CUSTOMER`, `status=PENDING`. Không phát token.
-
-**Request**
-```json
-{
-  "email": "buyer@example.com",
-  "password": "Test@1234",
-  "fullName": "Nguyen Van A"
-}
-```
-
-**Validation**
-- `email`: format hợp lệ, unique trong hệ thống
-- `password`: tối thiểu 8 ký tự, có chữ hoa, chữ thường, số, ký tự đặc biệt
-- `fullName`: không rỗng, tối đa 100 ký tự — nullable ở DB để hỗ trợ Google login (displayName không đảm bảo có)
-
-**Response — 201 Created**
-```json
-{
-  "success": true,
-  "data": { "userId": "01HXYZ..." }
-}
-```
-
-**Errors**
-
-| Code | Condition                                   |
-|------|---------------------------------------------|
-| 400  | Validation fail                             |
-| 409  | Email đã tồn tại                            |
-| 429  | Vượt rate limit (enforced tại web-gateway)  |
-
----
-
-### GET /api/users/verify?token={verificationToken}
-
-Kích hoạt tài khoản. Validate token, set `status=ACTIVE`, xóa token.
+Kích hoạt tài khoản. Validate token → `UserAccount.status = ACTIVE` → publish `UserActivated`.
 
 **Response — 200 OK**
 ```json
-{
-  "success": true,
-  "data": { "message": "Account activated. Please log in." }
-}
+{ "success": true, "data": { "userId": "01HXYZ..." } }
 ```
 
-**Errors**
-
-| Code | Condition                          |
-|------|------------------------------------|
-| 400  | Token hết hạn (`TOKEN_EXPIRED`)    |
-| 400  | Token không tồn tại / đã dùng (`TOKEN_INVALID`) |
+| Code | Condition |
+|---|---|
+| 404 | Token không tồn tại |
+| 410 | Token đã hết hạn |
+| 409 | Email đã verified |
 
 ---
 
 ### POST /api/users/resend-verification
 
-Invalidate token cũ, generate token mới (TTL 24h), publish `identity.user.verification-resent`.  
-Giới hạn 3 lần/giờ per email.
+Giới hạn 3 lần/giờ per email. Chỉ áp dụng khi `status=PENDING`.
 
 **Request**
 ```json
-{
-  "email": "buyer@example.com"
-}
+{ "email": "buyer@example.com" }
 ```
 
-**Response — 200 OK**
-```json
-{
-  "success": true,
-  "data": { "message": "Verification email resent." }
-}
-```
+**Response — 204 No Content**
 
-**Errors**
-
-| Code | Condition                                                                    |
-|------|------------------------------------------------------------------------------|
-| 400  | User đã `ACTIVE` hoặc email không tồn tại (response đồng nhất, không lộ thông tin) |
-| 429  | Vượt 3 lần/giờ per email                                                     |
+| Code | Condition |
+|---|---|
+| 400 | User không ở trạng thái PENDING hoặc email không tồn tại (response đồng nhất) |
+| 429 | Vượt 3 lần/giờ per email |
 
 ---
 
-## Business Rules
+## Events Consumed
 
-- Password hash bằng **BCrypt** — không lưu plaintext
-- `userId` dùng **ULID** (sortable, không đoán được)
-- Role mặc định khi đăng ký: `CUSTOMER`
-- User mới tạo với `status=PENDING` — oauth2-service từ chối login cho đến khi `status=ACTIVE`
-- `verificationToken`: opaque, TTL 24h, lưu bảng `verification_tokens` — xóa sau khi dùng
-- Sau khi tạo user thành công → publish `identity.customer.registered` qua **Outbox Pattern** trong cùng transaction
+| Topic | Event | Handler |
+|---|---|---|
+| `oauth2.user.registered` | `UserRegistered` | `CreateUserAccount` — tạo `UserAccount` + `EmailVerification`, publish `VerificationEmailRequested` |
+| `oauth2.device.login-recorded` | `DeviceLoginRecorded` | Upsert `Device`, append `LoginActivity` |
 
 ---
 
 ## Events Published
 
-| Event                              | Topic                                   | Trigger                              |
-|------------------------------------|-----------------------------------------|--------------------------------------|
-| `CustomerRegistered`               | `identity.customer.registered`          | Sau khi tạo user thành công          |
-| `UserVerificationResent`           | `identity.user.verification-resent`     | Sau khi resend verification thành công |
+| Event | Topic | Trigger |
+|---|---|---|
+| `CustomerAccountCreated` | `identity.customer-account.created` | Sau khi tạo `UserAccount` với role=CUSTOMER |
+| `VerificationEmailRequested` | `identity.email-verification.requested` | Sau khi tạo `EmailVerification` (CREDENTIAL only) |
+| `VerificationReissuedEvent` | `identity.email-verification.reissued` | Sau khi reissue token |
+| `EmailVerifiedEvent` | `identity.email-verification.verified` | Sau khi verify thành công |
+| `UserActivated` | `identity.user.activated` | Sau khi `UserAccount.status = ACTIVE` |
 
-**`identity.customer.registered` payload**
-```json
-{
-  "userId": "01HXYZ...",
-  "email": "buyer@example.com",
-  "fullName": "Nguyen Van A",
-  "role": "CUSTOMER",
-  "verificationToken": "a1b2c3...",
-  "occurredOn": "2026-05-24T10:00:00Z"
-}
-```
+---
 
-**`identity.user.verification-resent` payload**
-```json
-{
-  "userId": "01HXYZ...",
-  "email": "buyer@example.com",
-  "verificationToken": "x9y8z7...",
-  "occurredOn": "2026-05-24T10:10:00Z"
-}
-```
+## Business Rules
+
+- `userId` do oauth2-service generate (ULID), identity-service nhận qua event — không tự generate
+- `UserAccount` tạo với `status=PENDING` khi `registrationMethod=CREDENTIAL`, `status=ACTIVE` khi OAuth
+- `EmailVerification` token: opaque 32-byte random, Base64URL encoded, TTL 24h
+- Reissue token rotate hoàn toàn — token cũ bị invalidate ngay lập tức
+- Account không cần biết password — password owned by oauth2-service
 
 ---
 
 ## Dependencies
 
-| Dependency              | Lý do                                        |
-|-------------------------|----------------------------------------------|
-| `common-domain`         | `AggregateRoot`, `DomainEvent`               |
-| `outbox-starter`        | Publish events reliable qua Outbox Pattern   |
-| `common-web`           | `ApiResponse`, `GlobalExceptionHandler`      |
-| `observability-starter` | Tracing + structured logging                 |
-| `security-commons`      | JWT utils, Spring Security config            |
+| Dependency | Lý do |
+|---|---|
+| `common-domain` | `AggregateRoot`, `DomainEvent` |
+| `outbox-starter` | Publish events reliable qua Outbox Pattern + CDC |
+| `common-events` | `EventEnvelope`, `OutboxEventData` — Kafka contract |
+| `common-web` | `ApiResponse`, `GlobalExceptionHandler` |
+| `observability-starter` | Tracing + structured logging |

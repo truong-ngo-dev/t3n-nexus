@@ -51,6 +51,12 @@
             <artifactId>spring-security-crypto</artifactId>
         </dependency>
 
+        <!-- Messaging -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+
         <!-- ULID -->
         <dependency>
             <groupId>com.github.f4b6a3</groupId>
