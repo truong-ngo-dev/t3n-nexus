@@ -29,8 +29,6 @@ public class CustomerRegisteredConsumer {
         try {
             CustomerAccountCreatedPayload payload = decoder.decode(event, CustomerAccountCreatedPayload.class);
             createCustomerProfile.handle(new CreateCustomerProfile.Command(payload.userId()));
-        } catch (Exception e) {
-            log.error(e.getMessage(), e);
         } finally {
             EventEnvelopeMdcPropagator.clear();
         }

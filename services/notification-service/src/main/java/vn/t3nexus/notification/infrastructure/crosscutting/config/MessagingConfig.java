@@ -1,6 +1,8 @@
 package vn.t3nexus.notification.infrastructure.crosscutting.config;
 
 import org.apache.kafka.common.TopicPartition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +18,8 @@ import vn.t3nexus.lib.events.EventEnvelopeDecoder;
 
 @Configuration
 public class MessagingConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(MessagingConfig.class);
 
     @Value("${app.kafka.topic.dlq}") private String dlqTopic;
 
@@ -34,7 +38,11 @@ public class MessagingConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
-        factory.setCommonErrorHandler(new DefaultErrorHandler(recoverer, new FixedBackOff(2000L, 3)));
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(2000L, 3));
+        errorHandler.setRetryListeners((record, ex, deliveryAttempt) ->
+                log.error("[Kafka] consumer error, attempt={}/3, topic={}, offset={}, partition={}",
+                        deliveryAttempt, record.topic(), record.offset(), record.partition(), ex));
+        factory.setCommonErrorHandler(errorHandler);
         return factory;
     }
 }

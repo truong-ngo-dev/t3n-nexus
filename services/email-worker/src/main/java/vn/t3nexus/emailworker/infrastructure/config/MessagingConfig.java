@@ -1,6 +1,8 @@
 package vn.t3nexus.emailworker.infrastructure.config;
 
 import org.apache.kafka.common.TopicPartition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +16,8 @@ import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
 public class MessagingConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(MessagingConfig.class);
 
     @Value("${app.kafka.concurrency.tier1}") private int tier1Concurrency;
     @Value("${app.kafka.concurrency.tier2}") private int tier2Concurrency;
@@ -33,6 +37,9 @@ public class MessagingConfig {
         // Transactional: fast retries — 2s × 3, then DLQ
         DefaultErrorHandler tier1ErrorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(2000L, 3));
         tier1ErrorHandler.setAckAfterHandle(true);
+        tier1ErrorHandler.setRetryListeners((record, ex, deliveryAttempt) ->
+                log.error("[Kafka][tier1] consumer error, attempt={}/3, topic={}, offset={}, partition={}",
+                        deliveryAttempt, record.topic(), record.offset(), record.partition(), ex));
         factory.setCommonErrorHandler(tier1ErrorHandler);
         return factory;
     }
@@ -51,6 +58,9 @@ public class MessagingConfig {
         // Bulk: slow retries — 60s × 3, avoid hammering external SMTP on transient failures, then DLQ
         DefaultErrorHandler tier2ErrorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(60_000L, 3));
         tier2ErrorHandler.setAckAfterHandle(true);
+        tier2ErrorHandler.setRetryListeners((record, ex, deliveryAttempt) ->
+                log.error("[Kafka][tier2] consumer error, attempt={}/3, topic={}, offset={}, partition={}",
+                        deliveryAttempt, record.topic(), record.offset(), record.partition(), ex));
         factory.setCommonErrorHandler(tier2ErrorHandler);
         return factory;
     }
