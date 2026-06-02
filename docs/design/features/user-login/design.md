@@ -135,18 +135,30 @@ Authentication (validate credential, issue token) hoàn toàn thuộc `oauth2-se
 ### Pre-conditions
 
 - User đã có Credential với status=ACTIVE
-- MFA (nếu enabled): user đã nhập đúng OTP
+- `Credential.mfaEnabled` được check in-process — không có extra DB query (denormalized field)
 
-### Happy Path — Login
+### MFA — Cách tiếp cận
+
+`MfaConfig` là entity riêng trong oauth2-service lưu OTP secret. Tuy nhiên `mfaEnabled` flag được
+denormalize thành column trên `Credential` để login hot path chỉ cần 1 DB read duy nhất (load
+Credential để validate password, check status, check mfaEnabled — cùng lúc).
+
+Khi user bật/tắt MFA: cập nhật `MfaConfig.enabled` và `Credential.mfaEnabled` trong cùng 1 transaction.
+
+MFA là **user opt-in** (default `false`). Framework: Spring Security 7 `@EnableMultiFactorAuthentication`
++ `RequiredAuthoritiesRepository` backed bởi `Credential.mfaEnabled`.
+Chi tiết framework flow → [`docs/architecture/spring-security-mfa-bff.md`](../../../architecture/spring-security-mfa-bff.md)
+
+### Happy Path — Login (không có MFA)
 
 ```
 Buyer
   → POST /api/auth/login  {email, password}  (+ UserAgent, IP từ header)
-  → web-gateway → oauth2-service
-  → oauth2-service Authorization Code Flow + PKCE:
+  → web-gateway → oauth2-service (Authorization Code Flow + PKCE)
+  → oauth2-service:
       validate Credential (email, hashedPassword)
       check status: PENDING → reject, LOCKED → reject, ACTIVE → proceed
-      (nếu MFA enabled) → issue MFA challenge → verify OTP
+      check Credential.mfaEnabled = false → skip OTT flow
       generate deviceId = hash(userAgent + ip + fingerprint)
       tạo OAuthSession (sid, userId, deviceId)
       issue JWT access token + opaque refresh token
@@ -162,6 +174,33 @@ Buyer
         nếu đã có → device.refreshLastSeen()
       append LoginActivity (userId, deviceId, loginStatus=SUCCESS, ip, userAgent, loginAt)
 ```
+
+### Happy Path — Login (có MFA)
+
+```
+Buyer
+  → POST /api/auth/login  {email, password}
+  → oauth2-service:
+      validate Credential → ACTIVE, mfaEnabled = true
+      [First factor OK] session rotate → SecurityContext { PASSWORD_AUTHORITY }
+      OTT auto-generate server-side (OneTimeTokenService) → lưu Redis TTL 5 phút
+      GeneratedOneTimeTokenHandler → publish event gửi OTP qua email
+      redirect → /login/ott (form nhập OTP)
+
+  Buyer nhập OTP → POST /login/ott {token}
+  → oauth2-service:
+      consume OTT (GETDEL atomic) → verify
+      [Second factor OK] session rotate → SecurityContext { PASSWORD_AUTHORITY, OTT_AUTHORITY }
+      → fully authenticated
+      generate deviceId, tạo OAuthSession, issue tokens
+      publish oauth2.device.login.recorded {..., loginStatus=SUCCESS}  [via Outbox]
+  → return token → web-gateway lưu vào httpOnly cookie
+
+        ↓ Kafka async — oauth2.device.login.recorded (giống non-MFA)
+```
+
+> `publish oauth2.device.login.recorded` chỉ xảy ra sau khi **cả 2 factors** verified thành công.
+> `loginAt` phản ánh thời điểm hoàn thành MFA, không phải thời điểm nhập password.
 
 ### Happy Path — Login thất bại (sai password)
 
@@ -202,7 +241,7 @@ identity-service:
 | Sai password | oauth2-service reject | 401 |
 | status=PENDING | oauth2-service reject | 403 EmailNotVerified |
 | status=LOCKED | oauth2-service reject | 423 Locked |
-| MFA OTP sai | oauth2-service reject | 401 |
+| MFA OTP sai hoặc expired | oauth2-service reject (OneTimeTokenService.consume → nil) | 401 |
 
 ---
 

@@ -39,6 +39,9 @@ public class UserCredentialJpaEntity {
     @Column(name = "status", nullable = false)
     private UserCredentialStatus status;
 
+    @Column(name = "mfa_enabled", nullable = false)
+    private boolean mfaEnabled;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

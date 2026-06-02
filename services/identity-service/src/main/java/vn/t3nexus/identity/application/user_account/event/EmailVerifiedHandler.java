@@ -8,7 +8,7 @@ import vn.t3nexus.lib.outbox.OutboxEventStore;
 
 @Component
 @RequiredArgsConstructor
-public class EmailVerifiedHandler implements EventHandler<EmailVerifiedEvent> {
+public class EmailVerifiedEventHandler implements EventHandler<EmailVerifiedEvent> {
 
     private final OutboxEventStore outboxEventStore;
 

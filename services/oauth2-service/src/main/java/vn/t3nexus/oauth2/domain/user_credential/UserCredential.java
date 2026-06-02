@@ -14,6 +14,7 @@ public class UserCredential extends AbstractAggregateRoot<UserId> implements Agg
     private final Role                 role;
     private final RegistrationMethod   registrationMethod;
     private       UserCredentialStatus status;
+    private       boolean              mfaEnabled;
     private final Instant              createdAt;
     private       Instant              updatedAt;
 
@@ -25,19 +26,21 @@ public class UserCredential extends AbstractAggregateRoot<UserId> implements Agg
         this.role                = role;
         this.registrationMethod  = registrationMethod;
         this.status              = status;
+        this.mfaEnabled          = false;
         this.createdAt           = Instant.now();
         this.updatedAt           = this.createdAt;
     }
 
     private UserCredential(UserId id, String email, CredentialPassword password,
                            Role role, RegistrationMethod registrationMethod, UserCredentialStatus status,
-                           Instant createdAt, Instant updatedAt) {
+                           boolean mfaEnabled, Instant createdAt, Instant updatedAt) {
         setId(id);
         this.email              = email;
         this.password           = password;
         this.role               = role;
         this.registrationMethod = registrationMethod;
         this.status             = status;
+        this.mfaEnabled         = mfaEnabled;
         this.createdAt          = createdAt;
         this.updatedAt          = updatedAt;
     }
@@ -62,9 +65,9 @@ public class UserCredential extends AbstractAggregateRoot<UserId> implements Agg
 
     public static UserCredential reconstitute(UserId id, String email, CredentialPassword password,
                                               Role role, RegistrationMethod registrationMethod,
-                                              UserCredentialStatus status,
+                                              UserCredentialStatus status, boolean mfaEnabled,
                                               Instant createdAt, Instant updatedAt) {
-        return new UserCredential(id, email, password, role, registrationMethod, status, createdAt, updatedAt);
+        return new UserCredential(id, email, password, role, registrationMethod, status, mfaEnabled, createdAt, updatedAt);
     }
 
     // ───────────── Status Transitions ─────────────
@@ -85,6 +88,18 @@ public class UserCredential extends AbstractAggregateRoot<UserId> implements Agg
         if (!isLocked()) throw UserCredentialException.invalidStatusTransition();
         this.status    = UserCredentialStatus.ACTIVE;
         this.updatedAt = Instant.now();
+    }
+
+    // ───────────── MFA ─────────────
+
+    public void enableMfa() {
+        this.mfaEnabled = true;
+        this.updatedAt  = Instant.now();
+    }
+
+    public void disableMfa() {
+        this.mfaEnabled = false;
+        this.updatedAt  = Instant.now();
     }
 
     // ───────────── Login ─────────────
@@ -128,6 +143,7 @@ public class UserCredential extends AbstractAggregateRoot<UserId> implements Agg
     public Role                 getRole()               { return role; }
     public RegistrationMethod   getRegistrationMethod() { return registrationMethod; }
     public UserCredentialStatus getStatus()             { return status; }
+    public boolean              isMfaEnabled()          { return mfaEnabled; }
     public Instant              getCreatedAt()          { return createdAt; }
     public Instant              getUpdatedAt()          { return updatedAt; }
 }

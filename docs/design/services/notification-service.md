@@ -108,6 +108,7 @@ inapp-worker: PUBLISH "user:A:inapp" → Instance 1 nhận (2 sessions)
 
 | Event                                      | Email   | In-App | Lý do                                                 |
 |--------------------------------------------|---------|--------|-------------------------------------------------------|
+| `LoginOtpRequested`                        | ✅ T1    | ❌      | User đang bị chặn giữa login flow, OTP TTL 300s       |
 | `CustomerRegistered`                       | ✅ T1    | ❌      | User chưa có session, cần persistent link             |
 | `UserVerificationResent`                   | ✅ T1    | ❌      | Như trên                                              |
 | `OrderConfirmed`                           | ✅ T1    | ✅      | Critical — audit trail (email) + realtime UX (in-app) |
@@ -373,9 +374,10 @@ Hai lý do kỹ thuật cụ thể, không phải convention:
 
 ## Events Consumed
 
-| Event                          | Topic                               | Tier | Channel        | Phase |
-|--------------------------------|-------------------------------------|------|----------------|-------|
-| `CustomerRegistered`           | `identity.customer.registered`      | T1   | Email          | 4     |
+| Event                          | Topic                               | Tier | Channel        | Phase   |
+|--------------------------------|-------------------------------------|------|----------------|---------|
+| `LoginOtpRequested`            | `oauth2.login-otp.requested`        | T1   | Email          | current |
+| `CustomerRegistered`           | `identity.customer.registered`      | T1   | Email          | 4       |
 | `UserVerificationResent`       | `identity.user.verification-resent` | T1   | Email          | 4     |
 | `OrderConfirmed`               | `order.order.confirmed`             | T1   | Email + In-App | later |
 | `OrderCancelled`               | `order.order.cancelled`             | T1   | Email + In-App | later |

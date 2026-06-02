@@ -46,31 +46,47 @@ deactivate ID
 
 == Happy Path — MFA Enabled ==
 
-Buyer -> WG : POST /api/auth/login {email, password}
+note over Buyer, OAUTH
+  Spring Security 7 xử lý MFA nội bộ trong oauth2-service.
+  Buyer chỉ thấy: form password → form OTP → login xong.
+  web-gateway không tham gia vào MFA interaction.
+  Chi tiết framework flow → docs/architecture/spring-security-mfa-bff.md
+end note
+
+Buyer -> WG : Redirect to /oauth2/authorization/{registrationId}
 activate WG
-WG -> OAUTH : forward
+WG -> OAUTH : GET /oauth2/authorize?... (Authorization Code Flow + PKCE)
 activate OAUTH
-OAUTH -> OAUTH : validate credential → ACTIVE\nMFA enabled → issue MFA challenge
-OAUTH --> WG : 200 (mfa_required=true, mfa_session_token)
+OAUTH --> Buyer : 200 Login Form
 deactivate OAUTH
-WG --> Buyer : MFA required
 deactivate WG
 
-Buyer -> WG : POST /api/auth/mfa/verify {otp, mfa_session_token}
-activate WG
-WG -> OAUTH : forward
+Buyer -> OAUTH : POST /login {email, password}
 activate OAUTH
-OAUTH -> OAUTH : validate OTP\ngenerate deviceId, issue tokens
-OAUTH -> K : oauth2.device.login.recorded {..., loginStatus=SUCCESS}
-OAUTH --> WG : 200 OK + tokens
+OAUTH -> OAUTH : validate Credential → ACTIVE\nCredential.mfaEnabled = true (in-process, no extra query)\n[First factor OK] session rotate\nSecurityContext { PASSWORD_AUTHORITY }
+OAUTH -> OAUTH : OTT auto-generate server-side\n(OneTimeTokenService → Redis TTL 5 min)\nGeneratedOneTimeTokenHandler → publish OTP delivery event
+OAUTH --> Buyer : 302 /login/ott
 deactivate OAUTH
+
+Buyer -> OAUTH : POST /login/ott {token}
+activate OAUTH
+OAUTH -> OAUTH : OneTimeTokenService.consume (GETDEL atomic)\n[Second factor OK] session rotate\nSecurityContext { PASSWORD_AUTHORITY, OTT_AUTHORITY }\n→ fully authenticated\ngenerate deviceId, tạo OAuthSession, issue tokens
+OAUTH -> K : oauth2.device.login.recorded\n{..., loginStatus=SUCCESS}\n[via Outbox]
+OAUTH --> WG : redirect với authorization_code
+deactivate OAUTH
+
 WG --> Buyer : 200 OK (cookie set)
-deactivate WG
 
 K -> ID : oauth2.device.login.recorded
 activate ID
 ID -> ID : upsert Device + append LoginActivity
 deactivate ID
+
+note right of OAUTH
+  publish DeviceLoginRecorded chỉ xảy ra
+  sau khi cả 2 factors verified.
+  loginAt = thời điểm hoàn thành MFA.
+end note
 
 == Error — Sai password ==
 

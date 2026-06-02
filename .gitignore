@@ -1,0 +1,6 @@
+# Node
+web/node_modules/
+
+# Angular / NX build cache
+web/.angular/
+web/.nx/

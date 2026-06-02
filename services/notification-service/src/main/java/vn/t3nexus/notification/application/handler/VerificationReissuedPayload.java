@@ -3,7 +3,7 @@ package vn.t3nexus.notification.application.handler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * Mirrors VerificationReissuedEvent from identity-service.
+ * Mirrors VerificationReissued from identity-service.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record VerificationReissuedPayload(

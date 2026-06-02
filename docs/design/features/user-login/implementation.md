@@ -3,6 +3,10 @@
 > Tham chiếu design: [`design.md`](design.md)
 > Sequence diagrams: [`sequence-registration-refactor.puml`](sequence-registration-refactor.puml),
 > [`sequence-login-device.puml`](sequence-login-device.puml)
+> Framework reference (BFF + MFA flow): [`docs/architecture/spring-security-mfa-bff.md`](../../../architecture/spring-security-mfa-bff.md)
+>
+> **Scope:** Tài liệu này cover identity-service (Phần 1: refactor registration, Phần 2: device/login activity).
+> oauth2-service implementation (Spring Authorization Server config, MFA, Credential model) → deferred item 3.
 
 ---
 

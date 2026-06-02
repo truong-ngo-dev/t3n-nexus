@@ -8,7 +8,7 @@ import vn.t3nexus.lib.outbox.OutboxEventStore;
 
 @Component
 @RequiredArgsConstructor
-public class VerificationReissuedHandler implements EventHandler<VerificationReissuedEvent> {
+public class VerificationReissuedEventHandler implements EventHandler<VerificationReissuedEvent> {
 
     private final OutboxEventStore outboxEventStore;
 

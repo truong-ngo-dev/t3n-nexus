@@ -48,19 +48,29 @@ Tương tự pattern đã làm ở `customer-service/CustomerRegisteredConsumer`
 
 ---
 
-## 3. MFA — Email OTP
+## 3. MFA — Email OTP (oauth2-service)
 
-**Làm khi nào:** Khi implement oauth2-service MFA flow.
+**Làm khi nào:** Khi implement oauth2-service.
 
-**Context:**
-ADR-001 mô tả MFA với method=EMAIL: sau first-factor (password), oauth2-service issue MFA challenge,
-gửi OTP qua email, user nhập OTP để hoàn thành login.
+**Framework:** Spring Security 7 — `@EnableMultiFactorAuthentication`, `OneTimeTokenService`, `RequiredAuthoritiesRepository`.
+Chi tiết framework flow → [`docs/architecture/spring-security-mfa-bff.md`](../../../architecture/spring-security-mfa-bff.md)
 
-Phần identity-service không cần thay đổi — MFA hoàn toàn do oauth2-service xử lý.
-`DeviceLoginRecorded` chỉ được publish sau khi MFA verify thành công.
+**Những gì cần implement trong oauth2-service:**
 
-**Chỉ cần verify:** `LoginActivity` record vẫn đúng khi MFA enabled — loginAt phản ánh
-thời điểm hoàn thành MFA, không phải thời điểm nhập password.
+| Việc | Chi tiết |
+|---|---|
+| `MfaConfig` entity | Lưu OTP secret, tách khỏi `Credential` |
+| `Credential.mfaEnabled` | Denormalized flag — không query `MfaConfig` trên login hot path |
+| `RedisOneTimeTokenService` | Implements `OneTimeTokenService` — `SET ott:{token}=username TTL 5min`, consume bằng `GETDEL` |
+| `GeneratedOneTimeTokenHandler` | Publish event gửi OTP qua email (hook vào notification flow) |
+| `RequiredAuthoritiesRepository` | Backed bởi `Credential.mfaEnabled` |
+| Spring Security config | `@EnableMultiFactorAuthentication` + `oneTimeTokenLogin()` |
+| Custom `AuthenticationSuccessHandler` | Auto-generate OTT sau password verified, `@Transactional` để Outbox insert cùng transaction |
+
+**identity-service không cần thay đổi** — MFA hoàn toàn do oauth2-service xử lý.
+`DeviceLoginRecorded` chỉ được publish sau khi cả 2 factors verified thành công.
+
+**Verify:** `LoginActivity.loginAt` phản ánh thời điểm hoàn thành MFA, không phải thời điểm nhập password.
 
 ---
 

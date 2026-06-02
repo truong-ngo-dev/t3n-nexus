@@ -1,0 +1,2 @@
+ALTER TABLE user_credentials
+    ADD COLUMN mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;

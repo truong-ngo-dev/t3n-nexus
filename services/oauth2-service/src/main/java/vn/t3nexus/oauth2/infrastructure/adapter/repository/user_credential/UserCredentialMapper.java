@@ -21,6 +21,7 @@ public class UserCredentialMapper {
                 entity.getRole(),
                 entity.getRegistrationMethod(),
                 entity.getStatus(),
+                entity.isMfaEnabled(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

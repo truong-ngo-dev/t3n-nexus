@@ -1,0 +1,48 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "bundler",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022", "dom"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@t3n/shared/model":       ["libs/shared/model/src/index.ts"],
+      "@t3n/shared/util":        ["libs/shared/util/src/index.ts"],
+      "@t3n/shared/ui":          ["libs/shared/ui/src/index.ts"],
+      "@t3n/shared/data-access": ["libs/shared/data-access/src/index.ts"],
+
+      "@t3n/storefront/ui":               ["libs/storefront/ui/src/index.ts"],
+      "@t3n/storefront/feature-home":     ["libs/storefront/feature-home/src/index.ts"],
+      "@t3n/storefront/feature-catalog":  ["libs/storefront/feature-catalog/src/index.ts"],
+      "@t3n/storefront/feature-cart":     ["libs/storefront/feature-cart/src/index.ts"],
+      "@t3n/storefront/feature-checkout": ["libs/storefront/feature-checkout/src/index.ts"],
+      "@t3n/storefront/feature-order":    ["libs/storefront/feature-order/src/index.ts"],
+      "@t3n/storefront/feature-profile":  ["libs/storefront/feature-profile/src/index.ts"],
+      "@t3n/storefront/feature-chat":     ["libs/storefront/feature-chat/src/index.ts"],
+
+      "@t3n/seller-portal/ui":                 ["libs/seller-portal/ui/src/index.ts"],
+      "@t3n/seller-portal/feature-dashboard":  ["libs/seller-portal/feature-dashboard/src/index.ts"],
+      "@t3n/seller-portal/feature-product":    ["libs/seller-portal/feature-product/src/index.ts"],
+      "@t3n/seller-portal/feature-order":      ["libs/seller-portal/feature-order/src/index.ts"],
+      "@t3n/seller-portal/feature-shop":       ["libs/seller-portal/feature-shop/src/index.ts"],
+      "@t3n/seller-portal/feature-chat":       ["libs/seller-portal/feature-chat/src/index.ts"],
+      "@t3n/seller-portal/feature-report":     ["libs/seller-portal/feature-report/src/index.ts"],
+
+      "@t3n/admin-portal/ui":               ["libs/admin-portal/ui/src/index.ts"],
+      "@t3n/admin-portal/feature-user":     ["libs/admin-portal/feature-user/src/index.ts"],
+      "@t3n/admin-portal/feature-seller":   ["libs/admin-portal/feature-seller/src/index.ts"],
+      "@t3n/admin-portal/feature-catalog":  ["libs/admin-portal/feature-catalog/src/index.ts"],
+      "@t3n/admin-portal/feature-report":   ["libs/admin-portal/feature-report/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "tmp"]
+}

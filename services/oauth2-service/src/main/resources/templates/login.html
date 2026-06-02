@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Đăng nhập — T3Nexus</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f8fafc;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 40px 36px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.07);
+        }
+        h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 28px; color: #0f172a; }
+        .error {
+            color: #b91c1c;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            font-size: 0.875rem;
+        }
+        .field { margin-bottom: 16px; }
+        label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color .15s;
+        }
+        input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+        button[type="submit"] {
+            width: 100%;
+            margin-top: 8px;
+            padding: 11px;
+            background: #1d4ed8;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        button[type="submit"]:hover { background: #1e40af; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>Đăng nhập T3Nexus</h1>
+
+    <div class="error" th:if="${param.error}">Email hoặc mật khẩu không đúng.</div>
+
+    <form th:action="@{/login}" method="post">
+        <div class="field">
+            <label for="username">Email</label>
+            <input type="text" id="username" name="username" autocomplete="email" autofocus required/>
+        </div>
+        <div class="field">
+            <label for="password">Mật khẩu</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" required/>
+        </div>
+        <button type="submit">Đăng nhập</button>
+    </form>
+</div>
+</body>
+</html>

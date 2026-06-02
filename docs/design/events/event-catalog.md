@@ -13,10 +13,11 @@ Schema quản lý bởi Confluent Schema Registry (Avro/Protobuf).
 
 ## oauth2-service
 
-| Event                | Topic                          | Consumers        | Pattern        | Key Payload                                                             |
-|----------------------|--------------------------------|------------------|----------------|-------------------------------------------------------------------------|
-| `UserRegistered`     | `oauth2.user.registered`       | identity-service | Projection     | `userId`, `email`, `fullName`, `role`, `registrationMethod`             |
-| `DeviceLoginRecorded`| `oauth2.device.login-recorded` | identity-service | Projection     | `deviceId`, `userId`, `userAgent`, `ip`, `loginStatus`, `loginAt`       |
+| Event                | Topic                          | Consumers            | Pattern        | Key Payload                                                             |
+|----------------------|--------------------------------|----------------------|----------------|-------------------------------------------------------------------------|
+| `UserRegistered`     | `oauth2.user.registered`       | identity-service     | Projection     | `userId`, `email`, `fullName`, `role`, `registrationMethod`             |
+| `DeviceLoginRecorded`| `oauth2.device.login-recorded` | identity-service     | Projection     | `deviceId`, `userId`, `userAgent`, `ip`, `loginStatus`, `loginAt`       |
+| `LoginOtpRequested`  | `oauth2.login-otp.requested`   | notification-service | Notify         | `userId`, `email`, `token`                                              |
 
 ---
 

@@ -1,0 +1,55 @@
+package vn.t3nexus.notification.application.handler;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
+import vn.t3nexus.notification.application.notification.NotificationEventHandler;
+import vn.t3nexus.notification.application.notification.NotificationResult;
+import vn.t3nexus.notification.application.notification.NotificationTrigger;
+import vn.t3nexus.notification.domain.notification.NotificationChannel;
+import vn.t3nexus.notification.domain.notification.NotificationLog;
+import vn.t3nexus.notification.domain.notification.NotificationLogId;
+import vn.t3nexus.notification.domain.notification.NotificationPayload;
+import vn.t3nexus.notification.domain.notification.NotificationTier;
+import vn.t3nexus.notification.domain.notification.NotificationType;
+
+import java.util.Map;
+
+@Component
+@RequiredArgsConstructor
+public class LoginOtpRequestedHandler implements NotificationEventHandler<LoginOtpRequestedPayload> {
+
+    private final ULIDGenerator ulidGenerator;
+
+    @Override
+    public String supportedEventType() {
+        return "LoginOtpRequestedEvent";
+    }
+
+    @Override
+    public Class<LoginOtpRequestedPayload> payloadType() {
+        return LoginOtpRequestedPayload.class;
+    }
+
+    @Override
+    public NotificationResult handle(NotificationTrigger trigger, LoginOtpRequestedPayload payload) {
+        NotificationPayload notificationPayload = NotificationPayload.of(
+                "Mã OTP đăng nhập của bạn",
+                "Sử dụng mã OTP bên dưới để hoàn tất đăng nhập.",
+                Map.of("templateVars", Map.of("otp", payload.token()))
+        );
+
+        NotificationLog log = NotificationLog.create(
+                NotificationLogId.of(ulidGenerator.generate()),
+                trigger.eventId(),
+                NotificationType.LOGIN_OTP,
+                NotificationChannel.EMAIL,
+                NotificationTier.TRANSACTIONAL,
+                trigger.aggregateId(),
+                payload.email(),
+                notificationPayload
+        );
+
+        return NotificationResult.emailOnly(log);
+    }
+}
