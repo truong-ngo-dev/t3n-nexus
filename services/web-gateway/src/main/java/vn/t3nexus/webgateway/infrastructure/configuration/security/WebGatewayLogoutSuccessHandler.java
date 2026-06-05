@@ -1,5 +1,6 @@
 package vn.t3nexus.webgateway.infrastructure.configuration.security;
 
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.core.Authentication;
@@ -24,42 +25,39 @@ import java.util.Objects;
 
 /**
  * Logout success handler for BFF pattern.
- * Initiates OIDC RP-Initiated Logout and returns 202 Accepted + Location header
- * instead of 302, so the Angular SPA can navigate to the logout URL manually.
  *
- * KEY MAPPING (TODO): Planned to also clean up webgw:oauth:{sid} / webgw:session:{id}
- * Redis entries on logout. See commented cleanUpSessionMappings() below.
+ * 1. Reads oss_id (OAuthSession.id) from OidcUser attributes
+ * 2. Cleans up Redis mappings: webgw:oauth:{oss_id} and webgw:session:{session_id}
+ * 3. Returns 202 Accepted + Location: /connect/logout?id_token_hint=...
+ *    so the Angular SPA can navigate to the OIDC end-session URL manually.
  */
 public class WebGatewayLogoutSuccessHandler implements ServerLogoutSuccessHandler {
 
-    private final WebGatewayOAuth2RedirectStrategy redirectStrategy =
+    private final WebGatewayOAuth2RedirectStrategy  redirectStrategy  =
             new WebGatewayOAuth2RedirectStrategy(HttpStatus.ACCEPTED);
 
-    private final RedirectServerLogoutSuccessHandler fallbackHandler =
+    private final RedirectServerLogoutSuccessHandler fallbackHandler   =
             new RedirectServerLogoutSuccessHandler();
 
     private final ReactiveClientRegistrationRepository clientRegistrationRepository;
-
-    // [KEY MAPPING - TODO]
-    // private final ReactiveStringRedisTemplate redisTemplate;
-    // [/KEY MAPPING]
+    private final ReactiveStringRedisTemplate          redisTemplate;
 
     private String postLogoutRedirectUri;
-    private URI endSessionUri;
+    private URI    endSessionUri;
 
-    public WebGatewayLogoutSuccessHandler(ReactiveClientRegistrationRepository clientRegistrationRepository) {
+    public WebGatewayLogoutSuccessHandler(
+            ReactiveClientRegistrationRepository clientRegistrationRepository,
+            ReactiveStringRedisTemplate redisTemplate) {
         Assert.notNull(clientRegistrationRepository, "clientRegistrationRepository cannot be null");
+        Assert.notNull(redisTemplate, "redisTemplate cannot be null");
         this.clientRegistrationRepository = clientRegistrationRepository;
-        // [KEY MAPPING - TODO] inject ReactiveStringRedisTemplate for session cleanup
+        this.redisTemplate                = redisTemplate;
     }
 
     @Override
     @SuppressWarnings("all")
     public Mono<Void> onLogoutSuccess(WebFilterExchange exchange, Authentication authentication) {
-        // [KEY MAPPING - TODO]
-        // OidcUser user = (OidcUser) authentication.getPrincipal();
-        // String authorizationId = user.getUserInfo().getClaimAsString("sid");
-        // [/KEY MAPPING]
+        String ossId = extractOssId(authentication);
 
         return Mono.just(authentication)
                 .filter(OAuth2AuthenticationToken.class::isInstance)
@@ -70,31 +68,31 @@ public class WebGatewayLogoutSuccessHandler implements ServerLogoutSuccessHandle
                 .flatMap(clientRegistration -> {
                     URI endSessionEndpoint = endSessionEndpoint(clientRegistration);
                     if (endSessionEndpoint == null) return Mono.empty();
-                    String idToken = idToken(authentication);
+                    String idToken       = idToken(authentication);
                     String postLogoutUri = postLogoutRedirectUri(exchange.getExchange().getRequest(), clientRegistration);
                     return Mono.just(endpointUri(endSessionEndpoint, idToken, postLogoutUri));
                 })
                 .switchIfEmpty(this.fallbackHandler.onLogoutSuccess(exchange, authentication).then(Mono.empty()))
                 .flatMap(endpointUri ->
-                        // [KEY MAPPING - TODO] cleanUpSessionMappings(authorizationId).then(...)
-                        this.redirectStrategy.sendRedirect(exchange.getExchange(), URI.create(endpointUri)));
+                        cleanUpSessionMappings(ossId)
+                                .then(this.redirectStrategy.sendRedirect(exchange.getExchange(), URI.create(endpointUri))));
     }
 
-    // [KEY MAPPING - TODO]
-    // private Mono<Void> cleanUpSessionMappings(String authorizationId) {
-    //     return Mono.just(authorizationId)
-    //             .flatMap(aid -> {
-    //                 String oauthKey = SessionMappingAuthenticationSuccessHandler.WEBGW_OAUTH_KEY_PREFIX + aid;
-    //                 return redisTemplate.opsForValue().get(oauthKey)
-    //                         .flatMap(sid -> {
-    //                             String sessionKey = SessionMappingAuthenticationSuccessHandler.WEBGW_SESSION_KEY_PREFIX + sid;
-    //                             return redisTemplate.delete(oauthKey, sessionKey).then();
-    //                         })
-    //                         .onErrorResume(e -> Mono.empty());
-    //             })
-    //             .onErrorResume(e -> Mono.empty());
-    // }
-    // [/KEY MAPPING]
+    private Mono<Void> cleanUpSessionMappings(String ossId) {
+        if (ossId == null) return Mono.empty();
+        String oauthKey = SessionMappingAuthenticationSuccessHandler.WEBGW_OAUTH_KEY_PREFIX + ossId;
+        return redisTemplate.opsForValue().get(oauthKey)
+                .flatMap(springSessionId -> {
+                    String sessionKey = SessionMappingAuthenticationSuccessHandler.WEBGW_SESSION_KEY_PREFIX + springSessionId;
+                    return redisTemplate.delete(oauthKey, sessionKey).then();
+                })
+                .onErrorResume(e -> Mono.empty());
+    }
+
+    private String extractOssId(Authentication authentication) {
+        if (!(authentication.getPrincipal() instanceof OidcUser user)) return null;
+        return user.getAttribute("oss_id");
+    }
 
     public void setPostLogoutRedirectUri(String postLogoutRedirectUri) {
         Assert.notNull(postLogoutRedirectUri, "postLogoutRedirectUri cannot be null");

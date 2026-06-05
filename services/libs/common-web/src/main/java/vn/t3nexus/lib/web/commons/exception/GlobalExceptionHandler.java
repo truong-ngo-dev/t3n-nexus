@@ -17,7 +17,7 @@ import java.util.List;
  * <br>Translates various exceptions into a consistent {@link ApiResponse} format.
  */
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class    GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)

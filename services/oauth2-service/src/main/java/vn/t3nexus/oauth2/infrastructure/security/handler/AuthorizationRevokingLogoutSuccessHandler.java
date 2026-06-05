@@ -3,9 +3,11 @@ package vn.t3nexus.oauth2.infrastructure.security.handler;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcLogoutAuthenticationToken;
 import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.RedirectStrategy;
@@ -13,25 +15,17 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
-// TODO [business]: import vn.t3nexus.oauth2.application.session.revoke.RevokeSession;
+import vn.t3nexus.oauth2.application.session.revoke_session.RevokeSession;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 
-/**
- * Redirect sau khi logout thành công qua OIDC RP-Initiated Logout.
- * Business hook: revoke OAuthSession (TODO [business]).
- */
 @Slf4j
+@RequiredArgsConstructor
 public class AuthorizationRevokingLogoutSuccessHandler implements LogoutSuccessHandler {
 
+    private final RevokeSession    revokeSession;
     private final RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
-    // TODO [business]: private final RevokeSession revokeSession;
-
-    // TODO [business]: constructor nên inject RevokeSession
-    public AuthorizationRevokingLogoutSuccessHandler() {
-    }
 
     @Override
     @SuppressWarnings("all")
@@ -42,10 +36,7 @@ public class AuthorizationRevokingLogoutSuccessHandler implements LogoutSuccessH
         }
 
         if (oidcLogout.isAuthenticated() && StringUtils.hasText(oidcLogout.getPostLogoutRedirectUri())) {
-            String idToken = Objects.requireNonNull(oidcLogout.getIdToken()).getTokenValue();
-            log.info("Processing logout for session: {}", oidcLogout.getSessionId());
-
-            // TODO [business]: revokeSession.handle(new RevokeSession.Command(idToken));
+            revokeSessionFromToken(oidcLogout);
 
             UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromUriString(oidcLogout.getPostLogoutRedirectUri());
             if (StringUtils.hasText(oidcLogout.getState())) {
@@ -55,5 +46,18 @@ public class AuthorizationRevokingLogoutSuccessHandler implements LogoutSuccessH
         } else {
             redirectStrategy.sendRedirect(request, response, "/");
         }
+    }
+
+    private void revokeSessionFromToken(OidcLogoutAuthenticationToken oidcLogout) {
+        OidcIdToken idToken = oidcLogout.getIdToken();
+        if (idToken == null) return;
+
+        String ossId = idToken.getClaimAsString("oss_id");
+        if (!StringUtils.hasText(ossId)) {
+            log.warn("[Logout] oss_id claim missing from id_token — OAuthSession revocation skipped");
+            return;
+        }
+
+        revokeSession.handle(new RevokeSession.Command(ossId));
     }
 }

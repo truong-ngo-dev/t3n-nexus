@@ -46,7 +46,10 @@ public class DeviceAwareAuthenticationFailureHandler implements AuthenticationFa
             return;
         }
 
-        log.debug("[LoginFailure] username={}, exception={}", username, exception.getClass().getSimpleName());
+        log.debug("[LoginFailure] username={}, exception={}, deviceHash={}, ip={}, userAgent={}",
+                username, exception.getClass().getSimpleName(),
+                deviceHash != null ? deviceHash.substring(0, 8) + "..." : "null",
+                ipAddress, userAgent);
 
         /* TODO [business]:
         LoginResult result = resolveResult(exception);

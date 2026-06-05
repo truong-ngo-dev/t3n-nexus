@@ -11,28 +11,21 @@ import org.springframework.security.web.authentication.SavedRequestAwareAuthenti
 import org.springframework.stereotype.Component;
 import vn.t3nexus.oauth2.infrastructure.cross_cutting.utils.IpAddressExtractor;
 import vn.t3nexus.oauth2.infrastructure.security.model.DeviceAwareWebAuthenticationDetails;
-import vn.t3nexus.oauth2.infrastructure.security.service.UserCredentialDetails;
-// TODO [business]: import vn.t3nexus.oauth2.application.device.register_or_update.RegisterOrUpdateDevice;
-// TODO [business]: import vn.t3nexus.oauth2.domain.device.DeviceFingerprint;
 
 import java.io.IOException;
 
 /**
- * Phase 1 — xử lý sau khi xác thực thành công:
- * 1. TODO [business]: Gọi RegisterOrUpdateDevice → tạo hoặc update Device
- * 2. Lưu device info vào HTTP session để Phase 2 dùng khi token được issued.
+ * Phase 1 — capture raw device signals sau khi xác thực thành công,
+ * lưu vào HTTP session để Phase 1.5 copy vào OAuth2Authorization.attributes,
+ * Phase 2 dùng khi issue token.
  *
- * Hỗ trợ hai luồng:
- * - LOCAL: deviceHash từ DeviceAwareWebAuthenticationDetails (hidden input device_hash)
- * - GOOGLE: deviceHash đọc từ session attribute pre_auth_device_hash
+ * LOCAL : signals từ DeviceAwareWebAuthenticationDetails (hidden input + headers)
+ * GOOGLE: deviceHash đọc từ session attribute pre_auth_device_hash
  */
 @Slf4j
 @Component
 public class DeviceAwareAuthenticationSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
 
-    // TODO [business]: private final RegisterOrUpdateDevice registerOrUpdateDevice;
-
-    // TODO [business]: inject RegisterOrUpdateDevice via constructor
     public DeviceAwareAuthenticationSuccessHandler() {
         this.setAlwaysUseDefaultTargetUrl(false);
     }
@@ -45,7 +38,7 @@ public class DeviceAwareAuthenticationSuccessHandler extends SavedRequestAwareAu
         if (authentication.getPrincipal() instanceof OidcUser oidcUser) {
             // GOOGLE login — deviceHash đọc từ session (được POST bởi /login/device-hint)
             String userId       = authentication.getName();
-            String username     = oidcUser.getEmail();
+            String email        = oidcUser.getEmail();
             String userAgent    = request.getHeader("User-Agent");
             String acceptLang   = request.getHeader("Accept-Language");
             String ipAddress    = IpAddressExtractor.extract(request);
@@ -75,42 +68,34 @@ public class DeviceAwareAuthenticationSuccessHandler extends SavedRequestAwareAu
             session.setAttribute("auth_ip_address",     ipAddress);
             session.setAttribute("auth_user_agent",     userAgent);
             session.setAttribute("auth_composite_hash", compositeHash);
-            session.setAttribute("auth_username",       username);
+            session.setAttribute("auth_email",          email);
+            session.setAttribute("auth_provider",       "GOOGLE");
 
-            log.debug("[LoginSuccess/GOOGLE] userId={}, deviceId={}", userId, deviceId);
+            log.debug("[LoginSuccess/GOOGLE] userId={}, email={}, deviceHash={}, ip={}, userAgent={}",
+                    userId, email,
+                    deviceHash != null ? deviceHash.substring(0, 8) + "..." : "null",
+                    ipAddress, userAgent);
 
         } else if (authentication.getDetails() instanceof DeviceAwareWebAuthenticationDetails details) {
-            // LOCAL login — deviceHash từ hidden input
-            String userId    = authentication.getName();
-            String username  = request.getParameter("username");
-//            String ipAddress = details.getIpAddress();
+            // LOCAL login — capture raw device signals, store in session for Phase 2
+            String email      = request.getParameter("username");
+            String deviceHash = details.getDeviceHash();
+            String userAgent  = details.getUserAgent();
+            String acceptLang = details.getAcceptLanguage();
+            String ipAddress  = details.getIpAddress();
 
-            /* TODO [business]:
-            String deviceId = registerOrUpdateDevice.handle(new RegisterOrUpdateDevice.Command(
-                    userId,
-                    details.getDeviceHash()     != null ? details.getDeviceHash()     : "",
-                    details.getUserAgent()      != null ? details.getUserAgent()      : "",
-                    details.getAcceptLanguage() != null ? details.getAcceptLanguage() : "",
-                    ipAddress
-            ));
-            String compositeHash = DeviceFingerprint.of(
-                    details.getDeviceHash()     != null ? details.getDeviceHash()     : "",
-                    details.getUserAgent()      != null ? details.getUserAgent()      : "",
-                    details.getAcceptLanguage() != null ? details.getAcceptLanguage() : ""
-            ).getCompositeHash();
-            */
-            String deviceId      = null; // TODO [business]: set from RegisterOrUpdateDevice
-            String compositeHash = null; // TODO [business]: set from DeviceFingerprint
+            HttpSession session = request.getSession(false);
+            session.setAttribute("auth_email",           email);
+            session.setAttribute("auth_device_hash",     deviceHash);
+            session.setAttribute("auth_user_agent",      userAgent);
+            session.setAttribute("auth_accept_language", acceptLang);
+            session.setAttribute("auth_ip_address",      ipAddress);
+            session.setAttribute("auth_provider",        "LOCAL");
 
-            HttpSession session = request.getSession(true);
-            session.setAttribute("auth_username",       username);
-            // TODO [business]: uncomment when RegisterOrUpdateDevice is implemented
-            // session.setAttribute("auth_device_id",      deviceId);
-            // session.setAttribute("auth_ip_address",     details.getIpAddress());
-            // session.setAttribute("auth_user_agent",     details.getUserAgent());
-            // session.setAttribute("auth_composite_hash", compositeHash);
-
-            log.debug("[LoginSuccess/LOCAL] userId={}, deviceId={}", userId, deviceId);
+            log.info("[LoginSuccess/LOCAL] email={}, deviceHash={}, ip={}, userAgent={}",
+                    email,
+                    deviceHash != null ? deviceHash.substring(0, 8) + "..." : "null",
+                    ipAddress, userAgent);
         } else {
             log.warn("[LoginSuccess] Unknown authentication type — skipping device tracking");
         }

@@ -48,9 +48,12 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
         context.getJwsHeader().keyId(kid);
 
         if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
-            // sid = OAuth2Authorization.id — dùng bởi BFF/gateway để map session
             if (context.getAuthorization() != null) {
-                context.getClaims().claim("sid", context.getAuthorization().getId());
+                // oss_id = OAuthSession.id (ULID) — used by web-gateway for session mapping
+                String ossId = context.getAuthorization().getAttribute(AuditingOAuth2AuthorizationService.ATTR_OAUTH_SESSION_ID);
+                if (ossId != null) {
+                    context.getClaims().claim("oss_id", ossId);
+                }
             }
 
             // roles từ granted authorities
@@ -92,6 +95,14 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
         }
 
         if (OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())) {
+            // oss_id in ID token — needed by web-gateway logout handler to clean up Redis mapping
+            if (context.getAuthorization() != null) {
+                String ossId = context.getAuthorization().getAttribute(AuditingOAuth2AuthorizationService.ATTR_OAUTH_SESSION_ID);
+                if (ossId != null) {
+                    context.getClaims().claim("oss_id", ossId);
+                }
+            }
+
             // Copy third-party claims từ OidcUser vào ID token
             Map<String, Object> thirdPartyClaims = extractClaims(context.getPrincipal());
             context.getClaims().claims(existingClaims -> {

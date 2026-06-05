@@ -3,82 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Đăng nhập — T3Nexus</title>
+    <title>Đăng nhập — T3E Nexus</title>
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Inter:wght@400;500&display=swap"
+          rel="stylesheet">
     <style>
+        :root {
+            --primary:     #0D0D0D;
+            --on-primary:  #FFFFFF;
+            --surface:     #FFFFFF;
+            --surface-var: #F8F9FA;
+            --outline:     #E0E0E0;
+            --muted:       #757575;
+            --error:       #D32F2F;
+            --r-button:    24px;
+            --r-card:      8px;
+            --r-input:     4px;
+        }
+
         *, *::before, *::after { box-sizing: border-box; }
+
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #f8fafc;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--surface-var);
             margin: 0;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
         }
+
         .card {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 40px 36px;
+            background: var(--surface);
+            border: 1px solid var(--outline);
+            border-radius: var(--r-card);
+            padding: 48px 40px;
             width: 100%;
-            max-width: 420px;
-            box-shadow: 0 1px 3px rgba(0,0,0,.07);
+            max-width: 480px;
         }
-        h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 28px; color: #0f172a; }
-        .error {
-            color: #b91c1c;
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 6px;
+
+        .brand {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            text-align: center;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin: 0 0 6px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--muted);
+            text-align: center;
+            margin: 0 0 32px;
+        }
+
+        .alert {
+            font-size: 14px;
+            color: var(--error);
+            background: #FFF5F5;
+            border: 1px solid #FFCDD2;
+            border-radius: var(--r-input);
             padding: 12px 14px;
             margin-bottom: 20px;
-            font-size: 0.875rem;
         }
+
         .field { margin-bottom: 16px; }
-        label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
-        input[type="text"], input[type="password"] {
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--primary);
+            margin-bottom: 6px;
+        }
+
+        input[type="text"],
+        input[type="password"] {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            font-size: 0.9rem;
+            padding: 10px 14px;
+            border: 1px solid var(--outline);
+            border-radius: var(--r-input);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            color: var(--primary);
+            background: var(--surface);
             outline: none;
             transition: border-color .15s;
         }
-        input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
-        button[type="submit"] {
+
+        input::placeholder { color: var(--muted); }
+        input:focus { border-color: var(--primary); }
+
+        .btn-primary {
             width: 100%;
             margin-top: 8px;
-            padding: 11px;
-            background: #1d4ed8;
-            color: #fff;
+            padding: 12px;
+            background: var(--primary);
+            color: var(--on-primary);
             border: none;
-            border-radius: 6px;
-            font-size: 0.9rem;
+            border-radius: var(--r-button);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: background .15s;
+            transition: opacity .15s;
         }
-        button[type="submit"]:hover { background: #1e40af; }
+
+        .btn-primary:hover { opacity: 0.82; }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 24px 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--outline);
+        }
+
+        .btn-google {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 11px;
+            background: var(--surface);
+            border: 1px solid var(--outline);
+            border-radius: var(--r-button);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--primary);
+            cursor: pointer;
+            transition: border-color .15s, background .15s;
+        }
+
+        .btn-google:hover {
+            border-color: #9E9E9E;
+            background: var(--surface-var);
+        }
+
+        .google-icon { width: 18px; height: 18px; flex-shrink: 0; }
     </style>
 </head>
 <body>
 <div class="card">
-    <h1>Đăng nhập T3Nexus</h1>
+    <h1 class="brand">T3E Nexus</h1>
+    <p class="subtitle">Đăng nhập để tiếp tục</p>
 
-    <div class="error" th:if="${param.error}">Email hoặc mật khẩu không đúng.</div>
+    <div class="alert" th:if="${param.error}">Email hoặc mật khẩu không đúng.</div>
+    <div class="alert" th:if="${param.locked}">Tài khoản đã bị khóa. Vui lòng liên hệ hỗ trợ.</div>
 
     <form th:action="@{/login}" method="post">
+        <input type="hidden" name="_csrf" th:if="${_csrf}" th:value="${_csrf.token}"/>
+        <input type="hidden" name="device_hash" id="device_hash"/>
+
         <div class="field">
             <label for="username">Email</label>
-            <input type="text" id="username" name="username" autocomplete="email" autofocus required/>
+            <input type="text" id="username" name="username"
+                   placeholder="your@email.com"
+                   autocomplete="email" autofocus required/>
         </div>
         <div class="field">
             <label for="password">Mật khẩu</label>
-            <input type="password" id="password" name="password" autocomplete="current-password" required/>
+            <input type="password" id="password" name="password"
+                   placeholder="••••••••"
+                   autocomplete="current-password" required/>
         </div>
-        <button type="submit">Đăng nhập</button>
+
+        <button type="submit" class="btn-primary">Đăng nhập</button>
     </form>
+
+    <div class="divider"><span>hoặc</span></div>
+
+    <button type="button" id="google-btn"
+            th:data-href="@{/oauth2/authorization/google}"
+            class="btn-google">
+        <svg class="google-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Đăng nhập với Google
+    </button>
 </div>
+
+<script>
+    const deviceHashPromise = (async function () {
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#f60';
+            ctx.fillRect(125, 1, 62, 20);
+            ctx.fillStyle = '#069';
+            ctx.fillText('T3Nexus fp', 2, 15);
+            ctx.fillStyle = 'rgba(102,204,0,0.7)';
+            ctx.fillText('T3Nexus fp', 4, 17);
+
+            const signals = [
+                canvas.toDataURL(),
+                screen.width + 'x' + screen.height,
+                screen.colorDepth,
+                Intl.DateTimeFormat().resolvedOptions().timeZone,
+                navigator.hardwareConcurrency,
+                navigator.language
+            ].join('|');
+
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signals));
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        } catch (e) {
+            return '';
+        }
+    })();
+
+    // LOCAL — gắn vào hidden input
+    deviceHashPromise.then(hash => {
+        document.getElementById('device_hash').value = hash;
+    });
+
+    // GOOGLE — set cookie trước khi navigate đến /oauth2/authorization/google
+    document.getElementById('google-btn').addEventListener('click', async function () {
+        const target = this.dataset.href;
+        if (!target) return;
+        const hash = await deviceHashPromise;
+        if (hash) {
+            document.cookie = `dh=${hash}; path=/; max-age=120; SameSite=Strict`;
+        }
+        window.location.href = target;
+    });
+</script>
 </body>
 </html>

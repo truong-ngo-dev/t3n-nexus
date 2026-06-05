@@ -7,6 +7,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthentication;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
@@ -26,10 +27,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.authentication.logout.LogoutHandler;
-import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
+import vn.t3nexus.oauth2.application.session.issue_session.IssueSession;
+import vn.t3nexus.oauth2.application.session.revoke_session.RevokeSession;
 import vn.t3nexus.oauth2.infrastructure.security.mfa.MfaEnforcementFilter;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.json.JsonMapper;
@@ -42,16 +44,19 @@ public class OAuth2AuthorizationServerConfig {
 
     @Bean
     @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain authorizationServerSecurityFilterChain(
+            HttpSecurity http,
+            AuthenticationSuccessHandler oidcLogoutHandler) {
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = new OAuth2AuthorizationServerConfigurer();
 
         http
                 .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
+                .cors(Customizer.withDefaults())
                 .with(authorizationServerConfigurer, configurer -> configurer
                         .oidc(oidcConfigurer -> oidcConfigurer
                                 .userInfoEndpoint(userInfo -> userInfo.userInfoMapper(this::mapUserInfo))
                                 .logoutEndpoint(logoutEndpointConfigurer ->
-                                        logoutEndpointConfigurer.logoutResponseHandler(logoutSuccessHandler()))))
+                                        logoutEndpointConfigurer.logoutResponseHandler(oidcLogoutHandler))))
                 .addFilterBefore(new MfaEnforcementFilter(), AuthorizationFilter.class)
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .anonymous(AbstractHttpConfigurer::disable)
@@ -65,8 +70,9 @@ public class OAuth2AuthorizationServerConfig {
     @Bean
     public OAuth2AuthorizationService auth2AuthorizationService(
             JdbcOperations jdbcOperations,
-            RegisteredClientRepository repository
-            // TODO [business]: CompleteLogin completeLogin
+            RegisteredClientRepository repository,
+            IssueSession issueSession,
+            ULIDGenerator ulidGenerator
     ) {
         JdbcOAuth2AuthorizationService jdbcService = new JdbcOAuth2AuthorizationService(jdbcOperations, repository);
         ClassLoader classLoader = JdbcOAuth2AuthorizationService.class.getClassLoader();
@@ -85,8 +91,8 @@ public class OAuth2AuthorizationServerConfig {
         JdbcOAuth2AuthorizationService.JsonMapperOAuth2AuthorizationRowMapper rowMapper =
                 new JdbcOAuth2AuthorizationService.JsonMapperOAuth2AuthorizationRowMapper(repository, jsonMapper);
         jdbcService.setAuthorizationRowMapper(rowMapper);
-        // TODO [business]: wrap với AuditingOAuth2AuthorizationService(jdbcService, completeLogin) khi CompleteLogin sẵn sàng
-        return new AuditingOAuth2AuthorizationService(jdbcService);
+
+        return new AuditingOAuth2AuthorizationService(jdbcService, issueSession, ulidGenerator);
     }
 
     @Bean
@@ -108,19 +114,18 @@ public class OAuth2AuthorizationServerConfig {
     }
 
     @Bean
-    public AuthenticationSuccessHandler logoutSuccessHandler() {
+    public AuthenticationSuccessHandler oidcLogoutHandler(RevokeSession revokeSession) {
         return (request, response, authentication) -> {
-            // TODO [business]: RevokeSession revokeSession = context.getBean(RevokeSession.class);
             OidcLogoutAuthenticationToken oidcLogoutAuthentication = (OidcLogoutAuthenticationToken) authentication;
-            LogoutHandler logoutHandler = new SecurityContextLogoutHandler();
-            // TODO [business]: inject RevokeSession vào AuthorizationRevokingLogoutSuccessHandler
-            LogoutSuccessHandler logoutSuccessHandler = new AuthorizationRevokingLogoutSuccessHandler();
 
             if (oidcLogoutAuthentication.isPrincipalAuthenticated()
                     && StringUtils.hasText(oidcLogoutAuthentication.getSessionId())) {
-                logoutHandler.logout(request, response, (Authentication) oidcLogoutAuthentication.getPrincipal());
+                new SecurityContextLogoutHandler().logout(
+                        request, response, (Authentication) oidcLogoutAuthentication.getPrincipal());
             }
-            logoutSuccessHandler.onLogoutSuccess(request, response, oidcLogoutAuthentication);
+
+            new AuthorizationRevokingLogoutSuccessHandler(revokeSession)
+                    .onLogoutSuccess(request, response, oidcLogoutAuthentication);
         };
     }
 }

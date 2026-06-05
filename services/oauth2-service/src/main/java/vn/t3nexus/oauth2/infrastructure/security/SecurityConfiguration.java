@@ -9,6 +9,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -28,8 +29,8 @@ import vn.t3nexus.oauth2.infrastructure.security.handler.DeviceAwareAuthenticati
 import vn.t3nexus.oauth2.infrastructure.security.mfa.EmailOtpGenerationSuccessHandler;
 import vn.t3nexus.oauth2.infrastructure.security.mfa.EmailOtpOneTimeTokenService;
 import vn.t3nexus.oauth2.infrastructure.security.model.DeviceAwareWebAuthenticationDetails;
-// TODO [business/social]: import vn.t3nexus.oauth2.infrastructure.security.service.SocialLoginOidcUserService;
-// TODO [business/social]: bỏ comment oauth2-client trong pom.xml để enable social login
+import vn.t3nexus.oauth2.infrastructure.security.oauth2.DeviceAwareAuthorizationRequestResolver;
+import vn.t3nexus.oauth2.infrastructure.security.service.SocialLoginOidcUserService;
 
 import java.util.Arrays;
 import java.util.List;
@@ -41,10 +42,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfiguration {
 
-    private final ApplicationContext            applicationContext;
-    private final EmailOtpOneTimeTokenService   emailOtpOneTimeTokenService;
+    private final ApplicationContext               applicationContext;
+    private final EmailOtpOneTimeTokenService      emailOtpOneTimeTokenService;
     private final EmailOtpGenerationSuccessHandler emailOtpGenerationSuccessHandler;
-    // TODO [business/social]: private final SocialLoginOidcUserService socialLoginOidcUserService;
+    private final SocialLoginOidcUserService       socialLoginOidcUserService;
+    private final ClientRegistrationRepository     clientRegistrationRepository;
 
     @Value("${app.cors.allowed-origins:http://localhost:4200}")
     private String allowedOrigins;
@@ -94,12 +96,13 @@ public class SecurityConfiguration {
                         .tokenService(emailOtpOneTimeTokenService)
                         .tokenGenerationSuccessHandler(emailOtpGenerationSuccessHandler));
 
-        /* TODO [business/social]: bỏ comment khi oauth2-client được enable trong pom.xml
         http.oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")
+                .authorizationEndpoint(endpoint -> endpoint
+                        .authorizationRequestResolver(
+                                new DeviceAwareAuthorizationRequestResolver(clientRegistrationRepository)))
                 .userInfoEndpoint(userInfo -> userInfo.oidcUserService(socialLoginOidcUserService))
                 .successHandler(deviceAwareAuthenticationSuccessHandler()));
-        */
 
         return http.build();
     }
