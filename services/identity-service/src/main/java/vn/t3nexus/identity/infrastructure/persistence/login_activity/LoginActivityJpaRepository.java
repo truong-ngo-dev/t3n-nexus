@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 
 @Repository
 public interface LoginActivityJpaRepository extends JpaRepository<LoginActivityJpaEntity, String> {
@@ -42,8 +43,8 @@ public interface LoginActivityJpaRepository extends JpaRepository<LoginActivityJ
     @Query(nativeQuery = true, value = """
             UPDATE login_activities
                SET ended_at = :endedAt
-             WHERE session_id = :sessionId
+             WHERE session_id IN (:sessionIds)
                AND ended_at IS NULL
             """)
-    void endBySessionId(@Param("sessionId") String sessionId, @Param("endedAt") Instant endedAt);
+    void endBySessionIds(@Param("sessionIds") List<String> sessionIds, @Param("endedAt") Instant endedAt);
 }

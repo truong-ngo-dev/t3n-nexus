@@ -8,6 +8,7 @@ import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.identity.domain.login_activity.LoginActivityRepository;
 
 import java.time.Instant;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -16,13 +17,13 @@ public class CloseLoginSession implements CommandHandler<CloseLoginSession.Comma
 
     private final LoginActivityRepository loginActivityRepository;
 
-    public record Command(String ossId) {}
+    public record Command(List<String> ossIds) {}
 
     @Override
     @Transactional
     public Void handle(Command command) {
-        loginActivityRepository.endBySessionId(command.ossId(), Instant.now());
-        log.info("[CloseLoginSession] ended login activity for ossId={}", command.ossId());
+        loginActivityRepository.endBySessionIds(command.ossIds(), Instant.now());
+        log.info("[CloseLoginSession] ended login activities for ossIds={}", command.ossIds());
         return null;
     }
 }

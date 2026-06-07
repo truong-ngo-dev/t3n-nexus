@@ -2,6 +2,10 @@ package vn.t3nexus.oauth2.application.session.issue_session;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -25,6 +29,7 @@ public class IssueSession implements CommandHandler<IssueSession.Command, IssueS
             String idpSessionId,
             String authorizationId,
             String ipAddress,
+            String registeredClientId,
             String loginIdentifier,
             String deviceHash,
             String userAgent,
@@ -38,9 +43,26 @@ public class IssueSession implements CommandHandler<IssueSession.Command, IssueS
     private final ULIDGenerator          ulidGenerator;
     private final EventDispatcher        eventDispatcher;
 
+    @Autowired @Lazy
+    private OAuth2AuthorizationService oauth2AuthorizationService;
+
     @Override
     @Transactional
     public Result handle(Command command) {
+        // Phase 6 — SSO invariant: revoke + delete any existing ACTIVE session for same (idpSessionId, registeredClientId)
+        if (StringUtils.hasText(command.idpSessionId()) && StringUtils.hasText(command.registeredClientId())) {
+            oAuthSessionRepository.findActiveByIdpSessionAndClient(
+                    command.idpSessionId(), command.registeredClientId())
+                    .ifPresent(stale -> {
+                        stale.revoke();
+                        oAuthSessionRepository.delete(stale.getId());
+                        OAuth2Authorization staleAuth = oauth2AuthorizationService.findById(stale.getAuthorizationId());
+                        if (staleAuth != null) oauth2AuthorizationService.remove(staleAuth);
+                        eventDispatcher.dispatchAll(stale.getDomainEvents());
+                        log.info("[IssueSession] revoked stale SSO session: ossId={}", stale.getId().getValueAsString());
+                    });
+        }
+
         SessionIssuanceContext context = new SessionIssuanceContext(
                 command.loginIdentifier(),
                 command.deviceHash(),
@@ -59,6 +81,7 @@ public class IssueSession implements CommandHandler<IssueSession.Command, IssueS
                 command.idpSessionId(),
                 command.authorizationId(),
                 command.ipAddress(),
+                command.registeredClientId(),
                 context
         );
 

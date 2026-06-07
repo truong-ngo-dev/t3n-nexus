@@ -11,41 +11,44 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
-import vn.t3nexus.oauth2.application.session.issue_session.IssueSession;
+import vn.t3nexus.oauth2.application.session.establish_session.EstablishSession;
+import vn.t3nexus.oauth2.domain.session.OAuthSessionRepository;
 
 
 /**
  * Wraps JdbcOAuth2AuthorizationService để hook vào login flow:
  *
  * Phase 1.5 — Authorization Code Issued (browser request, có HTTP session):
- *   Pre-generate OAuthSession ULID + copy device signals từ HTTP session vào
- *   OAuth2Authorization.attributes.
+ *   Resolve OAuthSession ID + copy device signals từ HTTP session vào OAuth2Authorization.attributes.
+ *   Silent SSO: reuse existing OAuthSession ID (idpSessionId + clientId đã có active session)
+ *               → EstablishSession gọi onTokenRotated(), không publish SessionIssuedEvent.
+ *   Fresh login: generate ULID mới → EstablishSession gọi IssueSession → publish SessionIssuedEvent.
  *
  * Phase 2 — Token Issuance (server-to-server, không có HTTP session):
- *   Gọi IssueSession — tạo OAuthSession với ULID đã pre-generate từ Phase 1.5.
+ *   Gọi EstablishSession với ULID đã resolve từ Phase 1.5.
  */
 @Slf4j
 @RequiredArgsConstructor
-public class AuditingOAuth2AuthorizationService implements OAuth2AuthorizationService {
+public class SessionEstablishingAuthorizationService implements OAuth2AuthorizationService {
 
     public static final  String ATTR_OAUTH_SESSION_ID = "oauth_session_id";
+    public static final  String ATTR_IDP_SESSION_ID   = "auth_idp_session_id";
     private static final String ATTR_EMAIL            = "auth_email";
     private static final String ATTR_DEVICE_HASH      = "auth_device_hash";
     private static final String ATTR_USER_AGENT       = "auth_user_agent";
     private static final String ATTR_ACCEPT_LANGUAGE  = "auth_accept_language";
     private static final String ATTR_IP_ADDRESS       = "auth_ip_address";
-    private static final String ATTR_IDP_SESSION_ID   = "auth_idp_session_id";
     private static final String ATTR_PROVIDER         = "auth_provider";
 
     private final OAuth2AuthorizationService delegate;
-    private final IssueSession               issueSession;
+    private final EstablishSession           establishSession;
+    private final OAuthSessionRepository     oAuthSessionRepository;
     private final ULIDGenerator              ulidGenerator;
 
     @Override
     public void save(OAuth2Authorization authorization) {
         // Phase 1.5: authorization code just issued — pre-generate session ID + attach device signals
-        if (hasAuthorizationCode(authorization) && !hasAccessToken(authorization)
-                && authorization.getAttribute(ATTR_OAUTH_SESSION_ID) == null) {
+        if (hasAuthorizationCode(authorization) && !hasAccessToken(authorization) && authorization.getAttribute(ATTR_OAUTH_SESSION_ID) == null) {
             authorization = attachDeviceInfoFromSession(authorization);
         }
 
@@ -53,20 +56,21 @@ public class AuditingOAuth2AuthorizationService implements OAuth2AuthorizationSe
 
         // Phase 2: access token just issued — create OAuthSession + publish SessionIssuedEvent
         if (hasAccessToken(authorization) && authorization.getAttribute(ATTR_EMAIL) != null) {
-            String oauthSessionId  = orEmpty(authorization.getAttribute(ATTR_OAUTH_SESSION_ID));
-            String userId          = authorization.getPrincipalName();
-            String idpSessionId    = authorization.getAttribute(ATTR_IDP_SESSION_ID);
-            String authorizationId = authorization.getId();
-            String ipAddress       = orEmpty(authorization.getAttribute(ATTR_IP_ADDRESS));
-            String loginIdentifier = orEmpty(authorization.getAttribute(ATTR_EMAIL));
-            String deviceHash      = orEmpty(authorization.getAttribute(ATTR_DEVICE_HASH));
-            String userAgent       = orEmpty(authorization.getAttribute(ATTR_USER_AGENT));
-            String acceptLanguage  = orEmpty(authorization.getAttribute(ATTR_ACCEPT_LANGUAGE));
-            String provider        = orEmpty(authorization.getAttribute(ATTR_PROVIDER));
+            String oauthSessionId    = orEmpty(authorization.getAttribute(ATTR_OAUTH_SESSION_ID));
+            String userId            = authorization.getPrincipalName();
+            String idpSessionId      = orEmpty(authorization.getAttribute(ATTR_IDP_SESSION_ID));
+            String authorizationId   = authorization.getId();
+            String registeredClientId = authorization.getRegisteredClientId();
+            String ipAddress         = orEmpty(authorization.getAttribute(ATTR_IP_ADDRESS));
+            String loginIdentifier   = orEmpty(authorization.getAttribute(ATTR_EMAIL));
+            String deviceHash        = orEmpty(authorization.getAttribute(ATTR_DEVICE_HASH));
+            String userAgent         = orEmpty(authorization.getAttribute(ATTR_USER_AGENT));
+            String acceptLanguage    = orEmpty(authorization.getAttribute(ATTR_ACCEPT_LANGUAGE));
+            String provider          = orEmpty(authorization.getAttribute(ATTR_PROVIDER));
 
-            issueSession.handle(new IssueSession.Command(
+            establishSession.handle(new EstablishSession.Command(
                     oauthSessionId, userId, idpSessionId, authorizationId, ipAddress,
-                    loginIdentifier, deviceHash, userAgent, acceptLanguage, provider
+                    registeredClientId, loginIdentifier, deviceHash, userAgent, acceptLanguage, provider
             ));
         }
     }
@@ -87,11 +91,14 @@ public class AuditingOAuth2AuthorizationService implements OAuth2AuthorizationSe
     }
 
     /**
-     * Luôn pre-generate OAuthSession ULID. Nếu HTTP session có device info thì attach thêm.
-     * Social login (email null trong session) vẫn nhận được ULID để JWT có oss_id claim.
+     * Resolve OAuthSession ID và attach device signals vào authorization attributes.
+     *
+     * Silent SSO: (idpSessionId, registeredClientId) đã có active OAuthSession
+     *   → reuse existing ID → EstablishSession sẽ gọi onTokenRotated(), không tạo session mới.
+     * Fresh login: không có active OAuthSession → generate ULID mới.
+     * Social login (email null): chỉ attach ULID mới để JWT có oss_id claim.
      */
     private OAuth2Authorization attachDeviceInfoFromSession(OAuth2Authorization authorization) {
-        String preGeneratedSessionId = ulidGenerator.generate();
         try {
             ServletRequestAttributes attrs =
                     (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
@@ -99,30 +106,40 @@ public class AuditingOAuth2AuthorizationService implements OAuth2AuthorizationSe
 
             if (session == null) {
                 return OAuth2Authorization.from(authorization)
-                        .attribute(ATTR_OAUTH_SESSION_ID, preGeneratedSessionId)
+                        .attribute(ATTR_OAUTH_SESSION_ID, ulidGenerator.generate())
                         .build();
             }
 
             String email = (String) session.getAttribute(ATTR_EMAIL);
             if (email == null) {
                 return OAuth2Authorization.from(authorization)
-                        .attribute(ATTR_OAUTH_SESSION_ID, preGeneratedSessionId)
+                        .attribute(ATTR_OAUTH_SESSION_ID, ulidGenerator.generate())
                         .build();
             }
 
+            String idpSessionId      = session.getId();
+            String registeredClientId = authorization.getRegisteredClientId();
+            String sessionId = oAuthSessionRepository
+                    .findActiveByIdpSessionAndClient(idpSessionId, registeredClientId)
+                    .map(existing -> {
+                        log.debug("[AuditingOAuth2] silent SSO detected — reusing ossId={}", existing.getId().getValueAsString());
+                        return existing.getId().getValueAsString();
+                    })
+                    .orElseGet(ulidGenerator::generate);
+
             return OAuth2Authorization.from(authorization)
-                    .attribute(ATTR_OAUTH_SESSION_ID,   preGeneratedSessionId)
+                    .attribute(ATTR_OAUTH_SESSION_ID,   sessionId)
                     .attribute(ATTR_EMAIL,               email)
                     .attribute(ATTR_DEVICE_HASH,         session.getAttribute(ATTR_DEVICE_HASH))
                     .attribute(ATTR_USER_AGENT,          session.getAttribute(ATTR_USER_AGENT))
                     .attribute(ATTR_ACCEPT_LANGUAGE,     session.getAttribute(ATTR_ACCEPT_LANGUAGE))
                     .attribute(ATTR_IP_ADDRESS,          session.getAttribute(ATTR_IP_ADDRESS))
-                    .attribute(ATTR_IDP_SESSION_ID,      session.getId())
+                    .attribute(ATTR_IDP_SESSION_ID,      idpSessionId)
                     .attribute(ATTR_PROVIDER,            session.getAttribute(ATTR_PROVIDER))
                     .build();
         } catch (IllegalStateException e) {
             return OAuth2Authorization.from(authorization)
-                    .attribute(ATTR_OAUTH_SESSION_ID, preGeneratedSessionId)
+                    .attribute(ATTR_OAUTH_SESSION_ID, ulidGenerator.generate())
                     .build();
         }
     }

@@ -28,7 +28,7 @@ public class SessionRevokedConsumer {
         EventEnvelopeMdcPropagator.propagate(event.payload());
         try {
             SessionRevokedPayload payload = decoder.decode(event, SessionRevokedPayload.class);
-            closeLoginSession.handle(new CloseLoginSession.Command(payload.oauthSessionId()));
+            closeLoginSession.handle(new CloseLoginSession.Command(payload.oauthSessionIds()));
         } finally {
             EventEnvelopeMdcPropagator.clear();
         }

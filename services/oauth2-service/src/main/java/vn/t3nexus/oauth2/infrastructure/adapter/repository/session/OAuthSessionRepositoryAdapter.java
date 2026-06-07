@@ -7,6 +7,7 @@ import vn.t3nexus.oauth2.domain.session.OAuthSessionId;
 import vn.t3nexus.oauth2.domain.session.OAuthSessionRepository;
 import vn.t3nexus.oauth2.infrastructure.persistence.session.OAuthSessionJpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -15,6 +16,25 @@ public class OAuthSessionRepositoryAdapter implements OAuthSessionRepository {
 
     private final OAuthSessionJpaRepository jpaRepository;
     private final OAuthSessionMapper        mapper;
+
+    @Override
+    public boolean existsById(OAuthSessionId id) {
+        return jpaRepository.existsById(id.getValueAsString());
+    }
+
+    @Override
+    public Optional<OAuthSession> findActiveByIdpSessionAndClient(String idpSessionId, String registeredClientId) {
+        return jpaRepository.findByIdpSessionIdAndRegisteredClientId(idpSessionId, registeredClientId)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public List<OAuthSession> findAllByIdpSessionId(String idpSessionId) {
+        return jpaRepository.findAllByIdpSessionId(idpSessionId)
+                .stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
 
     @Override
     public Optional<OAuthSession> findById(OAuthSessionId id) {
@@ -36,7 +56,7 @@ public class OAuthSessionRepositoryAdapter implements OAuthSessionRepository {
                 session.getIdpSessionId(),
                 session.getAuthorizationId(),
                 session.getIpAddress(),
-                session.getStatus().name(),
+                session.getRegisteredClientId(),
                 session.getCreatedAt()
         );
     }

@@ -21,6 +21,10 @@ export class AuthService {
     return undefined;
   }
 
+  checkSession(): Observable<void> {
+    return this.http.get<void>(`${this.config.bff}/session`);
+  }
+
   // BFF redirect thẳng 302 → oauth2-service login form
   login(): void {
     window.location.href = `${this.config.bff}/login`;

@@ -20,7 +20,7 @@ import vn.t3nexus.webgateway.infrastructure.configuration.security.SessionMappin
 @RestController
 @RequestMapping("/webgw/internal/sessions")
 @RequiredArgsConstructor
-public class SessionRevokeController {
+public class  SessionRevokeController {
 
     private final ReactiveStringRedisTemplate           redisTemplate;
     private final ReactiveSessionRepository<? extends Session> sessionRepository;

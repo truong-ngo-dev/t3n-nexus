@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import vn.t3nexus.oauth2.domain.session.SessionStatus;
 
 import java.time.Instant;
 
@@ -31,9 +30,12 @@ public class OAuthSessionJpaEntity {
     @Column(name = "ip_address")
     private String ipAddress;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    private SessionStatus status;
+    @Column(name = "registered_client_id", nullable = false)
+    private String registeredClientId;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

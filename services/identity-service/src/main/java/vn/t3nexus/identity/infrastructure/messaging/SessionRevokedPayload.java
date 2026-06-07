@@ -1,8 +1,9 @@
 package vn.t3nexus.identity.infrastructure.messaging;
 
+import java.util.List;
+
 public record SessionRevokedPayload(
-        String authorizationId,
-        String oauthSessionId,
-        String userId,
-        String idpSessionId
+        List<String> oauthSessionIds,
+        String       userId,
+        String       idpSessionId
 ) {}

@@ -39,7 +39,6 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
             IdTokenClaimNames.AZP, IdTokenClaimNames.AT_HASH, IdTokenClaimNames.C_HASH);
 
     private final RsaKeyPairRepository keyPairRepository;
-    // TODO [business]: private final SomeServiceClient someServiceClient;
 
     @Override
     public void customize(JwtEncodingContext context) {
@@ -50,7 +49,7 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
         if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
             if (context.getAuthorization() != null) {
                 // oss_id = OAuthSession.id (ULID) — used by web-gateway for session mapping
-                String ossId = context.getAuthorization().getAttribute(AuditingOAuth2AuthorizationService.ATTR_OAUTH_SESSION_ID);
+                String ossId = context.getAuthorization().getAttribute(SessionEstablishingAuthorizationService.ATTR_OAUTH_SESSION_ID);
                 if (ossId != null) {
                     context.getClaims().claim("oss_id", ossId);
                 }
@@ -61,43 +60,12 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
                     .map(GrantedAuthority::getAuthority)
                     .collect(Collectors.toList());
             context.getClaims().claim("roles", roles);
-
-            /* TODO [business]: contexts claim — gọi internal service theo userId
-            String userId = context.getPrincipal().getName();
-            try {
-                List<ContextDto> contexts = someServiceClient.getContextsByUserId(userId);
-                List<Map<String, Object>> contextsClaim = contexts.stream()
-                        .map(ctx -> {
-                            Map<String, Object> m = new LinkedHashMap<>();
-                            m.put("scope",       ctx.scope());
-                            m.put("orgId",       ctx.orgId());
-                            m.put("displayName", ctx.displayName());
-                            m.put("roles",       new ArrayList<>(ctx.roles()));
-                            return m;
-                        })
-                        .collect(Collectors.toList());
-                context.getClaims().claim("contexts", contextsClaim);
-            } catch (Exception e) {
-                log.warn("[JwtTokenCustomizer] Failed to load contexts for user {}: {}", userId, e.getMessage());
-                context.getClaims().claim("contexts", new ArrayList<>());
-            }
-            */
-
-            /* TODO [business]: requires_profile_completion cho social login user
-            Object principal = context.getPrincipal().getPrincipal();
-            if (principal instanceof OidcUser oidcUser) {
-                Boolean flag = oidcUser.getAttribute("requires_profile_completion");
-                if (flag != null) {
-                    context.getClaims().claim("requires_profile_completion", flag);
-                }
-            }
-            */
         }
 
         if (OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())) {
             // oss_id in ID token — needed by web-gateway logout handler to clean up Redis mapping
             if (context.getAuthorization() != null) {
-                String ossId = context.getAuthorization().getAttribute(AuditingOAuth2AuthorizationService.ATTR_OAUTH_SESSION_ID);
+                String ossId = context.getAuthorization().getAttribute(SessionEstablishingAuthorizationService.ATTR_OAUTH_SESSION_ID);
                 if (ossId != null) {
                     context.getClaims().claim("oss_id", ossId);
                 }

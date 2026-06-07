@@ -23,20 +23,27 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcLogoutAuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcUserInfoAuthenticationContext;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
+import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
-import vn.t3nexus.oauth2.application.session.issue_session.IssueSession;
-import vn.t3nexus.oauth2.application.session.revoke_session.RevokeSession;
+import vn.t3nexus.oauth2.application.session.end_idp_session.EndIdpSession;
+import vn.t3nexus.oauth2.application.session.establish_session.EstablishSession;
+import vn.t3nexus.oauth2.domain.session.OAuthSessionRepository;
+import vn.t3nexus.oauth2.infrastructure.adapter.http.WebGatewayRevocationClient;
 import vn.t3nexus.oauth2.infrastructure.security.mfa.MfaEnforcementFilter;
 import org.springframework.util.StringUtils;
 import tools.jackson.databind.json.JsonMapper;
-import vn.t3nexus.oauth2.infrastructure.security.handler.AuthorizationRevokingLogoutSuccessHandler;
 import vn.t3nexus.oauth2.infrastructure.security.model.DeviceAwareWebAuthenticationDetails;
+
+import java.nio.charset.StandardCharsets;
 
 @Configuration
 @RequiredArgsConstructor
@@ -71,7 +78,8 @@ public class OAuth2AuthorizationServerConfig {
     public OAuth2AuthorizationService auth2AuthorizationService(
             JdbcOperations jdbcOperations,
             RegisteredClientRepository repository,
-            IssueSession issueSession,
+            EstablishSession establishSession,
+            OAuthSessionRepository oAuthSessionRepository,
             ULIDGenerator ulidGenerator
     ) {
         JdbcOAuth2AuthorizationService jdbcService = new JdbcOAuth2AuthorizationService(jdbcOperations, repository);
@@ -92,7 +100,7 @@ public class OAuth2AuthorizationServerConfig {
                 new JdbcOAuth2AuthorizationService.JsonMapperOAuth2AuthorizationRowMapper(repository, jsonMapper);
         jdbcService.setAuthorizationRowMapper(rowMapper);
 
-        return new AuditingOAuth2AuthorizationService(jdbcService, issueSession, ulidGenerator);
+        return new SessionEstablishingAuthorizationService(jdbcService, establishSession, oAuthSessionRepository, ulidGenerator);
     }
 
     @Bean
@@ -114,7 +122,9 @@ public class OAuth2AuthorizationServerConfig {
     }
 
     @Bean
-    public AuthenticationSuccessHandler oidcLogoutHandler(RevokeSession revokeSession) {
+    public AuthenticationSuccessHandler oidcLogoutHandler(
+            EndIdpSession endIdpSession,
+            WebGatewayRevocationClient revocationClient) {
         return (request, response, authentication) -> {
             OidcLogoutAuthenticationToken oidcLogoutAuthentication = (OidcLogoutAuthenticationToken) authentication;
 
@@ -122,10 +132,26 @@ public class OAuth2AuthorizationServerConfig {
                     && StringUtils.hasText(oidcLogoutAuthentication.getSessionId())) {
                 new SecurityContextLogoutHandler().logout(
                         request, response, (Authentication) oidcLogoutAuthentication.getPrincipal());
+
+                // JdbcIndexedSessionRepository không publish SessionDeletedEvent (Spring Session JDBC 4.x removed event support)
+                String idpSessionId = oidcLogoutAuthentication.getSessionId();
+                EndIdpSession.Result result = endIdpSession.handle(
+                        new EndIdpSession.Command(idpSessionId));
+                result.ossIds().forEach(revocationClient::revoke);
             }
 
-            new AuthorizationRevokingLogoutSuccessHandler(revokeSession)
-                    .onLogoutSuccess(request, response, oidcLogoutAuthentication);
+            if (oidcLogoutAuthentication.isAuthenticated()
+                    && StringUtils.hasText(oidcLogoutAuthentication.getPostLogoutRedirectUri())) {
+                UriComponentsBuilder uriBuilder = UriComponentsBuilder
+                        .fromUriString(oidcLogoutAuthentication.getPostLogoutRedirectUri());
+                if (StringUtils.hasText(oidcLogoutAuthentication.getState())) {
+                    uriBuilder.queryParam(OAuth2ParameterNames.STATE,
+                            UriUtils.encode(oidcLogoutAuthentication.getState(), StandardCharsets.UTF_8));
+                }
+                new DefaultRedirectStrategy().sendRedirect(request, response, uriBuilder.build(true).toUriString());
+            } else {
+                new DefaultRedirectStrategy().sendRedirect(request, response, "/");
+            }
         };
     }
 }

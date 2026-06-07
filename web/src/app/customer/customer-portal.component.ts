@@ -23,6 +23,14 @@ import { AuthService } from '@t3n/shared/data-access';
   `],
 })
 export class CustomerPortalComponent {
+
   private readonly auth = inject(AuthService);
+
+  ngOnInit(): void {
+    this.auth.checkSession().subscribe({
+      error: () => { window.location.href = '/webgw/auth/login'; }
+    });
+  }
+
   logout(): void { this.auth.logout(); }
 }

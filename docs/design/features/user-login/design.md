@@ -4,6 +4,7 @@
 **Sequence (login + device)**: [`sequence-login-device.puml`](sequence-login-device.puml)
 **Sequence (registration refactor)**: [`sequence-registration-refactor.puml`](sequence-registration-refactor.puml)
 **Implementation plan**: [`implementation.md`](implementation.md)
+**Session invalidation strategy**: [`session-invalidation.md`](session-invalidation.md)
 **Deferred**: [`deferred.md`](deferred.md)
 **Status**: Draft
 

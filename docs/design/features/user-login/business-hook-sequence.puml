@@ -1,0 +1,253 @@
+@startuml business-hook-sequence
+scale 0.8
+title Business Hook Points — OAuth2 Session Lifecycle\n(Fresh Login · Refresh Token · Silent SSO · Logout · Session Expire)
+
+skinparam sequenceMessageAlign center
+skinparam noteFontSize 11
+
+actor       User
+participant "web-gateway"              as WG
+participant "Spring AS\n(framework)"   as FW
+participant "[Hook 1]\nDeviceAware\nSuccessHandler" as H1 #LightBlue
+participant "[Hook 2]\nAuditingOAuth2\nAuthorizationSvc" as H2 #LightBlue
+participant "EstablishSession\n/ IssueSession"          as EstSvc
+participant "OAuthSession\nRepository"                  as OSSRepo
+participant "[Hook 3]\nIdpSession\nListener"            as H3 #LightBlue
+participant "EndIdpSession"            as EndSvc
+participant "WG Revocation\nClient"    as RevClient
+database    "oauth2_db"                as DB
+queue       "Outbox → Kafka"           as Kafka
+participant "identity-service"         as IdentSvc
+
+' ═══════════════════════════════════════════════════════
+== 1. Fresh Login ==
+' ═══════════════════════════════════════════════════════
+
+note over H1, H3
+  **Hook 1** — DeviceAwareAuthenticationSuccessHandler  (sau password/OIDC auth thành công)
+  **Hook 2** — AuditingOAuth2AuthorizationService.save()  (Phase 1.5: code issued | Phase 2: token issued)
+  **Hook 3** — IdpSessionDeletedListener / IdpSessionExpiredListener  (IDP session lifecycle)
+end note
+
+User -> WG   : truy cập app
+WG   -> User : 302 /oauth2/authorize
+User -> FW   : GET /oauth2/authorize
+FW   -> DB   : INSERT SPRING_SESSION {as-sid-1}
+FW   -> User : 200 Login Form + Set-Cookie: OAUTH2_SESSION=as-sid-1
+
+User -> FW   : POST /login {username, password}
+FW   -> FW   : UsernamePasswordAuthenticationFilter → verify credential ✓
+
+FW   -> H1   : onAuthenticationSuccess()
+activate H1
+note right of H1
+  Stores in IDP HTTP session:
+    auth_email, auth_device_hash,
+    auth_user_agent, auth_accept_language,
+    auth_ip_address, auth_provider
+end note
+H1   -> FW   : super.onAuthenticationSuccess()
+deactivate H1
+
+FW   -> DB   : Session fixation: DELETE as-sid-1 / INSERT as-sid-2
+FW   -> User : 302 /mfa  (MFA enabled → MfaBridgeController)
+
+User -> FW   : GET /mfa
+FW   -> FW   : OneTimeTokenService.generate(email) → ott:{token} = email [TTL 5m]
+FW   -> User : 302 /mfa/verify + OTP sent via notification service
+
+User -> FW   : POST /login/ott {token}
+FW   -> FW   : OneTimeTokenAuthenticationFilter\n→ GETDEL ott:{token} → username\n→ SecurityContext: {PASSWORD_AUTHORITY, OTT_AUTHORITY}
+FW   -> DB   : Session fixation: DELETE as-sid-2 / INSERT as-sid-3
+
+FW -> H2 : save(authorizationWithCode)\n[Phase 1.5] hasCode && !hasToken && oauthSessionId == null
+activate H2
+H2   -> OSSRepo : findActiveByIdpSessionAndClient(as-sid-3, "web-gateway")
+OSSRepo -> DB   : SELECT oauth_sessions\nWHERE idp_session_id=as-sid-3 AND registered_client_id="web-gateway"
+DB      --> OSSRepo : (empty)
+OSSRepo --> H2  : Optional.empty()
+H2   -> H2   : generate ULID → ossId-NEW\ncopy device signals from HTTP session as-sid-3
+H2   -> DB   : delegate.save → INSERT OAuth2Authorization\n{code, ossId-NEW, email, device_hash, as-sid-3, ...}
+deactivate H2
+
+FW   -> DB   : UPDATE as-sid-3: store authorize_context
+FW   -> User : 302 {redirect_uri}?code=...&state=...
+
+User -> WG   : GET /login/oauth2/code/...?code=...
+WG   -> FW   : POST /oauth2/token {code, code_verifier, client_id, client_secret}
+FW   -> FW   : verify code + PKCE\nissue access_token (JWT), refresh_token, id_token
+
+FW -> H2 : save(authorizationWithAccessToken)\n[Phase 2] hasToken && email != null
+activate H2
+H2   -> DB   : delegate.save → UPDATE OAuth2Authorization (add tokens)
+H2   -> EstSvc : EstablishSession.handle(\n  ossId-NEW, userId, as-sid-3,\n  newAuthId, clientId, ...)
+activate EstSvc
+EstSvc -> OSSRepo : findById(ossId-NEW)
+OSSRepo --> EstSvc : Optional.empty()
+EstSvc -> OSSRepo : findActiveByIdpSessionAndClient(as-sid-3, "web-gateway")
+OSSRepo --> EstSvc : Optional.empty()  — no stale SSO session
+EstSvc -> EstSvc  : OAuthSession.issue(ossId-NEW) → SessionIssuedEvent
+EstSvc -> DB      : INSERT oauth_sessions(ossId-NEW, userId, as-sid-3, newAuthId, ...)
+EstSvc -> Kafka   : SessionIssuedEvent → outbox\n{ossId-NEW, userId, as-sid-3, email, deviceHash, ...}
+deactivate EstSvc
+deactivate H2
+
+FW   -> FW   : JwtTokenCustomizer:\n  oss_id = ossId-NEW, roles, kid → sign JWT
+FW   --> WG  : 200 {access_token(oss_id=ossId-NEW), refresh_token, id_token}
+WG   -> WG   : Session fixation: DEL wg-sid-1 / CREATE wg-sid-2\nstore OAuth2AuthorizedClient {ossId-NEW}
+
+Kafka -> IdentSvc : SessionIssuedConsumer → RecordLoginSession
+IdentSvc -> IdentSvc : Device.register() / recordActivity()\nLoginActivity.recordSuccess(sessionId=ossId-NEW)
+
+
+' ═══════════════════════════════════════════════════════
+== 2. Refresh Token ==
+' ═══════════════════════════════════════════════════════
+
+note over WG
+  access_token hết hạn
+  web-gateway dùng refresh_token
+end note
+
+WG -> FW : POST /oauth2/token\n{grant_type=refresh_token, refresh_token=...}
+FW -> FW : verify refresh_token\nUPDATE same OAuth2Authorization record (same id)\nissue new access_token value
+
+FW -> H2 : save(authorization)\n[Phase 1.5] ATTR_OAUTH_SESSION_ID != null → SKIP\n[Phase 2] hasToken && email != null → RUN
+activate H2
+H2   -> DB     : delegate.save → UPDATE OAuth2Authorization (new token values, same id)
+H2   -> EstSvc : EstablishSession.handle(ossId-NEW, ..., sameAuthorizationId)
+activate EstSvc
+EstSvc -> OSSRepo : findById(ossId-NEW)
+OSSRepo --> EstSvc : OAuthSession(ossId-NEW, sameAuthorizationId)
+EstSvc -> EstSvc  : oldId == newId → return early (no-op)
+deactivate EstSvc
+note right of EstSvc
+  Spring AS không tạo OAuth2Authorization mới khi refresh
+  → authorizationId không đổi → early return
+  Không có DB write, không có event, không có Kafka message
+end note
+deactivate H2
+
+FW --> WG : 200 {new access_token(oss_id=ossId-NEW), ...}
+WG -> WG  : update OAuth2AuthorizedClient in session
+
+
+' ═══════════════════════════════════════════════════════
+== 3. Silent SSO ==
+' ═══════════════════════════════════════════════════════
+
+note over WG
+  web-gateway session wg-sid-2 hết hạn,
+  nhưng IDP session as-sid-3 vẫn còn hiệu lực
+  với {PASSWORD_AUTHORITY, OTT_AUTHORITY}
+end note
+
+User -> WG   : GET /protected-resource (no session)
+WG   -> User : 302 /oauth2/authorize (Trigger B)
+User -> FW   : GET /oauth2/authorize
+FW   -> FW   : load as-sid-3 → SecurityContext fully authenticated\n→ không hiện login form / OTT form
+
+FW -> H2 : save(authorizationWithCode)\n[Phase 1.5] hasCode && !hasToken && oauthSessionId == null
+activate H2
+H2   -> OSSRepo : findActiveByIdpSessionAndClient(as-sid-3, "web-gateway")
+OSSRepo -> DB   : SELECT oauth_sessions WHERE idp_session_id=as-sid-3...
+DB --> OSSRepo  : OAuthSession(ossId-EXISTING)
+OSSRepo --> H2  : Optional[ossId-EXISTING]
+H2   -> H2   : reuse ossId-EXISTING  [log: silent SSO detected]
+H2   -> DB   : delegate.save → INSERT OAuth2Authorization\n{newCode, ossId-EXISTING, device_attrs (from as-sid-3), ...}
+deactivate H2
+
+FW   -> User : 302 {redirect_uri}?code=...
+User -> WG   : GET callback?code=...
+WG   -> FW   : POST /oauth2/token
+
+FW -> H2 : save(authorizationWithToken)\n[Phase 2] hasToken && email != null
+activate H2
+H2   -> DB     : delegate.save → UPDATE OAuth2Authorization (add new tokens)
+H2   -> EstSvc : EstablishSession.handle(ossId-EXISTING, ..., newAuthorizationId)
+activate EstSvc
+EstSvc -> OSSRepo : findById(ossId-EXISTING)
+OSSRepo --> EstSvc : OAuthSession(ossId-EXISTING, prevAuthorizationId)
+EstSvc -> FW      : oauth2AuthorizationService.remove(prevAuth)
+FW -> DB          : DELETE prevAuth OAuth2Authorization (old tokens)
+EstSvc -> EstSvc  : session.onTokenRotated(newAuthorizationId)
+EstSvc -> DB      : UPSERT oauth_sessions SET authorization_id=newAuthorizationId
+deactivate EstSvc
+note right of EstSvc
+  Không publish event
+  LoginActivity giữ nguyên (không đóng, không tạo mới)
+  oss_id trong JWT = ossId-EXISTING (stable)
+end note
+deactivate H2
+
+FW   -> FW   : JwtTokenCustomizer: oss_id = ossId-EXISTING
+FW   --> WG  : 200 {access_token(oss_id=ossId-EXISTING), ...}
+WG   -> WG   : tạo web-gateway session mới wg-sid-3\noss_id mapping vẫn = ossId-EXISTING
+
+
+' ═══════════════════════════════════════════════════════
+== 4. Logout ==
+' ═══════════════════════════════════════════════════════
+
+WG -> FW : GET /connect/logout\n  ?id_token_hint=...&post_logout_redirect_uri=...
+FW -> FW : OidcLogoutAuthenticationProvider\n→ validate id_token_hint, xác định IDP session as-sid-3
+
+FW -> FW : oidcLogoutHandler:\n  SecurityContextLogoutHandler.logout()\n  → session.invalidate() — IDP session as-sid-3
+
+FW -> H3 : SessionDeletedEvent(sessionId=as-sid-3)
+activate H3
+H3   -> EndSvc : EndIdpSession.handle(as-sid-3, Reason.REVOKED)
+activate EndSvc
+EndSvc -> OSSRepo : findAllByIdpSessionId(as-sid-3)
+OSSRepo --> EndSvc : [OAuthSession(ossId-EXISTING)]
+EndSvc -> DB      : DELETE oauth_sessions WHERE id=ossId-EXISTING
+EndSvc -> FW      : oauth2AuthorizationService.findById(authorizationId)
+FW --> EndSvc     : OAuth2Authorization
+EndSvc -> FW      : oauth2AuthorizationService.remove(auth)
+FW -> DB          : DELETE OAuth2Authorization
+EndSvc -> Kafka   : SessionRevokedEvent → outbox\n{oauthSessionIds=[ossId-EXISTING], userId, as-sid-3}
+deactivate EndSvc
+H3   -> RevClient : revoke(ossId-EXISTING)
+RevClient -> WG   : POST /webgw/internal/sessions/revoke\n  {ossId: ossId-EXISTING}
+WG   -> WG        : DEL spring:session:wg-sid-3\nDEL webgw:oauth:ossId-EXISTING
+deactivate H3
+
+FW -> FW   : AuthorizationRevokingLogoutSuccessHandler\n→ redirect post_logout_redirect_uri
+FW -> User : 302 post_logout_redirect_uri
+User -> WG : GET post_logout_redirect_uri
+
+Kafka -> IdentSvc : SessionRevokedConsumer → CloseLoginSession
+IdentSvc -> IdentSvc : UPDATE login_activities SET ended_at=now()\nWHERE session_id IN [ossId-EXISTING]
+
+
+' ═══════════════════════════════════════════════════════
+== 5. Session Expire ==
+' ═══════════════════════════════════════════════════════
+
+note over FW
+  Spring Session JDBC background task
+  (CleanupOldSessionsTask) phát hiện
+  SPRING_SESSION.expiry_time <= now()
+  → DELETE IDP session as-sid-3
+end note
+
+FW -> H3 : SessionExpiredEvent(sessionId=as-sid-3)
+activate H3
+H3   -> EndSvc : EndIdpSession.handle(as-sid-3, Reason.EXPIRED)
+activate EndSvc
+EndSvc -> OSSRepo : findAllByIdpSessionId(as-sid-3)
+OSSRepo --> EndSvc : [OAuthSession(ossId-EXISTING)]
+EndSvc -> DB      : DELETE oauth_sessions WHERE id=ossId-EXISTING
+EndSvc -> FW      : oauth2AuthorizationService.remove(auth)
+FW -> DB          : DELETE OAuth2Authorization
+EndSvc -> Kafka   : SessionExpiredEvent → outbox\n{oauthSessionIds=[ossId-EXISTING], userId, as-sid-3}
+deactivate EndSvc
+H3   -> RevClient : revoke(ossId-EXISTING)
+RevClient -> WG   : POST /webgw/internal/sessions/revoke\n  {ossId: ossId-EXISTING}
+WG   -> WG        : DEL spring:session:wg-sid-3 (nếu chưa expire)\nDEL webgw:oauth:ossId-EXISTING
+deactivate H3
+
+Kafka -> IdentSvc : SessionExpiredConsumer → CloseLoginSession
+IdentSvc -> IdentSvc : UPDATE login_activities SET ended_at=now()\nWHERE session_id IN [ossId-EXISTING]
+
+@enduml

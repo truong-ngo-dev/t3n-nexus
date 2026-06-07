@@ -8,6 +8,7 @@ import vn.t3nexus.identity.domain.login_activity.LoginActivityRepository;
 import vn.t3nexus.identity.infrastructure.persistence.login_activity.LoginActivityJpaRepository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -39,12 +40,7 @@ public class LoginActivityRepositoryAdapter implements LoginActivityRepository {
     }
 
     @Override
-    public void endBySessionId(String sessionId, Instant endedAt) {
-        jpaRepository.endBySessionId(sessionId, endedAt);
-    }
-
-    @Override
-    public void delete(LoginActivityId id) {
-        throw new UnsupportedOperationException("LoginActivity is append-only");
+    public void endBySessionIds(List<String> sessionIds, Instant endedAt) {
+        jpaRepository.endBySessionIds(sessionIds, endedAt);
     }
 }

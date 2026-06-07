@@ -16,7 +16,7 @@ public class OAuthSessionMapper {
                 entity.getIdpSessionId(),
                 entity.getAuthorizationId(),
                 entity.getIpAddress(),
-                entity.getStatus(),
+                entity.getRegisteredClientId(),
                 entity.getCreatedAt()
         );
     }

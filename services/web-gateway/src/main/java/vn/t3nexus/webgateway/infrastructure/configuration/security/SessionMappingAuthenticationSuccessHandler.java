@@ -15,7 +15,6 @@ import reactor.core.publisher.Mono;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.util.Base64;
 
 /**
@@ -36,18 +35,15 @@ public class SessionMappingAuthenticationSuccessHandler implements ServerAuthent
     private final ServerOAuth2AuthorizedClientRepository authorizedClientRepository;
     private final ObjectMapper                           objectMapper;
     private final ServerAuthenticationSuccessHandler     delegate;
-    private final Duration                               mappingTtl;
 
     public SessionMappingAuthenticationSuccessHandler(
             ReactiveStringRedisTemplate redisTemplate,
             ServerOAuth2AuthorizedClientRepository authorizedClientRepository,
             ObjectMapper objectMapper,
-            @Value("${app.session.mapping-ttl-seconds:86400}") long mappingTtlSeconds,
             @Value("${app.login.success-redirect-uri:/}") String successRedirectUri) {
         this.redisTemplate              = redisTemplate;
         this.authorizedClientRepository = authorizedClientRepository;
         this.objectMapper               = objectMapper;
-        this.mappingTtl                 = Duration.ofSeconds(mappingTtlSeconds);
         this.delegate                   = new RedirectServerAuthenticationSuccessHandler(successRedirectUri);
     }
 
@@ -71,8 +67,8 @@ public class SessionMappingAuthenticationSuccessHandler implements ServerAuthent
                             .flatMap(session -> {
                                 String oauthKey   = WEBGW_OAUTH_KEY_PREFIX + ossId;
                                 String reverseKey = WEBGW_SESSION_KEY_PREFIX + session.getId();
-                                return redisTemplate.opsForValue().set(oauthKey, session.getId(), mappingTtl)
-                                        .then(redisTemplate.opsForValue().set(reverseKey, ossId, mappingTtl));
+                                return redisTemplate.opsForValue().set(oauthKey, session.getId())
+                                        .then(redisTemplate.opsForValue().set(reverseKey, ossId));
                             });
                 })
                 .then(delegate.onAuthenticationSuccess(webFilterExchange, authentication));
