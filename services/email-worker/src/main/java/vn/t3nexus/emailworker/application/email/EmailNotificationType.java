@@ -3,7 +3,8 @@ package vn.t3nexus.emailworker.application.email;
 public enum EmailNotificationType {
     LOGIN_OTP("email/login-otp"),
     VERIFICATION_EMAIL("email/verification"),
-    ACCOUNT_ACTIVATED("email/account-activated");
+    ACCOUNT_ACTIVATED("email/account-activated"),
+    OAUTH_ACCOUNT_CREATED("email/oauth-account-created");
 
     private final String templatePath;
 

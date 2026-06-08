@@ -67,6 +67,7 @@ public class UserAccount extends AbstractAggregateRoot<UserId> implements Aggreg
         Assert.notNull(email, "email is required");
         UserAccount account = new UserAccount(id, email, null, fullName, UserAccountStatus.ACTIVE);
         account.addDomainEvent(new CustomerAccountCreatedEvent(id.getValue(), email, fullName));
+        account.addDomainEvent(new PasswordSetupEmailRequested(id.getValue(), email, fullName));
         return account;
     }
 

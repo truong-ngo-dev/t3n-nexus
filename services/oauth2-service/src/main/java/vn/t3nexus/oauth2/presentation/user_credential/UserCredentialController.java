@@ -1,7 +1,6 @@
 package vn.t3nexus.oauth2.presentation.user_credential;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -24,23 +23,15 @@ public class UserCredentialController {
                 request.email(),
                 request.password(),
                 request.role(),
-                request.fullName(),
-                request.registrationMethod()
+                request.fullName()
         );
         return ApiResponse.ok(registerUser.handle(command));
     }
 
     public record RegisterRequest(
             @NotBlank @Email String email,
-            String password,
+            @NotBlank String password,
             @NotBlank String role,
-            @NotBlank String fullName,
-            @NotBlank String registrationMethod
-    ) {
-        @AssertTrue(message = "password is required for CREDENTIAL registration")
-        public boolean isPasswordValidForMethod() {
-            if (!"CREDENTIAL".equals(registrationMethod)) return true;
-            return password != null && !password.isBlank();
-        }
-    }
+            @NotBlank String fullName
+    ) {}
 }

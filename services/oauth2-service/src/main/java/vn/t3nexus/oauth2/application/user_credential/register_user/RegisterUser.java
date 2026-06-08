@@ -21,7 +21,7 @@ import vn.t3nexus.oauth2.domain.user_credential.UserCredentialRepository;
 @RequiredArgsConstructor
 public class RegisterUser implements CommandHandler<RegisterUser.Command, RegisterUser.Result> {
 
-    public record Command(String email, String rawPassword, String role, String fullName, String registrationMethod) {}
+    public record Command(String email, String rawPassword, String role, String fullName) {}
     public record Result(String userId) {}
 
     private final UserCredentialRepository userCredentialRepository;
@@ -36,23 +36,19 @@ public class RegisterUser implements CommandHandler<RegisterUser.Command, Regist
             throw UserCredentialException.emailAlreadyExists();
         }
 
-        UserId userId = UserId.of(ulidGenerator.generate());
-        Role   role   = Role.valueOf(command.role());
-
-        UserCredential credential = "CREDENTIAL".equals(command.registrationMethod())
-                ? UserCredential.registerWithCredential(
-                        userId,
-                        command.email(),
-                        CredentialPassword.ofHashed(passwordService.hash(command.rawPassword())),
-                        role,
-                        command.fullName())
-                : UserCredential.registerWithOAuth(userId, command.email(), role, command.fullName());
+        UserId         userId     = UserId.of(ulidGenerator.generate());
+        Role           role       = Role.valueOf(command.role());
+        UserCredential credential = UserCredential.registerWithCredential(
+                userId,
+                command.email(),
+                CredentialPassword.ofHashed(passwordService.hash(command.rawPassword())),
+                role,
+                command.fullName());
 
         userCredentialRepository.save(credential);
         eventDispatcher.dispatchAll(credential.getDomainEvents());
 
-        log.info("[RegisterUser] registered (method={}): userId={}, traceId={}",
-                command.registrationMethod(), userId.getValue(), MDC.get("traceId"));
+        log.info("[RegisterUser] registered: userId={}, traceId={}", userId.getValue(), MDC.get("traceId"));
 
         return new Result(userId.getValue());
     }

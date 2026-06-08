@@ -20,7 +20,8 @@ public class NotificationOutboxEventConsumer {
     private final NotificationDispatchService dispatchService;
 
     @KafkaListener(
-            topics  = {"${app.kafka.topic.login-otp-requested}",
+            topics  = {"${app.kafka.topic.password-setup-requested}",
+                       "${app.kafka.topic.login-otp-requested}",
                        "${app.kafka.topic.email-verification-requested}",
                        "${app.kafka.topic.email-verification-reissued}",
                        "${app.kafka.topic.email-verification-verified}"},
