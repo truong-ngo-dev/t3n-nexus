@@ -10,5 +10,5 @@ Mỗi UC là một folder riêng gồm 3 files:
 | UC          | Folder                       | Services                                             | Status |
 |-------------|------------------------------|------------------------------------------------------|--------|
 | Customer Registration | [customer-registration/](customer-registration/) | oauth2, identity, customer, notification | Draft  |
-| User Login — Device Tracking | [user-login/](user-login/) | oauth2, identity, notification | Draft  |
+| User Login — Device Tracking | [user-login/](user-auth/) | oauth2, identity, notification | Draft  |
 | Place Order           | [place-order/](place-order/)                     | order, inventory, payment, fulfillment, notification | Draft  |

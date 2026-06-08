@@ -45,6 +45,33 @@ public class SessionEstablishingAuthorizationService implements OAuth2Authorizat
     private final OAuthSessionRepository     oAuthSessionRepository;
     private final ULIDGenerator              ulidGenerator;
 
+    /**
+     * Spring Authorization Server gọi OAuth2AuthorizationService.save() tại các điểm này trong lifecycle:
+     * <br>
+     *   1. Authorization request nhận vào — chưa có code <br>
+     *   OAuth2AuthorizationCodeRequestAuthenticationProvider — khi AS nhận <br>
+     *   /oauth2/authorize, lưu pending state để track request. <br>
+     *   → hasAuthorizationCode = false → Phase 1.5 không trigger. <br>
+     *   → Browser request, HTTP session có. <br>
+     * <br>
+     *   2. Authorization code issued — có code, chưa có token <br>
+     *   Cùng provider trên, sau khi generate code. <br>
+     *   → Phase 1.5 trigger: attach device signals + resolve oauth_session_id. <br>
+     *   → Browser request, HTTP session có. <br>
+     * <br>
+     *   3. Token exchange — có access token <br>
+     *   OAuth2AuthorizationCodeAuthenticationProvider — BFF POST /oauth2/token với code + code_verifier. <br>
+     *   → Phase 2 trigger: EstablishSession. <br>
+     *   → Server-to-server, không có HTTP session — dùng attributes đã bridge từ Phase 1.5. <br>
+     * <br>
+     *   4. Token refresh — access token mới <br>
+     *   OAuth2RefreshTokenAuthenticationProvider — BFF dùng refresh token. <br>
+     *   → hasAccessToken = true, ATTR_EMAIL vẫn còn trong attributes từ Phase 1.5. <br>
+     *   → Phase 2 condition match → EstablishSession được gọi nhưng là no-op: <br>
+     *      Spring AS update in-place OAuth2Authorization khi refresh (id không đổi) <br>
+     *      → authorizationId match → early return. <br>
+     *   → Server-to-server, không có HTTP session. <br>
+     * */
     @Override
     public void save(OAuth2Authorization authorization) {
         // Phase 1.5: authorization code just issued — pre-generate session ID + attach device signals
@@ -55,6 +82,7 @@ public class SessionEstablishingAuthorizationService implements OAuth2Authorizat
         delegate.save(authorization);
 
         // Phase 2: access token just issued — create OAuthSession + publish SessionIssuedEvent
+        // ATTR_EMAIL != null phân biệt authorization code flow (user login) với client credentials và các flow khác
         if (hasAccessToken(authorization) && authorization.getAttribute(ATTR_EMAIL) != null) {
             String oauthSessionId    = orEmpty(authorization.getAttribute(ATTR_OAUTH_SESSION_ID));
             String userId            = authorization.getPrincipalName();
@@ -100,10 +128,9 @@ public class SessionEstablishingAuthorizationService implements OAuth2Authorizat
      */
     private OAuth2Authorization attachDeviceInfoFromSession(OAuth2Authorization authorization) {
         try {
-            ServletRequestAttributes attrs =
-                    (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
             HttpSession session = attrs.getRequest().getSession(false);
-
+            // null defensive
             if (session == null) {
                 return OAuth2Authorization.from(authorization)
                         .attribute(ATTR_OAUTH_SESSION_ID, ulidGenerator.generate())
@@ -111,13 +138,14 @@ public class SessionEstablishingAuthorizationService implements OAuth2Authorizat
             }
 
             String email = (String) session.getAttribute(ATTR_EMAIL);
+            // null defensive
             if (email == null) {
                 return OAuth2Authorization.from(authorization)
                         .attribute(ATTR_OAUTH_SESSION_ID, ulidGenerator.generate())
                         .build();
             }
 
-            String idpSessionId      = session.getId();
+            String idpSessionId       = session.getId();
             String registeredClientId = authorization.getRegisteredClientId();
             String sessionId = oAuthSessionRepository
                     .findActiveByIdpSessionAndClient(idpSessionId, registeredClientId)
@@ -128,7 +156,7 @@ public class SessionEstablishingAuthorizationService implements OAuth2Authorizat
                     .orElseGet(ulidGenerator::generate);
 
             return OAuth2Authorization.from(authorization)
-                    .attribute(ATTR_OAUTH_SESSION_ID,   sessionId)
+                    .attribute(ATTR_OAUTH_SESSION_ID,    sessionId)
                     .attribute(ATTR_EMAIL,               email)
                     .attribute(ATTR_DEVICE_HASH,         session.getAttribute(ATTR_DEVICE_HASH))
                     .attribute(ATTR_USER_AGENT,          session.getAttribute(ATTR_USER_AGENT))

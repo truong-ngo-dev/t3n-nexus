@@ -41,15 +41,18 @@ public class EstablishSession implements CommandHandler<EstablishSession.Command
     private final OAuthSessionRepository oAuthSessionRepository;
     private final IssueSession           issueSession;
 
-    @Autowired @Lazy
     private OAuth2AuthorizationService oauth2AuthorizationService;
+
+    @Autowired
+    public void setOauth2AuthorizationService(@Lazy OAuth2AuthorizationService oauth2AuthorizationService) {
+        this.oauth2AuthorizationService = oauth2AuthorizationService;
+    }
 
     @Override
     @Transactional
     public Result handle(Command command) {
         if (StringUtils.hasText(command.oauthSessionId())) {
-            Optional<OAuthSession> existing = oAuthSessionRepository.findById(
-                    new OAuthSessionId(command.oauthSessionId()));
+            Optional<OAuthSession> existing = oAuthSessionRepository.findById(new OAuthSessionId(command.oauthSessionId()));
             if (existing.isPresent()) {
                 OAuthSession session = existing.get();
                 String oldAuthorizationId = session.getAuthorizationId();

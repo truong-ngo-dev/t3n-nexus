@@ -43,8 +43,12 @@ public class IssueSession implements CommandHandler<IssueSession.Command, IssueS
     private final ULIDGenerator          ulidGenerator;
     private final EventDispatcher        eventDispatcher;
 
-    @Autowired @Lazy
     private OAuth2AuthorizationService oauth2AuthorizationService;
+
+    @Autowired
+    public void setOauth2AuthorizationService(@Lazy OAuth2AuthorizationService oauth2AuthorizationService) {
+        this.oauth2AuthorizationService = oauth2AuthorizationService;
+    }
 
     @Override
     @Transactional
