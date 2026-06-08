@@ -7,13 +7,13 @@
 
 ## Services liên quan
 
-| Service                | Vai trò                                                           | Loại tham gia       |
-|------------------------|-------------------------------------------------------------------|---------------------|
-| `web-gateway`          | BFF — nhận request, forward đến oauth2-service                    | Entry point         |
-| `oauth2-service`       | Validate input, hash password, tạo UserCredential, publish event  | Sync + Event publisher |
-| `identity-service`     | Tạo UserAccount + EmailVerification, publish events downstream    | Async + Event publisher |
-| `customer-service`     | Tạo CustomerProfile khi nhận CustomerAccountCreated               | Async consumer      |
-| `notification-service` | Gửi verification email khi nhận VerificationEmailRequested        | Async consumer      |
+| Service                | Vai trò                                                          | Loại tham gia           |
+|------------------------|------------------------------------------------------------------|-------------------------|
+| `web-gateway`          | BFF — nhận request, forward đến oauth2-service                   | Entry point             |
+| `oauth2-service`       | Validate input, hash password, tạo UserCredential, publish event | Sync + Event publisher  |
+| `identity-service`     | Tạo UserAccount + EmailVerification, publish events downstream   | Async + Event publisher |
+| `customer-service`     | Tạo CustomerProfile khi nhận CustomerAccountCreated              | Async consumer          |
+| `notification-service` | Gửi verification email khi nhận VerificationEmailRequested       | Async consumer          |
 
 ---
 
@@ -67,15 +67,15 @@ Buyer → POST /api/auth/register/oauth2 {provider=GOOGLE, code=...}
 
 ## Error Cases
 
-| Lỗi | Nơi xử lý | Response |
-|---|---|---|
-| Email đã tồn tại | oauth2-service (sync) | 409 Conflict |
-| oauth2-service down | web-gateway | 503 Service Unavailable |
-| Token không tồn tại | identity-service (sync) | 404 |
-| Token hết hạn | identity-service (sync) | 410 |
-| Email đã verified | identity-service (sync) | 409 |
-| Resend vượt 3 lần/giờ | identity-service (sync) | 429 Too Many Requests |
-| customer-service chậm xử lý | Kafka retry tự động | — |
+| Lỗi                         | Nơi xử lý               | Response                |
+|-----------------------------|-------------------------|-------------------------|
+| Email đã tồn tại            | oauth2-service (sync)   | 409 Conflict            |
+| oauth2-service down         | web-gateway             | 503 Service Unavailable |
+| Token không tồn tại         | identity-service (sync) | 404                     |
+| Token hết hạn               | identity-service (sync) | 410                     |
+| Email đã verified           | identity-service (sync) | 409                     |
+| Resend vượt 3 lần/giờ       | identity-service (sync) | 429 Too Many Requests   |
+| customer-service chậm xử lý | Kafka retry tự động     | —                       |
 
 Không có compensating saga — critical path là sync, downstream là fire-and-forget.
 
@@ -83,11 +83,11 @@ Không có compensating saga — critical path là sync, downstream là fire-and
 
 ## Technical Constraints
 
-| Concern | Giải pháp |
-|---|---|
-| Idempotency | identity-service skip nếu userId đã tồn tại; customer-service `ON CONFLICT DO NOTHING` |
-| Event delivery | Outbox Pattern + CDC tại oauth2-service và identity-service |
-| Password | BCrypt hash tại oauth2-service — identity-service không biết password |
-| Email verification | Chỉ áp dụng cho `registrationMethod=CREDENTIAL`, không áp dụng cho OAUTH |
-| Token | Opaque 32-byte random, Base64URL, TTL 24h, rotate khi reissue |
-| CustomerProfile timing | Tạo async sau UserAccount — eventual consistency chấp nhận được |
+| Concern                | Giải pháp                                                                              |
+|------------------------|----------------------------------------------------------------------------------------|
+| Idempotency            | identity-service skip nếu userId đã tồn tại; customer-service `ON CONFLICT DO NOTHING` |
+| Event delivery         | Outbox Pattern + CDC tại oauth2-service và identity-service                            |
+| Password               | BCrypt hash tại oauth2-service — identity-service không biết password                  |
+| Email verification     | Chỉ áp dụng cho `registrationMethod=CREDENTIAL`, không áp dụng cho OAUTH               |
+| Token                  | Opaque 32-byte random, Base64URL, TTL 24h, rotate khi reissue                          |
+| CustomerProfile timing | Tạo async sau UserAccount — eventual consistency chấp nhận được                        |
