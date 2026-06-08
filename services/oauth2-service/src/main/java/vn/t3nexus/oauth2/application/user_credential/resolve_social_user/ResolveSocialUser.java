@@ -19,7 +19,7 @@ public class ResolveSocialUser implements CommandHandler<ResolveSocialUser.Comma
 
     public record Command(String email, String fullName) {}
 
-    public record Result(String userId, boolean locked, boolean newAccount) {}
+    public record Result(String userId, boolean locked, boolean newAccount, boolean mfaEnabled) {}
 
     private final UserCredentialRepository userCredentialRepository;
     private final ULIDGenerator            ulidGenerator;
@@ -31,7 +31,7 @@ public class ResolveSocialUser implements CommandHandler<ResolveSocialUser.Comma
         return userCredentialRepository.findByEmail(command.email())
                 .map(existing -> {
                     log.debug("[ResolveSocialUser] existing user: userId={}", existing.getId().getValue());
-                    return new Result(existing.getId().getValue(), !existing.canLogin(), false);
+                    return new Result(existing.getId().getValue(), !existing.canLogin(), false, existing.isMfaEnabled());
                 })
                 .orElseGet(() -> {
                     UserId         userId     = UserId.of(ulidGenerator.generate());
@@ -40,7 +40,7 @@ public class ResolveSocialUser implements CommandHandler<ResolveSocialUser.Comma
                     userCredentialRepository.save(credential);
                     eventDispatcher.dispatchAll(credential.getDomainEvents());
                     log.info("[ResolveSocialUser] new OAuth account persisted: userId={}", userId.getValue());
-                    return new Result(userId.getValue(), false, true);
+                    return new Result(userId.getValue(), false, true, false);
                 });
     }
 }

@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.web.filter.OncePerRequestFilter;
 import vn.t3nexus.oauth2.infrastructure.security.service.UserCredentialDetails;
@@ -45,8 +46,17 @@ public class MfaEnforcementFilter extends OncePerRequestFilter {
 
     private boolean needsMfa(Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) return false;
-        if (!(auth.getPrincipal() instanceof UserCredentialDetails userDetails)) return false;
-        if (!userDetails.isMfaEnabled()) return false;
+
+        boolean mfaEnabled;
+        if (auth.getPrincipal() instanceof UserCredentialDetails userDetails) {
+            mfaEnabled = userDetails.isMfaEnabled();
+        } else if (auth.getPrincipal() instanceof OidcUser oidcUser) {
+            mfaEnabled = Boolean.TRUE.equals(oidcUser.getClaim("app_mfa_enabled"));
+        } else {
+            return false;
+        }
+
+        if (!mfaEnabled) return false;
         return auth.getAuthorities().stream()
                 .noneMatch(a -> a.getAuthority().equals(FACTOR_OTT));
     }

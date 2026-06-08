@@ -63,15 +63,19 @@ public class SocialLoginOidcUserService implements OAuth2UserService<OidcUserReq
                         .issuedAt(issuedAt)
                         .build()
         );
-        OidcIdToken enrichedToken = buildEnrichedToken(providerUser, result.userId(), result.newAccount());
+        OidcIdToken enrichedToken = buildEnrichedToken(providerUser, result.userId(), result.newAccount(), result.mfaEnabled());
         return new DefaultOidcUser(enrichedAuthorities, enrichedToken, providerUser.getUserInfo());
     }
 
-    private static OidcIdToken buildEnrichedToken(OidcUser providerUser, String systemUserId, boolean newAccount) {
+    private static OidcIdToken buildEnrichedToken(OidcUser providerUser, String systemUserId,
+                                                   boolean newAccount, boolean mfaEnabled) {
         Map<String, Object> claims = new HashMap<>(providerUser.getIdToken().getClaims());
         claims.put("sub", systemUserId);
         if (newAccount) {
             claims.put("is_new_account", true);
+        }
+        if (mfaEnabled) {
+            claims.put("app_mfa_enabled", true);
         }
         return new OidcIdToken(
                 providerUser.getIdToken().getTokenValue(),

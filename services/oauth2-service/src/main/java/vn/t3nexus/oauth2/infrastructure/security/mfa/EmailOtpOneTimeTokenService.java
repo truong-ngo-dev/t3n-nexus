@@ -70,6 +70,17 @@ public class EmailOtpOneTimeTokenService implements OneTimeTokenService {
         return new DefaultOneTimeToken(authToken.getTokenValue(), username, Instant.ofEpochSecond(expiry));
     }
 
+    public boolean hasActiveToken(String username) {
+        HttpSession session = currentSession(false);
+        if (session == null) return false;
+        String stored   = (String) session.getAttribute(OTP_KEY);
+        String stored_u = (String) session.getAttribute(USERNAME_KEY);
+        Long   expiry   = (Long)   session.getAttribute(EXPIRY_KEY);
+        return stored != null
+                && username != null && username.equals(stored_u)
+                && expiry != null && Instant.now().getEpochSecond() <= expiry;
+    }
+
     private void invalidate(HttpSession session) {
         session.removeAttribute(OTP_KEY);
         session.removeAttribute(USERNAME_KEY);

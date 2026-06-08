@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
@@ -94,7 +95,8 @@ public class SecurityConfiguration {
                         .loginPage("/login")
                         .loginProcessingUrl("/login/ott")
                         .tokenService(emailOtpOneTimeTokenService)
-                        .tokenGenerationSuccessHandler(emailOtpGenerationSuccessHandler));
+                        .tokenGenerationSuccessHandler(emailOtpGenerationSuccessHandler)
+                        .failureHandler(new SimpleUrlAuthenticationFailureHandler("/mfa/verify?error")));
 
         http.oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")

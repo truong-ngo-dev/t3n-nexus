@@ -7,13 +7,13 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
 import org.springframework.security.authentication.ott.OneTimeToken;
-import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import vn.t3nexus.oauth2.infrastructure.security.service.UserCredentialDetails;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class MfaBridgeController {
 
-    private final OneTimeTokenService                   oneTimeTokenService;
+    private final EmailOtpOneTimeTokenService           emailOtpOneTimeTokenService;
     private final OneTimeTokenGenerationSuccessHandler  generationSuccessHandler;
 
     /**
@@ -38,14 +38,23 @@ public class MfaBridgeController {
             email = details.getEmail();
         }
 
-        OneTimeToken token = oneTimeTokenService.generate(new GenerateOneTimeTokenRequest(email));
+        if (emailOtpOneTimeTokenService.hasActiveToken(email)) {
+            response.sendRedirect(request.getContextPath() + "/mfa/verify");
+            return;
+        }
+
+        OneTimeToken token = emailOtpOneTimeTokenService.generate(new GenerateOneTimeTokenRequest(email));
         generationSuccessHandler.handle(request, response, token);
     }
 
     @GetMapping("/verify")
-    public String showForm(HttpSession session, Model model) {
+    public String showForm(HttpSession session, Model model,
+                           @RequestParam(required = false) String error) {
         String email = (String) session.getAttribute("auth_email");
         model.addAttribute("maskedEmail", maskEmail(email));
+        if (error != null) {
+            model.addAttribute("error", "Mã OTP không đúng. Vui lòng thử lại.");
+        }
         return "mfa/otp-form";
     }
 

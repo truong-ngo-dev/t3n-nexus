@@ -5,78 +5,141 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Xác thực OTP — T3Nexus</title>
     <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Inter:wght@400;500&display=swap"
+          rel="stylesheet">
     <style>
+        :root {
+            --primary:     #0D0D0D;
+            --on-primary:  #FFFFFF;
+            --surface:     #FFFFFF;
+            --surface-var: #F8F9FA;
+            --outline:     #E0E0E0;
+            --muted:       #757575;
+            --error:       #D32F2F;
+            --r-button:    24px;
+            --r-card:      8px;
+            --r-input:     4px;
+        }
+
         *, *::before, *::after { box-sizing: border-box; }
+
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #f8fafc;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--surface-var);
             margin: 0;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
         }
+
         .card {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 40px 36px;
+            background: var(--surface);
+            border: 1px solid var(--outline);
+            border-radius: var(--r-card);
+            padding: 48px 40px;
             width: 100%;
-            max-width: 420px;
-            box-shadow: 0 1px 3px rgba(0,0,0,.07);
+            max-width: 480px;
         }
-        h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 6px; color: #0f172a; }
-        .subtitle { color: #64748b; font-size: 0.875rem; margin: 0 0 28px; line-height: 1.5; }
-        .error {
-            color: #b91c1c;
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 6px;
+
+        .brand {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            text-align: center;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin: 0 0 6px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--muted);
+            text-align: center;
+            margin: 0 0 32px;
+            line-height: 1.5;
+        }
+
+        .alert {
+            font-size: 14px;
+            color: var(--error);
+            background: #FFF5F5;
+            border: 1px solid #FFCDD2;
+            border-radius: var(--r-input);
             padding: 12px 14px;
             margin-bottom: 20px;
-            font-size: 0.875rem;
         }
-        label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--primary);
+            margin-bottom: 6px;
+        }
+
         input[name="token"] {
             width: 100%;
             padding: 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
+            border: 1px solid var(--outline);
+            border-radius: var(--r-input);
+            font-family: 'Inter', sans-serif;
             font-size: 1.5rem;
             letter-spacing: 0.4em;
             text-align: center;
+            color: var(--primary);
+            background: var(--surface);
             outline: none;
             transition: border-color .15s;
         }
-        input[name="token"]:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
-        button[type="submit"] {
+
+        input[name="token"]::placeholder { color: var(--muted); }
+        input[name="token"]:focus { border-color: var(--primary); }
+
+        .btn-primary {
             width: 100%;
             margin-top: 16px;
-            padding: 11px;
-            background: #1d4ed8;
-            color: #fff;
+            padding: 12px;
+            background: var(--primary);
+            color: var(--on-primary);
             border: none;
-            border-radius: 6px;
-            font-size: 0.9rem;
+            border-radius: var(--r-button);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: background .15s;
+            transition: opacity .15s;
         }
-        button[type="submit"]:hover { background: #1e40af; }
-        .resend { margin-top: 20px; text-align: center; font-size: 0.825rem; color: #64748b; }
-        .resend a { color: #2563eb; text-decoration: none; }
+
+        .btn-primary:hover { opacity: 0.82; }
+
+        .resend {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .resend a {
+            color: var(--primary);
+            font-weight: 500;
+            text-decoration: none;
+        }
+
         .resend a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
 <div class="card">
-    <h1>Xác thực hai yếu tố</h1>
+    <h1 class="brand">T3E Nexus</h1>
     <p class="subtitle">
-        Mã OTP 6 chữ số đã được gửi đến <strong th:text="${maskedEmail}">email</strong>.
+        Mã OTP 6 chữ số đã được gửi đến <strong th:text="${maskedEmail}">email</strong>.<br>
         Mã có hiệu lực trong 5 phút.
     </p>
 
-    <div class="error" th:if="${error}" th:text="${error}"></div>
+    <div class="alert" th:if="${error}" th:text="${error}"></div>
 
     <form th:action="@{/login/ott}" method="post">
         <label for="token">Nhập mã OTP</label>
@@ -90,7 +153,7 @@
                placeholder="000000"
                autofocus
                required/>
-        <button type="submit">Xác nhận</button>
+        <button type="submit" class="btn-primary">Xác nhận</button>
     </form>
 
     <p class="resend">
