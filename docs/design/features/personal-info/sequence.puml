@@ -1,0 +1,50 @@
+@startuml Personal Info
+
+skinparam sequenceArrowThickness 1.5
+skinparam responseMessageBelowArrow true
+skinparam ParticipantPadding 20
+
+actor       "User (Browser)"  as U
+participant "web-gateway\n(BFF)"  as BFF
+participant "identity-service"    as IDS
+database    "user_accounts\n(MySQL)" as DB
+participant "MinIO"               as MN
+
+== GET Profile ==
+
+U  -> BFF : GET /api/identity/me\n(session cookie)
+BFF -> IDS : GET /api/v1/me\n(Bearer token)
+IDS -> DB  : SELECT * FROM user_accounts\nWHERE user_id = ?
+DB --> IDS : UserAccount row
+IDS --> BFF : 200 { userId, fullName, email,\n      phoneNumber, avatarUrl }
+BFF --> U   : 200
+
+== PUT Profile ==
+
+U  -> BFF : PUT /api/identity/me\n{ fullName, phoneNumber }
+BFF -> IDS : PUT /api/v1/me
+IDS -> IDS : validate input
+IDS -> DB  : UPDATE user_accounts\nSET full_name=?, phone_number=?\nWHERE user_id=?
+DB --> IDS : updated
+IDS --> BFF : 200 { userId, fullName, ... }
+BFF --> U   : 200
+
+== Upload Avatar ==
+
+U  -> BFF : POST /api/identity/me/avatar\n(multipart: file)
+BFF -> IDS : POST /api/v1/me/avatar
+IDS -> IDS : validate type & size
+
+alt has existing avatar
+    IDS -> MN : DELETE user-avatars/{userId}/old.ext
+    MN --> IDS : deleted
+end
+
+IDS -> MN  : PUT user-avatars/{userId}/{ulid}.ext
+MN --> IDS : stored → url
+IDS -> DB  : UPDATE user_accounts\nSET avatar_url=?\nWHERE user_id=?
+DB --> IDS : updated
+IDS --> BFF : 200 { avatarUrl }
+BFF --> U   : 200
+
+@enduml

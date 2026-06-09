@@ -2,7 +2,12 @@ import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { catchError, map, Observable, of, tap } from 'rxjs';
 import { API_CONFIG } from './api-config';
-import { User } from '@t3n/shared/model';
+import { Role, User } from '@t3n/shared/model';
+
+interface SessionResponse {
+  userId: string;
+  role:   Role;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -13,26 +18,33 @@ export class AuthService {
   readonly loading = signal(true);
 
   init(): Observable<void> {
-    // return this.http.get<User>(`${this.config.identity}/me`).pipe(
-    //   tap(u  => { this.user.set(u); this.loading.set(false); }),
-    //   catchError(() => { this.user.set(null); this.loading.set(false); return of(null); }),
-    //   map(() => void 0)
-    // );
-    return undefined;
+    return this.http.get<SessionResponse>(`${this.config.webgw}/session`).pipe(
+      tap(res => {
+        this.user.set({ id: res.userId, role: res.role, fullName: '', avatarUrl: null });
+        this.loading.set(false);
+      }),
+      catchError(() => {
+        this.user.set(null);
+        this.loading.set(false);
+        return of(null);
+      }),
+      map(() => void 0)
+    );
   }
 
-  checkSession(): Observable<void> {
-    return this.http.get<void>(`${this.config.bff}/session`);
+  patchUser(partial: Partial<User>): void {
+    const current = this.user();
+    if (current) this.user.set({ ...current, ...partial });
   }
 
   // BFF redirect thẳng 302 → oauth2-service login form
   login(): void {
-    window.location.href = `${this.config.bff}/login`;
+    window.location.href = `${this.config.webgw}/login`;
   }
 
   // BFF invalidates session, returns 202 + Location header → SPA navigates to OIDC end_session
   logout(): void {
-    this.http.post(`${this.config.bff}/logout`, {}, { observe: 'response' })
+    this.http.post(`${this.config.webgw}/logout`, {}, { observe: 'response' })
       .subscribe(res => {
         const location = res.headers.get('Location');
         if (location) window.location.href = location;

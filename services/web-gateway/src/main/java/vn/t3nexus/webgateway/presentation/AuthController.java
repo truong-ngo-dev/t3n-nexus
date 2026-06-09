@@ -15,11 +15,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * UC-001: Khởi tạo OAuth2 Authorization Code Flow từ Angular.
@@ -48,7 +44,7 @@ public class AuthController {
 
     /**
      * UC-006: Kiểm tra session hợp lệ mà không trigger redirect.
-     * 200 + { sub, requiresProfileCompletion, contexts } → session hợp lệ, 401 → chưa xác thực.
+     * 200 + { userId, role, requiresProfileCompletion } → session hợp lệ, 401 → chưa xác thực.
      */
     @GetMapping("/session")
     public Mono<ResponseEntity<SessionResponse>> session(ServerWebExchange exchange) {
@@ -63,52 +59,26 @@ public class AuthController {
                             .cast(OAuth2AuthorizedClient.class)
                             .map(client -> {
                                 String accessToken = client.getAccessToken().getTokenValue();
-                                List<Map<String, Object>> contexts = extractContexts(accessToken);
-
-                                boolean requiresProfileCompletion = Boolean.TRUE.equals(
-                                        token.getPrincipal().getAttribute("requires_profile_completion"));
-
-                                return ResponseEntity.ok(new SessionResponse(
-                                        token.getName(),
-                                        requiresProfileCompletion,
-                                        contexts
-                                ));
+                                String role        = extractRole(accessToken);
+                                return ResponseEntity.ok(new SessionResponse(token.getName(), role));
                             })
                 )
                 .defaultIfEmpty(ResponseEntity.status(HttpStatus.UNAUTHORIZED).<SessionResponse>build());
     }
 
-    private List<Map<String, Object>> extractContexts(String jwtToken) {
+    private String extractRole(String jwtToken) {
         try {
             String[] parts = jwtToken.split("\\.");
-            if (parts.length < 2) return List.of();
+            if (parts.length < 2) return null;
             byte[] payloadBytes = Base64.getUrlDecoder().decode(addPadding(parts[1]));
-            JsonNode payload = objectMapper.readTree(payloadBytes);
-            JsonNode contextsNode = payload.get("contexts");
-            if (contextsNode == null || !contextsNode.isArray()) return List.of();
-
-            List<Map<String, Object>> result = new ArrayList<>();
-            for (JsonNode item : contextsNode) {
-                Map<String, Object> ctx = new LinkedHashMap<>();
-                if (item.has("scope"))
-                    ctx.put("scope", item.get("scope").asText());
-                if (item.has("orgId") && !item.get("orgId").isNull())
-                    ctx.put("orgId", item.get("orgId").asText());
-                else
-                    ctx.put("orgId", null);
-                if (item.has("displayName"))
-                    ctx.put("displayName", item.get("displayName").asText());
-                if (item.has("roles")) {
-                    List<String> roles = new ArrayList<>();
-                    item.get("roles").forEach(r -> roles.add(r.asText()));
-                    ctx.put("roles", roles);
-                }
-                result.add(ctx);
-            }
-            return result;
+            JsonNode payload    = objectMapper.readTree(payloadBytes);
+            JsonNode rolesNode  = payload.get("roles");
+            if (rolesNode == null || !rolesNode.isArray() || rolesNode.isEmpty()) return null;
+            String role = rolesNode.get(0).asString();
+            return role.startsWith("ROLE_") ? role.substring(5) : role;
         } catch (Exception e) {
-            log.warn("[AuthController] Failed to extract contexts from JWT: {}", e.getMessage());
-            return List.of();
+            log.warn("[AuthController] Failed to extract role from JWT: {}", e.getMessage());
+            return null;
         }
     }
 
@@ -118,9 +88,8 @@ public class AuthController {
         return base64Url + "=".repeat(4 - mod);
     }
 
-    record SessionResponse(
-            String sub,
-            boolean requiresProfileCompletion,
-            List<Map<String, Object>> contexts
+    public record SessionResponse(
+            String userId,
+            String role
     ) {}
 }

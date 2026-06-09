@@ -1,7 +1,7 @@
 import { InjectionToken } from '@angular/core';
 
 export interface ApiConfig {
-  bff:      string;  // /api/bff
+  webgw:    string;  // /api/webgw
   identity: string;  // /api/identity
   catalog:  string;  // /api/catalog
   cart:     string;  // /api/cart

@@ -1,0 +1,45 @@
+<div class="account-container">
+  <div class="account-layout">
+    <aside class="account-sidebar">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">TÀI KHOẢN</h2>
+      </div>
+
+      <mat-nav-list class="sidebar-nav">
+        <a mat-list-item class="sidebar-item sidebar-item--disabled">
+          <mat-icon matListItemIcon>dashboard</mat-icon>
+          <span matListItemTitle>Bảng điều khiển</span>
+        </a>
+
+        <a mat-list-item class="sidebar-item sidebar-item--disabled">
+          <mat-icon matListItemIcon>receipt_long</mat-icon>
+          <span matListItemTitle>Đơn hàng của tôi</span>
+        </a>
+
+        <a mat-list-item class="sidebar-item sidebar-item--disabled">
+          <mat-icon matListItemIcon>location_on</mat-icon>
+          <span matListItemTitle>Sổ địa chỉ</span>
+        </a>
+
+        <a mat-list-item
+           routerLink="profile"
+           routerLinkActive="sidebar-item--active"
+           class="sidebar-item">
+          <mat-icon matListItemIcon>person_outline</mat-icon>
+          <span matListItemTitle>Thông tin cá nhân</span>
+        </a>
+
+        <div class="sidebar-divider"></div>
+
+        <button mat-list-item class="sidebar-item sidebar-item--logout" (click)="auth.logout()">
+          <mat-icon matListItemIcon>logout</mat-icon>
+          <span matListItemTitle>Đăng xuất</span>
+        </button>
+      </mat-nav-list>
+    </aside>
+
+    <main class="account-content">
+      <router-outlet />
+    </main>
+  </div>
+</div>

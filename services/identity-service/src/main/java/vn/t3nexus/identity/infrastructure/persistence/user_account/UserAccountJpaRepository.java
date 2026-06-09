@@ -16,11 +16,12 @@ public interface UserAccountJpaRepository extends JpaRepository<UserAccountJpaEn
 
     @Modifying
     @Query(nativeQuery = true, value = """
-            INSERT INTO users (id, email, phone_number, full_name, status, locked_at, created_at, updated_at)
-            VALUES (:id, :email, :phoneNumber, :fullName, :status, :lockedAt, :createdAt, :updatedAt)
+            INSERT INTO users (id, email, phone_number, full_name, avatar_url, status, locked_at, created_at, updated_at)
+            VALUES (:id, :email, :phoneNumber, :fullName, :avatarUrl, :status, :lockedAt, :createdAt, :updatedAt)
             ON CONFLICT (id) DO UPDATE SET
                 phone_number = EXCLUDED.phone_number,
                 full_name    = EXCLUDED.full_name,
+                avatar_url   = EXCLUDED.avatar_url,
                 status       = EXCLUDED.status,
                 locked_at    = EXCLUDED.locked_at,
                 updated_at   = EXCLUDED.updated_at
@@ -30,6 +31,7 @@ public interface UserAccountJpaRepository extends JpaRepository<UserAccountJpaEn
             @Param("email")       String email,
             @Param("phoneNumber") String phoneNumber,
             @Param("fullName")    String fullName,
+            @Param("avatarUrl")   String avatarUrl,
             @Param("status")      String status,
             @Param("lockedAt")    Instant lockedAt,
             @Param("createdAt")   Instant createdAt,

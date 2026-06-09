@@ -1,6 +1,5 @@
 # oauth2-service — Login Flow Implementation
 
-**Diagram**: [`business-hook-sequence.puml`](business-hook-sequence.puml)  
 **Framework reference**: [`docs/architecture/spring-security-mfa-bff.md`](../../../architecture/spring-security-login-mfa-bff)  
 **Domain design**: [`design.md`](design.md)  
 **Session components**: [`session-management.md`](session-management.md)
@@ -12,11 +11,11 @@
 
 ## Hook Points
 
-| Hook       | Class                                                  | Fire khi                                                                                                          |
-|------------|--------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
-| **Hook 1** | `DeviceAwareAuthenticationSuccessHandler`              | Sau khi `UsernamePasswordAuthenticationFilter` (LOCAL) hoặc `OAuth2LoginAuthenticationFilter` (GOOGLE) thành công |
-| **Hook 2** | `SessionEstablishingAuthorizationService.save()`       | Mỗi lần Spring AS gọi `OAuth2AuthorizationService.save()` — wraps `JdbcOAuth2AuthorizationService`                |
-| **Hook 3** | `oidcLogoutHandler` (explicit) / session cleanup job   | Logout: gọi explicit sau `session.invalidate()`. Expire: scheduled job (deferred). Không có session event listener. |
+| Hook       | Class                                                | Fire khi                                                                                                            |
+|------------|------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| **Hook 1** | `DeviceAwareAuthenticationSuccessHandler`            | Sau khi `UsernamePasswordAuthenticationFilter` (LOCAL) hoặc `OAuth2LoginAuthenticationFilter` (GOOGLE) thành công   |
+| **Hook 2** | `SessionEstablishingAuthorizationService.save()`     | Mỗi lần Spring AS gọi `OAuth2AuthorizationService.save()` — wraps `JdbcOAuth2AuthorizationService`                  |
+| **Hook 3** | `oidcLogoutHandler` (explicit) / session cleanup job | Logout: gọi explicit sau `session.invalidate()`. Expire: scheduled job (deferred). Không có session event listener. |
 
 Hook 2 có 2 phase bên trong, được guard bằng condition riêng:
 
@@ -356,11 +355,11 @@ oss_id trong JWT giữ nguyên → web-gateway mapping [A1][A2] vẫn valid.
 
 `EstablishSession.handle()` là điểm phân kỳ trong Phase 2, quyết định action dựa trên state:
 
-| Trạng thái    | Điều kiện                                                  | Kết quả                                         |
-|---------------|------------------------------------------------------------|-------------------------------------------------|
-| **Refresh**   | `findById(ossId)` → found + `oldAuthId == newAuthId`       | Early return — no-op hoàn toàn                  |
-| **Silent SSO**| `findById(ossId)` → found + `oldAuthId != newAuthId`       | Xóa old auth + `onTokenRotated()` + upsert      |
-| **Fresh login**| `findById(ossId)` → not found                             | Gọi `IssueSession` → tạo mới + `SessionIssuedEvent` |
+| Trạng thái      | Điều kiện                                            | Kết quả                                             |
+|-----------------|------------------------------------------------------|-----------------------------------------------------|
+| **Refresh**     | `findById(ossId)` → found + `oldAuthId == newAuthId` | Early return — no-op hoàn toàn                      |
+| **Silent SSO**  | `findById(ossId)` → found + `oldAuthId != newAuthId` | Xóa old auth + `onTokenRotated()` + upsert          |
+| **Fresh login** | `findById(ossId)` → not found                        | Gọi `IssueSession` → tạo mới + `SessionIssuedEvent` |
 
 ---
 
@@ -377,13 +376,13 @@ Khi as-sid-1 và as-sid-2 bị xóa do session fixation → không có `OAuthSes
 
 ## Hook fire matrix
 
-| Hook / Phase             | Fresh Login | Refresh     | Silent SSO | Logout     | Session Expire |
-|--------------------------|:-----------:|:-----------:|:----------:|:----------:|:--------------:|
-| Hook 1 — `AuthSuccessHandler` | ✅     | —           | —          | —          | —              |
-| Hook 2 — Phase 1.5       | ✅          | —           | ✅         | —          | —              |
-| Hook 2 — Phase 2         | ✅          | ✅ (no-op)  | ✅         | —          | —              |
-| Hook 3 — explicit logout | —           | —           | —          | ✅         | —              |
-| Hook 3 — cleanup job     | —           | —           | —          | —          | ✅ (deferred)  |
+| Hook / Phase                  | Fresh Login |  Refresh  | Silent SSO | Logout | Session Expire |
+|-------------------------------|:-----------:|:---------:|:----------:|:------:|:--------------:|
+| Hook 1 — `AuthSuccessHandler` |      ✅      |     —     |     —      |   —    |       —        |
+| Hook 2 — Phase 1.5            |      ✅      |     —     |     ✅      |   —    |       —        |
+| Hook 2 — Phase 2              |      ✅      | ✅ (no-op) |     ✅      |   —    |       —        |
+| Hook 3 — explicit logout      |      —      |     —     |     —      |   ✅    |       —        |
+| Hook 3 — cleanup job          |      —      |     —     |     —      |   —    |  ✅ (deferred)  |
 
 Kịch bản 4 (Logout) và 5 (Session Expire) → [`logout-impl.md`](logout-impl.md).
 

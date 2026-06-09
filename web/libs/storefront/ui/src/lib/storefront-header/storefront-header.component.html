@@ -1,0 +1,19 @@
+<header class="storefront-header">
+  <div class="header-container">
+    <a routerLink="/customer" class="logo">T3N NEXUS</a>
+
+    <nav class="main-nav">
+      <a class="nav-link">SẢN PHẨM</a>
+      <a class="nav-link">BỘ SƯU TẬP</a>
+      <a class="nav-link">VỀ CHÚNG TÔI</a>
+    </nav>
+
+    <div class="header-actions">
+      @if (auth.user()) {
+        <app-user-avatar />
+      } @else {
+        <button mat-flat-button class="login-btn" (click)="auth.login()">ĐĂNG NHẬP</button>
+      }
+    </div>
+  </div>
+</header>

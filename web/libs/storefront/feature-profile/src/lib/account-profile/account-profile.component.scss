@@ -1,0 +1,31 @@
+.profile-tabs {
+  ::ng-deep {
+    .mat-mdc-tab-header {
+      --mdc-tab-indicator-active-indicator-color: #0d0d0d;
+      --mat-tab-header-active-label-text-color: #0d0d0d;
+      --mat-tab-header-inactive-label-text-color: #757575;
+      margin-bottom: 32px;
+    }
+
+    .mat-mdc-tab .mdc-tab__text-label {
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      font-size: 13px;
+    }
+
+    .mat-mdc-tab-body-content {
+      padding: 0;
+    }
+  }
+}
+
+.placeholder-card {
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #757575;
+  padding: 40px;
+  text-align: center;
+  font-size: 14px;
+}

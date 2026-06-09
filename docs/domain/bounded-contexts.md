@@ -34,24 +34,24 @@ Service mapping: `../architecture/service-mapping.md`. Architecture decisions: `
 
 ### Generic Subdomain
 
-| BC            | Service                | Trách nhiệm chính                                     |
-|---------------|------------------------|-------------------------------------------------------|
-| IAM           | `oauth2-service`       | Authentication, authorization code flow, MFA, social login, session |
-| IAM           | `identity-service`     | User profile, credentials, Device, LoginActivity, ABAC              |
-| Notification  | `notification-service` | Email, push, in-app routing qua Redis Pub/Sub         |
-| WebSocket GW  | `websocket-gateway`    | In-app real-time delivery tới browser                 |
-| Chat          | `chat-service`         | MQTT (EMQX), Customer ↔ Seller, persist MongoDB       |
-| Workflow      | `workflow-service`     | Temporal — dispute, seller onboarding, scheduled jobs |
-| Scheduler     | `scheduler-service`    | Cron triggers — auto-cancel, loyalty expiry, payout   |
-| Reporting     | `reporting-service`    | Analytics pipeline, star schema DWH                   |
-| Simulator     | `simulator-service`    | Dev/staging only — concurrency, saga, shipper sim     |
+| BC           | Service                | Trách nhiệm chính                                                   |
+|--------------|------------------------|---------------------------------------------------------------------|
+| IAM          | `oauth2-service`       | Authentication, authorization code flow, MFA, social login, session |
+| IAM          | `identity-service`     | User profile, credentials, Device, LoginActivity, ABAC              |
+| Notification | `notification-service` | Email, push, in-app routing qua Redis Pub/Sub                       |
+| WebSocket GW | `websocket-gateway`    | In-app real-time delivery tới browser                               |
+| Chat         | `chat-service`         | MQTT (EMQX), Customer ↔ Seller, persist MongoDB                     |
+| Workflow     | `workflow-service`     | Temporal — dispute, seller onboarding, scheduled jobs               |
+| Scheduler    | `scheduler-service`    | Cron triggers — auto-cancel, loyalty expiry, payout                 |
+| Reporting    | `reporting-service`    | Analytics pipeline, star schema DWH                                 |
+| Simulator    | `simulator-service`    | Dev/staging only — concurrency, saga, shipper sim                   |
 
 ### Infrastructure
 
-| Service            | Trách nhiệm chính                                          |
-|--------------------|------------------------------------------------------------|
-| `api-gateway`      | Spring Cloud Gateway — entry point, routing, rate limiting |
-| `web-gateway`      | BFF — 1 shared cho 3 Angular app, httpOnly cookie          |
+| Service            | Trách nhiệm chính                                                           |
+|--------------------|-----------------------------------------------------------------------------|
+| `api-gateway`      | Spring Cloud Gateway — entry point, routing, rate limiting                  |
+| `web-gateway`      | BFF — 1 shared cho 3 Angular app, httpOnly cookie                           |
 | `oauth2-service`   | Authentication, authorization code flow, MFA, social login, session (reuse) |
 | `identity-service` | User profile, credentials, Device, LoginActivity, ABAC (reuse)              |
 

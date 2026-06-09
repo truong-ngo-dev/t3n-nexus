@@ -1,0 +1,125 @@
+.account-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 40px;
+}
+
+.account-layout {
+  display: flex;
+  gap: 64px;
+  min-height: 600px;
+}
+
+.account-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+
+  .sidebar-header {
+    padding: 0 16px 24px;
+    border-bottom: 1px solid #0d0d0d;
+    margin-bottom: 16px;
+
+    .sidebar-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: 0.05em;
+    }
+  }
+}
+
+.sidebar-nav {
+  padding: 0 !important;
+
+  ::ng-deep {
+    .mat-mdc-list-item {
+      --mdc-list-list-item-container-shape: 4px;
+      margin-bottom: 4px;
+    }
+
+    .sidebar-item {
+      .mdc-list-item__primary-text {
+        font-size: 14px;
+        color: #757575;
+      }
+
+      mat-icon {
+        font-family: 'Material Icons' !important;
+        color: #757575;
+        margin-right: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+      }
+      
+      // Remove focus ring for cleaner look
+      .mdc-list-item__ripple::before {
+        display: none;
+      }
+
+      &--active {
+        background: #f8f9fa !important;
+
+        .mdc-list-item__primary-text {
+          font-weight: 700;
+          color: #0d0d0d;
+        }
+
+        mat-icon {
+          color: #0d0d0d;
+        }
+      }
+      
+      // Fix logout item border issue and alignment
+      &--logout {
+        margin-top: 8px;
+        border: none !important;
+        outline: none !important;
+        text-align: left !important;
+        
+        ::ng-deep .mdc-list-item__content {
+          justify-content: flex-start !important;
+        }
+        
+        .mdc-list-item__primary-text {
+          color: #d32f2f;
+          margin: 0 !important;
+        }
+        
+        mat-icon {
+          color: #d32f2f;
+        }
+        
+        &:focus {
+           outline: none !important;
+        }
+      }
+    }
+  }
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 16px 0;
+}
+
+.account-content {
+  flex: 1;
+}
+
+@media (max-width: 1024px) {
+  .account-container {
+    padding: 20px;
+  }
+  .account-layout {
+    flex-direction: column;
+    gap: 32px;
+  }
+  .account-sidebar {
+    width: 100%;
+  }
+}

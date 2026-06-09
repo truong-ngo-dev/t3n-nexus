@@ -35,6 +35,7 @@ public class UserAccountRepositoryAdapter implements UserAccountRepository {
                 userAccount.getEmail(),
                 userAccount.getPhoneNumber(),
                 userAccount.getFullName(),
+                userAccount.getAvatarUrl(),
                 userAccount.getStatus().name(),
                 userAccount.getLockedAt(),
                 userAccount.getCreatedAt(),

@@ -1,0 +1,20 @@
+<button mat-icon-button [matMenuTriggerFor]="menu" class="avatar-btn">
+  @if (auth.user()?.avatarUrl) {
+    <img [src]="auth.user()!.avatarUrl!" alt="avatar" class="avatar-img" />
+  } @else if (initials()) {
+    <span class="avatar-initials">{{ initials() }}</span>
+  } @else {
+    <mat-icon>person</mat-icon>
+  }
+</button>
+
+<mat-menu #menu="matMenu">
+  <button mat-menu-item (click)="goToProfile()">
+    <mat-icon>person_outline</mat-icon>
+    <span>Hồ sơ</span>
+  </button>
+  <button mat-menu-item (click)="auth.logout()">
+    <mat-icon>logout</mat-icon>
+    <span>Đăng xuất</span>
+  </button>
+</mat-menu>

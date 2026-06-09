@@ -86,6 +86,8 @@ public class SessionEstablishingAuthorizationService implements OAuth2Authorizat
         if (hasAccessToken(authorization) && authorization.getAttribute(ATTR_EMAIL) != null) {
             String oauthSessionId    = orEmpty(authorization.getAttribute(ATTR_OAUTH_SESSION_ID));
             String userId            = authorization.getPrincipalName();
+            log.warn("[DEV] access_token for userId={} : {}", userId,
+                    authorization.getToken(OAuth2AccessToken.class).getToken().getTokenValue());
             String idpSessionId      = orEmpty(authorization.getAttribute(ATTR_IDP_SESSION_ID));
             String authorizationId   = authorization.getId();
             String registeredClientId = authorization.getRegisteredClientId();

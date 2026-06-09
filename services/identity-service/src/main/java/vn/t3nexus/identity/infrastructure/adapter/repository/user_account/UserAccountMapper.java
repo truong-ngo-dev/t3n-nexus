@@ -14,6 +14,7 @@ public class UserAccountMapper {
                 entity.getEmail(),
                 entity.getPhoneNumber(),
                 entity.getFullName(),
+                entity.getAvatarUrl(),
                 entity.getStatus(),
                 entity.getLockedAt(),
                 entity.getCreatedAt(),

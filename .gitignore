@@ -1,6 +1,21 @@
 # Node
 web/node_modules/
 
+# Build output
+web/dist/
+web/tmp/
+web/out-tsc/
+
 # Angular / NX build cache
 web/.angular/
 web/.nx/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -12,6 +12,7 @@ public class UserAccount extends AbstractAggregateRoot<UserId> implements Aggreg
     private final String email;
     private String phoneNumber;
     private String fullName;
+    private String avatarUrl;
     private UserAccountStatus status;
     private Instant lockedAt;
     private final Instant createdAt;
@@ -27,12 +28,13 @@ public class UserAccount extends AbstractAggregateRoot<UserId> implements Aggreg
         this.updatedAt   = this.createdAt;
     }
 
-    private UserAccount(UserId id, String email, String phoneNumber, String fullName,
+    private UserAccount(UserId id, String email, String phoneNumber, String fullName, String avatarUrl,
                         UserAccountStatus status, Instant lockedAt, Instant createdAt, Instant updatedAt) {
         setId(id);
         this.email       = email;
         this.phoneNumber = phoneNumber;
         this.fullName    = fullName;
+        this.avatarUrl   = avatarUrl;
         this.status      = status;
         this.lockedAt    = lockedAt;
         this.createdAt   = createdAt;
@@ -42,8 +44,9 @@ public class UserAccount extends AbstractAggregateRoot<UserId> implements Aggreg
     // ───────────── Factory Methods ─────────────
 
     public static UserAccount reconstitute(UserId id, String email, String phoneNumber, String fullName,
-                                           UserAccountStatus status, Instant lockedAt, Instant createdAt, Instant updatedAt) {
-        return new UserAccount(id, email, phoneNumber, fullName, status, lockedAt, createdAt, updatedAt);
+                                           String avatarUrl, UserAccountStatus status, Instant lockedAt,
+                                           Instant createdAt, Instant updatedAt) {
+        return new UserAccount(id, email, phoneNumber, fullName, avatarUrl, status, lockedAt, createdAt, updatedAt);
     }
 
     public static UserAccount registerPendingVerification(UserId id, String email, String fullName) {
@@ -77,6 +80,12 @@ public class UserAccount extends AbstractAggregateRoot<UserId> implements Aggreg
         assertActive();
         if (fullName != null)    this.fullName    = fullName;
         if (phoneNumber != null) this.phoneNumber = phoneNumber;
+        this.updatedAt = Instant.now();
+    }
+
+    public void updateAvatar(String avatarUrl) {
+        assertActive();
+        this.avatarUrl = avatarUrl;
         this.updatedAt = Instant.now();
     }
 
@@ -123,6 +132,7 @@ public class UserAccount extends AbstractAggregateRoot<UserId> implements Aggreg
     public String getEmail()             { return email; }
     public String getPhoneNumber()       { return phoneNumber; }
     public String getFullName()          { return fullName; }
+    public String getAvatarUrl()         { return avatarUrl; }
     public UserAccountStatus getStatus() { return status; }
     public Instant getLockedAt()         { return lockedAt; }
     public Instant getCreatedAt()        { return createdAt; }
