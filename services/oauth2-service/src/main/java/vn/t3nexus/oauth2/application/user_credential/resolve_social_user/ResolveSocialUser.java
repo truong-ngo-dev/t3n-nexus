@@ -8,6 +8,7 @@ import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
 import vn.t3nexus.lib.common.domain.vo.UserId;
+import vn.t3nexus.oauth2.domain.user_credential.PasswordSetupTokenService;
 import vn.t3nexus.oauth2.domain.user_credential.Role;
 import vn.t3nexus.oauth2.domain.user_credential.UserCredential;
 import vn.t3nexus.oauth2.domain.user_credential.UserCredentialRepository;
@@ -19,11 +20,12 @@ public class ResolveSocialUser implements CommandHandler<ResolveSocialUser.Comma
 
     public record Command(String email, String fullName) {}
 
-    public record Result(String userId, boolean locked, boolean newAccount, boolean mfaEnabled) {}
+    public record Result(String userId, boolean locked, boolean newAccount, boolean mfaEnabled, String role) {}
 
     private final UserCredentialRepository userCredentialRepository;
     private final ULIDGenerator            ulidGenerator;
     private final EventDispatcher          eventDispatcher;
+    private final PasswordSetupTokenService passwordSetupTokenService;
 
     @Override
     @Transactional
@@ -31,16 +33,18 @@ public class ResolveSocialUser implements CommandHandler<ResolveSocialUser.Comma
         return userCredentialRepository.findByEmail(command.email())
                 .map(existing -> {
                     log.debug("[ResolveSocialUser] existing user: userId={}", existing.getId().getValue());
-                    return new Result(existing.getId().getValue(), !existing.canLogin(), false, existing.isMfaEnabled());
+                    return new Result(existing.getId().getValue(), !existing.canLogin(), false,
+                            existing.isMfaEnabled(), existing.getRole().name());
                 })
                 .orElseGet(() -> {
-                    UserId         userId     = UserId.of(ulidGenerator.generate());
+                    UserId userId     = UserId.of(ulidGenerator.generate());
+                    String setupToken = passwordSetupTokenService.generate(userId.getValue());
                     UserCredential credential = UserCredential.registerWithOAuth(
-                            userId, command.email(), Role.CUSTOMER, command.fullName());
+                            userId, command.email(), Role.CUSTOMER, command.fullName(), setupToken);
                     userCredentialRepository.save(credential);
                     eventDispatcher.dispatchAll(credential.getDomainEvents());
                     log.info("[ResolveSocialUser] new OAuth account persisted: userId={}", userId.getValue());
-                    return new Result(userId.getValue(), false, true, false);
+                    return new Result(userId.getValue(), false, true, false, Role.CUSTOMER.name());
                 });
     }
 }

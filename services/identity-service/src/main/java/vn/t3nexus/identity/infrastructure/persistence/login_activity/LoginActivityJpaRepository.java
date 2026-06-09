@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 @Repository
 public interface LoginActivityJpaRepository extends JpaRepository<LoginActivityJpaEntity, String> {
@@ -47,4 +48,19 @@ public interface LoginActivityJpaRepository extends JpaRepository<LoginActivityJ
                AND ended_at IS NULL
             """)
     void endBySessionIds(@Param("sessionIds") List<String> sessionIds, @Param("endedAt") Instant endedAt);
+
+    @Query(nativeQuery = true, value = """
+            SELECT * FROM login_activities
+             WHERE user_id = :userId
+             ORDER BY created_at DESC
+             LIMIT :size OFFSET :offset
+            """)
+    List<LoginActivityJpaEntity> findPageByUserId(
+            @Param("userId") String userId,
+            @Param("size")   int    size,
+            @Param("offset") int    offset
+    );
+
+    @Query("SELECT la FROM LoginActivityJpaEntity la WHERE la.id IN :ids")
+    List<LoginActivityJpaEntity> findAllByIds(@Param("ids") Set<String> ids);
 }

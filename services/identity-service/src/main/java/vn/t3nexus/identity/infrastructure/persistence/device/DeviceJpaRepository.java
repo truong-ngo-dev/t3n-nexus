@@ -23,10 +23,10 @@ public interface DeviceJpaRepository extends JpaRepository<DeviceJpaEntity, Stri
     @Query(nativeQuery = true, value = """
             INSERT INTO devices (
                 id, user_id, device_hash, user_agent, accept_language, composite_hash,
-                device_name, device_type, trusted, status, registered_at, last_seen_at, last_ip_address
+                device_name, device_type, trusted, status, registered_at, last_seen_at, last_ip_address, last_history_id
             ) VALUES (
                 :id, :userId, :deviceHash, :userAgent, :acceptLanguage, :compositeHash,
-                :deviceName, :deviceType, :trusted, :status, :registeredAt, :lastSeenAt, :lastIpAddress
+                :deviceName, :deviceType, :trusted, :status, :registeredAt, :lastSeenAt, :lastIpAddress, :lastHistoryId
             )
             ON CONFLICT (id) DO UPDATE SET
                 device_name     = EXCLUDED.device_name,
@@ -34,7 +34,8 @@ public interface DeviceJpaRepository extends JpaRepository<DeviceJpaEntity, Stri
                 trusted         = EXCLUDED.trusted,
                 status          = EXCLUDED.status,
                 last_seen_at    = EXCLUDED.last_seen_at,
-                last_ip_address = EXCLUDED.last_ip_address
+                last_ip_address = EXCLUDED.last_ip_address,
+                last_history_id = EXCLUDED.last_history_id
             """)
     void upsert(
             @Param("id")             String id,
@@ -49,6 +50,7 @@ public interface DeviceJpaRepository extends JpaRepository<DeviceJpaEntity, Stri
             @Param("status")         String status,
             @Param("registeredAt")   Instant registeredAt,
             @Param("lastSeenAt")     Instant lastSeenAt,
-            @Param("lastIpAddress")  String lastIpAddress
+            @Param("lastIpAddress")  String lastIpAddress,
+            @Param("lastHistoryId")  String lastHistoryId
     );
 }

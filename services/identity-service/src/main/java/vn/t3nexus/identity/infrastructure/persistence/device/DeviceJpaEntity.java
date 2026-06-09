@@ -59,4 +59,7 @@ public class DeviceJpaEntity {
 
     @Column(name = "last_ip_address", length = 50)
     private String lastIpAddress;
+
+    @Column(name = "last_history_id", length = 26)
+    private String lastHistoryId;
 }

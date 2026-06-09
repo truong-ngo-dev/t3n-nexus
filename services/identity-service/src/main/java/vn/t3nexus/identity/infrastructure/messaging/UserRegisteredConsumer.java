@@ -35,7 +35,8 @@ public class UserRegisteredConsumer {
                     payload.email(),
                     payload.fullName(),
                     payload.role(),
-                    payload.registrationMethod()
+                    payload.registrationMethod(),
+                    payload.setupToken()
             ));
         } finally {
             EventEnvelopeMdcPropagator.clear();

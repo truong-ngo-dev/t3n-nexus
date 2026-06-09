@@ -42,4 +42,19 @@ public class UserCredentialException extends DomainException {
         return new UserCredentialException(UserCredentialErrorCode.NO_PASSWORD_SET,
                 "No password has been set for this account");
     }
+
+    public static UserCredentialException notFound() {
+        return new UserCredentialException(UserCredentialErrorCode.CREDENTIAL_NOT_FOUND,
+                "Credential not found");
+    }
+
+    public static UserCredentialException setupTokenInvalid() {
+        return new UserCredentialException(UserCredentialErrorCode.SETUP_TOKEN_INVALID,
+                "Password setup token is invalid or expired");
+    }
+
+    public static UserCredentialException setupRateLimited() {
+        return new UserCredentialException(UserCredentialErrorCode.SETUP_RATE_LIMITED,
+                "Please wait before requesting another link");
+    }
 }

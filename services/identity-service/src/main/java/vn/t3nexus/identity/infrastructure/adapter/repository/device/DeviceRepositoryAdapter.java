@@ -61,7 +61,8 @@ public class DeviceRepositoryAdapter implements DeviceRepository {
                 device.getStatus().name(),
                 device.getRegisteredAt(),
                 device.getLastSeenAt(),
-                device.getLastIpAddress()
+                device.getLastIpAddress(),
+                device.getLastHistoryId()
         );
     }
 

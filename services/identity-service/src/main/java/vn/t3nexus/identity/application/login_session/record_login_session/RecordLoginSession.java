@@ -49,10 +49,10 @@ public class RecordLoginSession implements CommandHandler<RecordLoginSession.Com
         );
 
         Device device = resolveDevice(userId, fingerprint, command.ipAddress());
-        deviceRepository.save(device);
 
+        LoginActivityId activityId = LoginActivityId.of(ulidGenerator.generate());
         LoginActivity activity = LoginActivity.recordSuccess(
-                LoginActivityId.of(ulidGenerator.generate()),
+                activityId,
                 userId,
                 command.loginIdentifier(),
                 fingerprint.getCompositeHash(),
@@ -63,6 +63,9 @@ public class RecordLoginSession implements CommandHandler<RecordLoginSession.Com
                 LoginActivity.LoginProvider.valueOf(command.provider())
         );
         loginActivityRepository.save(activity);
+
+        device.recordLoginHistory(activityId.getValueAsString());
+        deviceRepository.save(device);
 
         log.info("[RecordLoginSession] userId={}, deviceId={}, oauthSessionId={}",
                 command.userId(), device.getId().getValueAsString(), command.oauthSessionId());

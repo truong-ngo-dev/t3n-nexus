@@ -20,7 +20,7 @@ import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
 @RequiredArgsConstructor
 public class CreateUserAccount implements CommandHandler<CreateUserAccount.Command, Void> {
 
-    public record Command(String userId, String email, String fullName, String role, String registrationMethod) {}
+    public record Command(String userId, String email, String fullName, String role, String registrationMethod, String setupToken) {}
 
     private final UserAccountRepository       userAccountRepository;
     private final EmailVerificationRepository emailVerificationRepository;
@@ -60,7 +60,7 @@ public class CreateUserAccount implements CommandHandler<CreateUserAccount.Comma
             eventDispatcher.dispatchAll(userAccount.getDomainEvents());
             eventDispatcher.dispatchAll(emailVerification.getDomainEvents());
         } else {
-            UserAccount userAccount = UserAccount.registerCustomerActivated(userId, command.email(), command.fullName());
+            UserAccount userAccount = UserAccount.registerCustomerActivated(userId, command.email(), command.fullName(), command.setupToken());
             userAccountRepository.save(userAccount);
             eventDispatcher.dispatchAll(userAccount.getDomainEvents());
         }

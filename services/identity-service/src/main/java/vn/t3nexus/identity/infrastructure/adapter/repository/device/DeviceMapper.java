@@ -32,7 +32,8 @@ public class DeviceMapper {
                 DeviceStatus.valueOf(entity.getStatus()),
                 entity.getRegisteredAt(),
                 entity.getLastSeenAt(),
-                entity.getLastIpAddress()
+                entity.getLastIpAddress(),
+                entity.getLastHistoryId()
         );
     }
 }

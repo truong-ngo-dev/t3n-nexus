@@ -66,11 +66,11 @@ public class UserAccount extends AbstractAggregateRoot<UserId> implements Aggreg
         return account;
     }
 
-    public static UserAccount registerCustomerActivated(UserId id, String email, String fullName) {
+    public static UserAccount registerCustomerActivated(UserId id, String email, String fullName, String setupToken) {
         Assert.notNull(email, "email is required");
         UserAccount account = new UserAccount(id, email, null, fullName, UserAccountStatus.ACTIVE);
         account.addDomainEvent(new CustomerAccountCreatedEvent(id.getValue(), email, fullName));
-        account.addDomainEvent(new PasswordSetupEmailRequested(id.getValue(), email, fullName));
+        account.addDomainEvent(new PasswordSetupEmailRequested(id.getValue(), email, fullName, setupToken));
         return account;
     }
 

@@ -80,7 +80,7 @@ public class SecurityConfiguration {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .anonymous(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login/device-hint").permitAll()
+                        .requestMatchers("/login/device-hint", "/password/setup", "/password/setup/success").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
                         new LoginUrlAuthenticationEntryPoint("/login"),

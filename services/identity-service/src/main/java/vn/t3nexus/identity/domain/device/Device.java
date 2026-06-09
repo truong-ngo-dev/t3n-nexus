@@ -18,22 +18,24 @@ public class Device extends AbstractAggregateRoot<DeviceId> implements Aggregate
     private final Instant registeredAt;
     private       Instant lastSeenAt;
     private       String  lastIpAddress;
+    private       String  lastHistoryId;
 
     private Device(
-            DeviceId         id,
-            UserId           userId,
+            DeviceId          id,
+            UserId            userId,
             DeviceFingerprint fingerprint,
-            DeviceName       name,
-            String           ipAddress) {
+            DeviceName        name,
+            String            ipAddress) {
         setId(id);
-        this.userId       = userId;
-        this.fingerprint  = fingerprint;
-        this.name         = name;
-        this.trusted      = false;
-        this.status       = DeviceStatus.ACTIVE;
-        this.registeredAt = Instant.now();
-        this.lastSeenAt   = this.registeredAt;
+        this.userId        = userId;
+        this.fingerprint   = fingerprint;
+        this.name          = name;
+        this.trusted       = false;
+        this.status        = DeviceStatus.ACTIVE;
+        this.registeredAt  = Instant.now();
+        this.lastSeenAt    = this.registeredAt;
         this.lastIpAddress = ipAddress;
+        this.lastHistoryId = null;
     }
 
     private Device(
@@ -45,7 +47,8 @@ public class Device extends AbstractAggregateRoot<DeviceId> implements Aggregate
             DeviceStatus      status,
             Instant           registeredAt,
             Instant           lastSeenAt,
-            String            lastIpAddress) {
+            String            lastIpAddress,
+            String            lastHistoryId) {
         setId(id);
         this.userId        = userId;
         this.fingerprint   = fingerprint;
@@ -55,6 +58,7 @@ public class Device extends AbstractAggregateRoot<DeviceId> implements Aggregate
         this.registeredAt  = registeredAt;
         this.lastSeenAt    = lastSeenAt;
         this.lastIpAddress = lastIpAddress;
+        this.lastHistoryId = lastHistoryId;
     }
 
     // ───────────── Factory Methods ─────────────
@@ -77,8 +81,9 @@ public class Device extends AbstractAggregateRoot<DeviceId> implements Aggregate
             DeviceStatus      status,
             Instant           registeredAt,
             Instant           lastSeenAt,
-            String            lastIpAddress) {
-        return new Device(id, userId, fingerprint, name, trusted, status, registeredAt, lastSeenAt, lastIpAddress);
+            String            lastIpAddress,
+            String            lastHistoryId) {
+        return new Device(id, userId, fingerprint, name, trusted, status, registeredAt, lastSeenAt, lastIpAddress, lastHistoryId);
     }
 
     // ───────────── Behavior ─────────────
@@ -105,6 +110,11 @@ public class Device extends AbstractAggregateRoot<DeviceId> implements Aggregate
         this.lastIpAddress = ipAddress;
     }
 
+    /** Cập nhật pointer đến login_activity record mới nhất. */
+    public void recordLoginHistory(String historyId) {
+        this.lastHistoryId = historyId;
+    }
+
     /** Cập nhật tên device — system detect lại từ User-Agent mới. */
     public void updateName(DeviceName newName) {
         assertActive();
@@ -126,12 +136,13 @@ public class Device extends AbstractAggregateRoot<DeviceId> implements Aggregate
 
     // ───────────── Getters ─────────────
 
-    public UserId            getUserId()       { return userId; }
-    public DeviceFingerprint getFingerprint()  { return fingerprint; }
-    public DeviceName        getName()         { return name; }
-    public boolean           getTrusted()      { return trusted; }
-    public DeviceStatus      getStatus()       { return status; }
-    public Instant           getRegisteredAt() { return registeredAt; }
-    public Instant           getLastSeenAt()   { return lastSeenAt; }
-    public String            getLastIpAddress(){ return lastIpAddress; }
+    public UserId            getUserId()        { return userId; }
+    public DeviceFingerprint getFingerprint()   { return fingerprint; }
+    public DeviceName        getName()          { return name; }
+    public boolean           getTrusted()       { return trusted; }
+    public DeviceStatus      getStatus()        { return status; }
+    public Instant           getRegisteredAt()  { return registeredAt; }
+    public Instant           getLastSeenAt()    { return lastSeenAt; }
+    public String            getLastIpAddress() { return lastIpAddress; }
+    public String            getLastHistoryId() { return lastHistoryId; }
 }

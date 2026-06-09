@@ -56,10 +56,10 @@ public class UserCredential extends AbstractAggregateRoot<UserId> implements Agg
         return credential;
     }
 
-    public static UserCredential registerWithOAuth(UserId id, String email, Role role, String fullName) {
+    public static UserCredential registerWithOAuth(UserId id, String email, Role role, String fullName, String setupToken) {
         Assert.hasText(email, "email is required");
         UserCredential credential = new UserCredential(id, email, null, role, RegistrationMethod.OAUTH, UserCredentialStatus.ACTIVE);
-        credential.addDomainEvent(new UserRegisteredEvent(id.getValue(), email, fullName, role.name(), RegistrationMethod.OAUTH.name()));
+        credential.addDomainEvent(new UserRegisteredEvent(id.getValue(), email, fullName, role.name(), RegistrationMethod.OAUTH.name(), setupToken));
         return credential;
     }
 

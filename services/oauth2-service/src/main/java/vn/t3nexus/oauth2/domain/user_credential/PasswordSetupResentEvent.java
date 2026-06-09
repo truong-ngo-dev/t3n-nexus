@@ -1,4 +1,4 @@
-package vn.t3nexus.identity.domain.user_account;
+package vn.t3nexus.oauth2.domain.user_credential;
 
 import vn.t3nexus.lib.common.domain.model.AbstractDomainEvent;
 import vn.t3nexus.lib.common.domain.model.DomainEvent;
@@ -7,29 +7,26 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-public class PasswordSetupEmailRequested extends AbstractDomainEvent implements DomainEvent {
+public class PasswordSetupResentEvent extends AbstractDomainEvent implements DomainEvent {
 
     private final String userId;
     private final String email;
-    private final String fullName;
     private final String setupToken;
 
-    public PasswordSetupEmailRequested(String userId, String email, String fullName, String setupToken) {
-        super(UUID.randomUUID().toString(), Instant.now(), userId, "UserAccount");
+    public PasswordSetupResentEvent(String userId, String email, String setupToken) {
+        super(UUID.randomUUID().toString(), Instant.now(), userId, "UserCredential");
         this.userId     = userId;
         this.email      = email;
-        this.fullName   = fullName;
         this.setupToken = setupToken;
     }
 
     public String getUserId()     { return userId; }
     public String getEmail()      { return email; }
-    public String getFullName()   { return fullName; }
     public String getSetupToken() { return setupToken; }
 
     @Override
     public String getRoutingKey() {
-        return "identity.password-setup.requested";
+        return "hoahóa";
     }
 
     @Override
@@ -37,8 +34,7 @@ public class PasswordSetupEmailRequested extends AbstractDomainEvent implements 
         return Map.of(
                 "userId",     userId,
                 "email",      email,
-                "fullName",   fullName,
-                "setupToken", setupToken != null ? setupToken : ""
+                "setupToken", setupToken
         );
     }
 }

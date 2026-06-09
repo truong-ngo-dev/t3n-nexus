@@ -1,5 +1,6 @@
 package vn.t3nexus.identity.presentation.me;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -11,12 +12,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import vn.t3nexus.identity.application.device.get_devices.GetDevices;
+import vn.t3nexus.identity.application.login_activity.get_login_history.GetLoginHistory;
 import vn.t3nexus.identity.application.user_account.get_user_profile.GetUserProfile;
 import vn.t3nexus.identity.application.user_account.update_user_profile.UpdateUserProfile;
 import vn.t3nexus.identity.application.user_account.upload_avatar.UploadAvatar;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 @RestController
@@ -30,6 +34,8 @@ public class MeController {
     private final GetUserProfile    getUserProfile;
     private final UpdateUserProfile updateUserProfile;
     private final UploadAvatar      uploadAvatar;
+    private final GetLoginHistory   getLoginHistory;
+    private final GetDevices        getDevices;
 
     @GetMapping
     public ApiResponse<GetUserProfile.Result> getProfile(Authentication authentication) {
@@ -67,6 +73,32 @@ public class MeController {
                 file.getSize()
         );
         return ApiResponse.ok(uploadAvatar.handle(command));
+    }
+
+    @GetMapping("/login-history")
+    public ApiResponse<List<GetLoginHistory.HistoryItem>> getLoginHistory(
+            Authentication authentication,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        List<GetLoginHistory.HistoryItem> items = getLoginHistory.handle(
+                new GetLoginHistory.Query(authentication.getName(), page, size)
+        );
+        return ApiResponse.ok(items);
+    }
+
+    @GetMapping("/devices")
+    public ApiResponse<List<GetDevices.DeviceItem>> getDevices(
+            Authentication authentication,
+            HttpServletRequest request
+    ) {
+        GetDevices.Query query = new GetDevices.Query(
+                authentication.getName(),
+                request.getHeader("X-Device-Hash"),
+                request.getHeader("User-Agent"),
+                request.getHeader("Accept-Language")
+        );
+        return ApiResponse.ok(getDevices.handle(query));
     }
 
     public record UpdateProfileRequest(

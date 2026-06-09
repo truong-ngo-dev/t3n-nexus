@@ -10,7 +10,10 @@ public enum UserCredentialErrorCode implements ErrorCode {
     INVALID_PASSWORD           ("20004", "Invalid password",                             "error.credential.invalid_password",             400),
     PASSWORD_ALREADY_SET       ("20005", "Password has already been set",                "error.credential.password_already_set",         409),
     NOT_ALLOWED_FOR_CREDENTIAL_USER ("20006", "Operation not allowed for credential-based accounts", "error.credential.not_allowed_for_credential", 400),
-    NO_PASSWORD_SET            ("20007", "No password has been set for this account",    "error.credential.no_password_set",              400);
+    NO_PASSWORD_SET            ("20007", "No password has been set for this account",    "error.credential.no_password_set",              400),
+    CREDENTIAL_NOT_FOUND       ("20008", "Credential not found",                         "error.credential.not_found",                    404),
+    SETUP_TOKEN_INVALID        ("20009", "Password setup token is invalid or expired",    "error.credential.setup_token_invalid",           400),
+    SETUP_RATE_LIMITED         ("20010", "Please wait before requesting another link",    "error.credential.setup_rate_limited",            429);
 
     private final String code;
     private final String defaultMessage;

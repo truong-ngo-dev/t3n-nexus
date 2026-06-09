@@ -4,5 +4,6 @@ public record UserRegisteredPayload(
         String email,
         String fullName,
         String role,
-        String registrationMethod
+        String registrationMethod,
+        String setupToken
 ) {}

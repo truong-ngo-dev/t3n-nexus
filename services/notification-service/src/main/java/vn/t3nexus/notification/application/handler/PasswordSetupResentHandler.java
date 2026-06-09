@@ -18,7 +18,7 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
-public class OAuthAccountCreatedHandler implements NotificationEventHandler<PasswordSetupEmailRequestedPayload> {
+public class PasswordSetupResentHandler implements NotificationEventHandler<PasswordSetupResentPayload> {
 
     private final ULIDGenerator ulidGenerator;
 
@@ -27,24 +27,23 @@ public class OAuthAccountCreatedHandler implements NotificationEventHandler<Pass
 
     @Override
     public String supportedEventType() {
-        return "PasswordSetupEmailRequested";
+        return "PasswordSetupResentEvent";
     }
 
     @Override
-    public Class<PasswordSetupEmailRequestedPayload> payloadType() {
-        return PasswordSetupEmailRequestedPayload.class;
+    public Class<PasswordSetupResentPayload> payloadType() {
+        return PasswordSetupResentPayload.class;
     }
 
     @Override
-    public NotificationResult handle(NotificationTrigger trigger, PasswordSetupEmailRequestedPayload payload) {
+    public NotificationResult handle(NotificationTrigger trigger, PasswordSetupResentPayload payload) {
         String setupUrl = oauth2Url + "/password/setup?token=" + payload.setupToken();
 
         NotificationPayload notificationPayload = NotificationPayload.of(
                 "Thiết lập mật khẩu cho tài khoản của bạn",
-                "Tài khoản vừa được tạo qua đăng nhập mạng xã hội. Hãy đặt mật khẩu để bảo mật tài khoản.",
+                "Đây là link thiết lập mật khẩu mới nhất. Link trước đó đã bị vô hiệu hóa.",
                 Map.of(
                         "templateVars", Map.of(
-                                "fullName", payload.fullName(),
                                 "setupUrl", setupUrl
                         )
                 )

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.FactorGrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
@@ -57,7 +58,8 @@ public class SocialLoginOidcUserService implements OAuth2UserService<OidcUserReq
         Instant issuedAt = providerUser.getIdToken().getIssuedAt() != null
                 ? providerUser.getIdToken().getIssuedAt()
                 : Instant.now();
-        Collection<GrantedAuthority> enrichedAuthorities = new ArrayList<>(providerUser.getAuthorities());
+        Collection<GrantedAuthority> enrichedAuthorities = new ArrayList<>();
+        enrichedAuthorities.add(new SimpleGrantedAuthority(result.role()));
         enrichedAuthorities.add(
                 FactorGrantedAuthority.withAuthority(FactorGrantedAuthority.AUTHORIZATION_CODE_AUTHORITY)
                         .issuedAt(issuedAt)
