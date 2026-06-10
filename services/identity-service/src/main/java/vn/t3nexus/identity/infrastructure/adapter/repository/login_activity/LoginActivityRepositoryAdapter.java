@@ -57,6 +57,11 @@ public class LoginActivityRepositoryAdapter implements LoginActivityRepository {
     }
 
     @Override
+    public long countByUserId(UserId userId) {
+        return jpaRepository.countByUserId(userId.getValueAsString());
+    }
+
+    @Override
     public List<LoginActivity> findAllByIds(Set<String> ids) {
         if (ids.isEmpty()) return List.of();
         return jpaRepository.findAllByIds(ids)

@@ -16,8 +16,33 @@ export const routes: Routes = [
         canActivate: [authGuard],
         loadComponent: () => import('./customer/account/account-shell.component').then(m => m.AccountShellComponent),
         children: [
-          { path: '',        pathMatch: 'full', redirectTo: 'profile' },
-          { path: 'profile', loadComponent: () => import('@t3n/storefront/feature-profile').then(m => m.AccountProfileComponent) },
+          { path: '', pathMatch: 'full', redirectTo: 'profile/info' },
+          {
+            path: 'profile/info',
+            loadComponent: () => import('@t3n/storefront/feature-profile').then(m => m.AccountProfileComponent),
+            data: { tab: 0, subTab: 0 }
+          },
+          {
+            path: 'profile/password',
+            loadComponent: () => import('@t3n/storefront/feature-profile').then(m => m.AccountProfileComponent),
+            data: { tab: 0, subTab: 1 }
+          },
+          {
+            path: 'profile/bio',
+            loadComponent: () => import('@t3n/storefront/feature-profile').then(m => m.AccountProfileComponent),
+            data: { tab: 0, subTab: 2 }
+          },
+          {
+            path: 'profile/devices',
+            loadComponent: () => import('@t3n/storefront/feature-profile').then(m => m.AccountProfileComponent),
+            data: { tab: 1, subTab: 0 }
+          },
+          {
+            path: 'profile/history',
+            loadComponent: () => import('@t3n/storefront/feature-profile').then(m => m.AccountProfileComponent),
+            data: { tab: 1, subTab: 1 }
+          },
+          { path: 'profile', pathMatch: 'full', redirectTo: 'profile/info' },
         ],
       },
     ],

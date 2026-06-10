@@ -61,6 +61,9 @@ public interface LoginActivityJpaRepository extends JpaRepository<LoginActivityJ
             @Param("offset") int    offset
     );
 
+    @Query(nativeQuery = true, value = "SELECT COUNT(*) FROM login_activities WHERE user_id = :userId")
+    long countByUserId(@Param("userId") String userId);
+
     @Query("SELECT la FROM LoginActivityJpaEntity la WHERE la.id IN :ids")
     List<LoginActivityJpaEntity> findAllByIds(@Param("ids") Set<String> ids);
 }
