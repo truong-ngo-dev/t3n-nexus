@@ -1,0 +1,49 @@
+<div class="device-list">
+
+  @if (loading()) {
+    <div class="state-center">
+      <mat-spinner diameter="32" />
+    </div>
+  } @else if (devices().length === 0) {
+    <div class="state-empty">
+      <mat-icon>devices</mat-icon>
+      <p>Không có thiết bị nào</p>
+    </div>
+  } @else {
+    <ul class="devices">
+      @for (device of devices(); track device.deviceId) {
+        <li class="device-item">
+          <div class="device-icon">
+            <mat-icon>{{ deviceIcon(device.browser) }}</mat-icon>
+          </div>
+
+          <div class="device-body">
+            <div class="device-name-row">
+              <span class="device-name">{{ device.displayName }}</span>
+              @if (device.isCurrent) {
+                <span class="badge-current">Thiết bị này</span>
+              }
+            </div>
+            <span class="device-meta">{{ device.browser }} · {{ device.os }}</span>
+            <span class="device-last">Hoạt động lần cuối: {{ device.lastSeenAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+
+          @if (!device.isCurrent) {
+            <button mat-stroked-button
+                    class="revoke-btn"
+                    [disabled]="revoking() === device.deviceId"
+                    (click)="confirmRevoke(device)">
+              @if (revoking() === device.deviceId) {
+                <mat-spinner diameter="14" />
+              } @else {
+                <mat-icon>logout</mat-icon>
+              }
+              Thu hồi
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+</div>

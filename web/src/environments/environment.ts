@@ -4,6 +4,7 @@ export const environment = {
   production: false,
   api: {
     webgw:    'http://localhost:8090/webgw/auth',
+    oauth2:   'http://localhost:8090/api/oauth2',
     identity: 'http://localhost:8090/api/identity',
     catalog:  '/api/catalog',
     cart:     '/api/cart',

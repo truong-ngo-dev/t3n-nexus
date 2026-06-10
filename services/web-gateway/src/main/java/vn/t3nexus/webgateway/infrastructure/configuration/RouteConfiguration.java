@@ -26,21 +26,27 @@ public class RouteConfiguration {
                         .filters(f -> f
                                 .tokenRelay()
                                 .saveSession()
-                                .rewritePath("/api/oauth2/(?<segment>.*)", "/api/${segment}"))
+                                .rewritePath("/api/oauth2/(?<segment>.*)", "/api/${segment}")
+                                .dedupeResponseHeader("Access-Control-Allow-Origin", "RETAIN_FIRST")
+                                .dedupeResponseHeader("Access-Control-Allow-Credentials", "RETAIN_FIRST"))
                         .uri(oauth2ServiceUri))
                 .route("identity-service", rs -> rs
                         .path("/api/identity/**")
                         .filters(f -> f
                                 .tokenRelay()
                                 .saveSession()
-                                .rewritePath("/api/identity/(?<segment>.*)", "/api/${segment}"))
+                                .rewritePath("/api/identity/(?<segment>.*)", "/api/${segment}")
+                                .dedupeResponseHeader("Access-Control-Allow-Origin", "RETAIN_FIRST")
+                                .dedupeResponseHeader("Access-Control-Allow-Credentials", "RETAIN_FIRST"))
                         .uri(identityServiceUri))
                 .route("customer-service", rs -> rs
                         .path("/api/customer/**")
                         .filters(f -> f
                                 .tokenRelay()
                                 .saveSession()
-                                .rewritePath("/api/customer/(?<segment>.*)", "/api/${segment}"))
+                                .rewritePath("/api/customer/(?<segment>.*)", "/api/${segment}")
+                                .dedupeResponseHeader("Access-Control-Allow-Origin", "RETAIN_FIRST")
+                                .dedupeResponseHeader("Access-Control-Allow-Credentials", "RETAIN_FIRST"))
                         .uri(customerServiceUri))
                 .build();
     }

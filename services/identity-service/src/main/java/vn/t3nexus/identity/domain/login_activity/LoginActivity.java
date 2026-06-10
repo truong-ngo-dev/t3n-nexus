@@ -22,6 +22,7 @@ public class LoginActivity extends AbstractAggregateRoot<LoginActivityId> implem
     private final String        sessionId;      // FK to OAuthSession — nullable when login fails
     private final LoginProvider provider;
     private final Instant       createdAt;
+    private final Instant       endedAt;        // nullable — set when session is closed (logout/revoke)
 
     public enum LoginProvider {
         LOCAL, GOOGLE
@@ -38,7 +39,8 @@ public class LoginActivity extends AbstractAggregateRoot<LoginActivityId> implem
             String          deviceId,
             String          sessionId,
             LoginProvider   provider,
-            Instant         createdAt) {
+            Instant         createdAt,
+            Instant         endedAt) {
         setId(id);
         this.userId        = userId;
         this.username      = username;
@@ -50,6 +52,7 @@ public class LoginActivity extends AbstractAggregateRoot<LoginActivityId> implem
         this.sessionId     = sessionId;
         this.provider      = provider;
         this.createdAt     = createdAt;
+        this.endedAt       = endedAt;
     }
 
     // ───────────── Factory Methods ─────────────
@@ -65,7 +68,7 @@ public class LoginActivity extends AbstractAggregateRoot<LoginActivityId> implem
             String          userAgent,
             LoginProvider   provider) {
         return new LoginActivity(id, userId, username, LoginResult.SUCCESS,
-                ipAddress, userAgent, compositeHash, deviceId, sessionId, provider, Instant.now());
+                ipAddress, userAgent, compositeHash, deviceId, sessionId, provider, Instant.now(), null);
     }
 
     public static LoginActivity recordFailure(
@@ -78,7 +81,7 @@ public class LoginActivity extends AbstractAggregateRoot<LoginActivityId> implem
             String          userAgent,
             LoginProvider   provider) {
         return new LoginActivity(id, userId, username, result,
-                ipAddress, userAgent, compositeHash, null, null, provider, Instant.now());
+                ipAddress, userAgent, compositeHash, null, null, provider, Instant.now(), null);
     }
 
     public static LoginActivity reconstitute(
@@ -92,9 +95,10 @@ public class LoginActivity extends AbstractAggregateRoot<LoginActivityId> implem
             String          deviceId,
             String          sessionId,
             LoginProvider   provider,
-            Instant         createdAt) {
+            Instant         createdAt,
+            Instant         endedAt) {
         return new LoginActivity(id, userId, username, result,
-                ipAddress, userAgent, compositeHash, deviceId, sessionId, provider, createdAt);
+                ipAddress, userAgent, compositeHash, deviceId, sessionId, provider, createdAt, endedAt);
     }
 
     // ───────────── Queries ─────────────
@@ -113,4 +117,5 @@ public class LoginActivity extends AbstractAggregateRoot<LoginActivityId> implem
     public String        getSessionId()     { return sessionId; }
     public LoginProvider getProvider()      { return provider; }
     public Instant       getCreatedAt()     { return createdAt; }
+    public Instant       getEndedAt()       { return endedAt; }
 }

@@ -13,6 +13,8 @@ public interface LoginActivityRepository extends Repository<LoginActivity, Login
 
     List<LoginActivity> findPageByUserId(UserId userId, int page, int size);
 
+    long countByUserId(UserId userId);
+
     List<LoginActivity> findAllByIds(Set<String> ids);
 
     default void delete(LoginActivityId id) {

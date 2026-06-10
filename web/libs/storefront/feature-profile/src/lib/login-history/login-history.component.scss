@@ -1,0 +1,144 @@
+.login-history {
+  padding: 4px 0;
+}
+
+.state-center {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.state-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 64px 0;
+  color: #757575;
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 8px;
+  }
+
+  p {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+  }
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f0f0f0;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.item-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    color: #0d0d0d;
+  }
+
+  &.logout {
+    background: #ffffff;
+    mat-icon { color: #757575; }
+  }
+}
+
+.item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item-action {
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0d0d0d;
+}
+
+.item-meta {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #757575;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.item-ip {
+  font-size: 13px;
+  color: #0d0d0d;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.item-time {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #9e9e9e;
+}
+
+.history-paginator {
+  border-top: 1px solid #f0f0f0;
+  margin-top: 8px;
+
+  ::ng-deep {
+    .mat-mdc-paginator-container {
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: #757575;
+    }
+
+    .mat-mdc-paginator-range-label {
+      font-size: 13px;
+    }
+
+    .mat-mdc-paginator-page-size-select .mat-mdc-select-trigger {
+      padding: 0 8px;
+    }
+  }
+}
+

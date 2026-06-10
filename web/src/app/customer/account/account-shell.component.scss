@@ -29,73 +29,119 @@
   }
 }
 
-.sidebar-nav {
-  padding: 0 !important;
+.sidebar-accordion {
+  box-shadow: none !important;
+  background: transparent !important;
 
-  ::ng-deep {
-    .mat-mdc-list-item {
-      --mdc-list-list-item-container-shape: 4px;
-      margin-bottom: 4px;
+  .sidebar-panel {
+    box-shadow: none !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+
+    ::ng-deep .mat-expansion-panel-body {
+      padding: 0 0 8px 36px;
     }
 
-    .sidebar-item {
-      .mdc-list-item__primary-text {
-        font-size: 14px;
-        color: #757575;
-      }
+    &::after {
+      display: none;
+    }
+  }
+
+  .sidebar-panel-header {
+    height: 48px !important;
+    padding: 0 16px !important;
+    
+    &:hover {
+      background: #f8f9fa !important;
+    }
+
+    ::ng-deep .mat-content {
+      align-items: center;
+    }
+
+    mat-panel-title {
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0d0d0d;
+      font-family: 'Inter', sans-serif;
 
       mat-icon {
-        font-family: 'Material Icons' !important;
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
         color: #757575;
-        margin-right: 12px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
       }
-      
-      // Remove focus ring for cleaner look
-      .mdc-list-item__ripple::before {
-        display: none;
+    }
+
+    ::ng-deep .mat-expansion-indicator::after {
+      color: #757575;
+    }
+  }
+}
+
+.sidebar-item {
+  ::ng-deep {
+    .mdc-list-item__primary-text {
+      font-size: 14px;
+      color: #757575;
+    }
+
+    mat-icon {
+      color: #757575;
+      margin-right: 12px;
+    }
+  }
+
+  &--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  &--logout {
+    margin-top: 8px;
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    text-align: left !important;
+    padding: 0 16px !important;
+
+    ::ng-deep {
+      .mdc-list-item__start {
+        margin-inline-start: 0 !important;
       }
 
-      &--active {
-        background: #f8f9fa !important;
-
-        .mdc-list-item__primary-text {
-          font-weight: 700;
-          color: #0d0d0d;
-        }
-
-        mat-icon {
-          color: #0d0d0d;
-        }
+      .mdc-list-item__content {
+        justify-content: flex-start !important;
       }
-      
-      // Fix logout item border issue and alignment
-      &--logout {
-        margin-top: 8px;
-        border: none !important;
-        outline: none !important;
-        text-align: left !important;
-        
-        ::ng-deep .mdc-list-item__content {
-          justify-content: flex-start !important;
-        }
-        
-        .mdc-list-item__primary-text {
-          color: #d32f2f;
-          margin: 0 !important;
-        }
-        
-        mat-icon {
-          color: #d32f2f;
-        }
-        
-        &:focus {
-           outline: none !important;
-        }
+    }
+  }
+}
+
+.sidebar-sub-nav {
+  padding: 0 !important;
+
+  .sub-item {
+    height: 36px !important;
+    min-height: 36px !important;
+    margin-bottom: 2px;
+    border-radius: 4px;
+
+    ::ng-deep .mdc-list-item__primary-text {
+      font-size: 13px !important;
+      color: #757575;
+    }
+
+    &:hover {
+      background: #f0f0f0 !important;
+    }
+
+    &--active {
+      ::ng-deep .mdc-list-item__primary-text {
+        color: #0d0d0d !important;
+        font-weight: 700 !important;
       }
     }
   }

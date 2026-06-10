@@ -52,7 +52,7 @@ public class SocialLoginOidcUserService implements OAuth2UserService<OidcUserReq
         }
 
         if (result.locked()) {
-            throw new OAuth2AuthenticationException(new OAuth2Error("account_locked", "Account is locked", null));
+            throw new OAuth2AuthenticationException(new OAuth2Error("account_locked", email, null));
         }
 
         Instant issuedAt = providerUser.getIdToken().getIssuedAt() != null

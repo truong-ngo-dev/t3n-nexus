@@ -7,8 +7,9 @@
   align-items: center;
   gap: 32px;
   margin-bottom: 48px;
-  padding: 24px;
-  background: #f8f9fa;
+  padding: 32px;
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
   border-radius: 8px;
 }
 
@@ -18,8 +19,7 @@
   height: 100px;
   cursor: pointer;
   border-radius: 50%;
-  border: 2px solid #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e0e0e0;
   overflow: hidden;
 
   &:hover .avatar-overlay {
@@ -39,24 +39,20 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: #e0e0e0;
+  background: #f8f9fa;
   color: #757575;
 
   mat-icon {
-    font-family: 'Material Icons' !important;
     font-size: 40px;
     width: 40px;
     height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 }
 
 .avatar-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -67,12 +63,16 @@
 
 .avatar-info {
   h3 {
-    font-size: 16px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 20px;
     font-weight: 700;
     margin: 0 0 4px;
+    color: #0d0d0d;
+    text-transform: uppercase;
   }
   p {
-    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
     color: #757575;
     margin: 0;
   }
@@ -81,45 +81,68 @@
 .profile-form {
   .form-grid {
     display: grid;
-    gap: 24px;
+    gap: 20px;
+    max-width: 500px;
   }
 
   .form-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 
     label {
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #0d0d0d;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      color: #757575;
+      margin-left: 2px;
     }
 
     mat-form-field {
       width: 100%;
-      --mdc-outlined-text-field-container-shape: 4px;
-      --mdc-outlined-text-field-outline-color: #e0e0e0;
-      --mdc-outlined-text-field-focus-outline-color: #0d0d0d;
 
       ::ng-deep {
         .mat-mdc-text-field-wrapper {
-          background-color: #ffffff;
+          background-color: #ffffff !important;
+          padding: 0 16px !important;
+          min-height: 48px !important;
         }
         .mat-mdc-form-field-flex {
-          height: 48px;
+          align-items: center !important;
+        }
+        .mdc-notched-outline__notch {
+          display: none;
         }
         .mat-mdc-form-field-infix {
-          padding-top: 0 !important;
-          padding-bottom: 0 !important;
+          padding: 0 !important;
+          min-height: unset !important;
           display: flex;
           align-items: center;
-          min-height: 48px;
         }
         input {
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
-          line-height: 1;
+          color: #0d0d0d;
+          font-weight: 500;
+          height: 48px;
+          margin: 0 !important;
+
+          &::placeholder {
+            color: #bdbdbd;
+          }
+        }
+        .mdc-notched-outline > * {
+          border-color: #e0e0e0 !important;
+        }
+        .mat-mdc-form-field-focus-indicator {
+          display: none;
+        }
+      }
+
+      &.mat-focused ::ng-deep {
+        .mdc-notched-outline > * {
+          border-color: #0d0d0d !important;
+          border-width: 1px !important;
         }
       }
     }
@@ -127,26 +150,33 @@
 }
 
 .error-text {
-  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
   color: #d32f2f;
-  margin-top: 4px;
+  margin-top: -4px;
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
   margin-top: 40px;
-  padding-top: 24px;
+  padding-top: 32px;
   border-top: 1px solid #f0f0f0;
 
   .save-btn {
-    --mdc-filled-button-container-shape: 24px;
-    background-color: #0d0d0d !important;
-    color: #ffffff !important;
+    border-radius: 24px;
+    background-color: #0d0d0d;
+    color: #ffffff;
     height: 48px;
     padding: 0 40px;
-    font-weight: 700;
-    font-size: 13px;
-    letter-spacing: 0.1em;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+
+    &:disabled {
+      background-color: #e0e0e0;
+      color: #757575;
+    }
   }
 }

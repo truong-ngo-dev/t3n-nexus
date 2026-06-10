@@ -13,21 +13,24 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class GetLoginHistory implements QueryHandler<GetLoginHistory.Query, List<GetLoginHistory.HistoryItem>> {
+public class GetLoginHistory implements QueryHandler<GetLoginHistory.Query, GetLoginHistory.Page> {
 
     public record Query(String userId, int page, int size) {}
 
-    public record HistoryItem(String action, String ip, String browser, String os, Instant createdAt) {}
+    public record HistoryItem(String action, String ip, String browser, String os, Instant createdAt, Instant endedAt) {}
+
+    public record Page(List<HistoryItem> content, long totalElements, int page, int size) {}
 
     private final LoginActivityRepository loginActivityRepository;
     private final UserAgentParser         userAgentParser;
 
     @Override
-    public List<HistoryItem> handle(Query query) {
+    public Page handle(Query query) {
         List<LoginActivity> activities = loginActivityRepository.findPageByUserId(
                 UserId.of(query.userId()), query.page(), query.size()
         );
-        return activities.stream()
+        long totalElements = loginActivityRepository.countByUserId(UserId.of(query.userId()));
+        List<HistoryItem> items = activities.stream()
                 .map(activity -> {
                     UserAgentParser.ParsedUserAgent ua = userAgentParser.parse(activity.getUserAgent());
                     return new HistoryItem(
@@ -35,9 +38,11 @@ public class GetLoginHistory implements QueryHandler<GetLoginHistory.Query, List
                             activity.getIpAddress(),
                             ua.browser(),
                             ua.os(),
-                            activity.getCreatedAt()
+                            activity.getCreatedAt(),
+                            activity.getEndedAt()
                     );
                 })
                 .toList();
+        return new Page(items, totalElements, query.page(), query.size());
     }
 }

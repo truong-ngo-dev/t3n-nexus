@@ -1,0 +1,43 @@
+<div class="login-history">
+
+  @if (loading()) {
+    <div class="state-center">
+      <mat-spinner diameter="32" />
+    </div>
+  } @else if (items().length === 0) {
+    <div class="state-empty">
+      <mat-icon>history</mat-icon>
+      <p>Chưa có lịch sử đăng nhập</p>
+    </div>
+  } @else {
+    <ul class="history-list">
+      @for (item of items(); track item.createdAt) {
+        <li class="history-item">
+          <div class="item-icon" [class.failure]="isFailure(item.action)">
+            <mat-icon>{{ actionIcon(item.action) }}</mat-icon>
+          </div>
+          <div class="item-body">
+            <span class="item-action">{{ actionLabel(item.action) }}</span>
+            <span class="item-meta">{{ item.browser }} · {{ item.os }}</span>
+            @if (item.endedAt) {
+              <span class="item-ended">Đăng xuất lúc {{ item.endedAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+            }
+          </div>
+          <div class="item-right">
+            <span class="item-ip">{{ item.ip }}</span>
+            <span class="item-time">{{ item.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+        </li>
+      }
+    </ul>
+
+    <mat-paginator
+      [length]="totalElements()"
+      [pageSize]="pageSize()"
+      [pageIndex]="pageIndex()"
+      [pageSizeOptions]="pageSizeOptions"
+      (page)="onPageChange($event)"
+      class="history-paginator" />
+  }
+
+</div>

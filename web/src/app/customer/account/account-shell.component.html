@@ -5,7 +5,8 @@
         <h2 class="sidebar-title">TÀI KHOẢN</h2>
       </div>
 
-      <mat-nav-list class="sidebar-nav">
+      <mat-accordion multi="false" class="sidebar-accordion">
+        
         <a mat-list-item class="sidebar-item sidebar-item--disabled">
           <mat-icon matListItemIcon>dashboard</mat-icon>
           <span matListItemTitle>Bảng điều khiển</span>
@@ -21,13 +22,61 @@
           <span matListItemTitle>Sổ địa chỉ</span>
         </a>
 
-        <a mat-list-item
-           routerLink="profile"
-           routerLinkActive="sidebar-item--active"
-           class="sidebar-item">
-          <mat-icon matListItemIcon>person_outline</mat-icon>
-          <span matListItemTitle>Thông tin cá nhân</span>
-        </a>
+        <!-- Nhóm Thông tin cá nhân -->
+        <mat-expansion-panel class="sidebar-panel">
+          <mat-expansion-panel-header class="sidebar-panel-header">
+            <mat-panel-title>
+              <mat-icon>person_outline</mat-icon>
+              <span>Thông tin cá nhân</span>
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+
+          <mat-nav-list class="sidebar-sub-nav">
+            <a mat-list-item 
+               routerLink="profile/info" 
+               routerLinkActive="sub-item--active"
+               class="sub-item">
+              Thông tin tài khoản
+            </a>
+            <a mat-list-item 
+               routerLink="profile/password" 
+               routerLinkActive="sub-item--active"
+               class="sub-item">
+              Đổi mật khẩu
+            </a>
+            <a mat-list-item 
+               routerLink="profile/bio" 
+               routerLinkActive="sub-item--active"
+               class="sub-item">
+              Hồ sơ
+            </a>
+          </mat-nav-list>
+        </mat-expansion-panel>
+
+        <!-- Nhóm Quản lý truy cập -->
+        <mat-expansion-panel class="sidebar-panel">
+          <mat-expansion-panel-header class="sidebar-panel-header">
+            <mat-panel-title>
+              <mat-icon>security</mat-icon>
+              <span>Quản lý truy cập</span>
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+
+          <mat-nav-list class="sidebar-sub-nav">
+            <a mat-list-item 
+               routerLink="profile/devices" 
+               routerLinkActive="sub-item--active"
+               class="sub-item">
+              Thiết bị
+            </a>
+            <a mat-list-item 
+               routerLink="profile/history" 
+               routerLinkActive="sub-item--active"
+               class="sub-item">
+              Lịch sử đăng nhập
+            </a>
+          </mat-nav-list>
+        </mat-expansion-panel>
 
         <div class="sidebar-divider"></div>
 
@@ -35,7 +84,7 @@
           <mat-icon matListItemIcon>logout</mat-icon>
           <span matListItemTitle>Đăng xuất</span>
         </button>
-      </mat-nav-list>
+      </mat-accordion>
     </aside>
 
     <main class="account-content">

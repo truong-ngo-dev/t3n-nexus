@@ -22,7 +22,8 @@ public class LoginActivityMapper {
                 entity.getDeviceId(),
                 entity.getSessionId(),
                 LoginActivity.LoginProvider.valueOf(entity.getProvider()),
-                entity.getCreatedAt()
+                entity.getCreatedAt(),
+                entity.getEndedAt()
         );
     }
 }

@@ -19,14 +19,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import vn.t3nexus.oauth2.infrastructure.security.handler.DeviceAwareAuthenticationFailureHandler;
 import vn.t3nexus.oauth2.infrastructure.security.handler.DeviceAwareAuthenticationSuccessHandler;
+import vn.t3nexus.oauth2.infrastructure.security.handler.OttAuthenticationFailureHandler;
+import vn.t3nexus.oauth2.infrastructure.security.handler.SocialLoginFailureHandler;
 import vn.t3nexus.oauth2.infrastructure.security.mfa.EmailOtpGenerationSuccessHandler;
 import vn.t3nexus.oauth2.infrastructure.security.mfa.EmailOtpOneTimeTokenService;
 import vn.t3nexus.oauth2.infrastructure.security.model.DeviceAwareWebAuthenticationDetails;
@@ -46,6 +51,7 @@ public class SecurityConfiguration {
     private final ApplicationContext               applicationContext;
     private final EmailOtpOneTimeTokenService      emailOtpOneTimeTokenService;
     private final EmailOtpGenerationSuccessHandler emailOtpGenerationSuccessHandler;
+    private final OttAuthenticationFailureHandler  ottAuthenticationFailureHandler;
     private final SocialLoginOidcUserService       socialLoginOidcUserService;
     private final ClientRegistrationRepository     clientRegistrationRepository;
 
@@ -75,12 +81,24 @@ public class SecurityConfiguration {
     @Bean
     @Order(3)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+        HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
+        requestCache.setRequestMatcher(new NegatedRequestMatcher(new OrRequestMatcher(
+                PathPatternRequestMatcher.withDefaults().matcher("/login"),
+                PathPatternRequestMatcher.withDefaults().matcher("/login/**")
+        )));
+
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .anonymous(AbstractHttpConfigurer::disable)
+                .requestCache(rc -> rc.requestCache(requestCache))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login/device-hint", "/password/setup", "/password/setup/success").permitAll()
+                        .requestMatchers(new OrRequestMatcher(
+                                PathPatternRequestMatcher.withDefaults().matcher("/login"),
+                                PathPatternRequestMatcher.withDefaults().matcher("/login/**"),
+                                PathPatternRequestMatcher.withDefaults().matcher("/password/setup"),
+                                PathPatternRequestMatcher.withDefaults().matcher("/password/setup/success")
+                        )).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
                         new LoginUrlAuthenticationEntryPoint("/login"),
@@ -96,7 +114,7 @@ public class SecurityConfiguration {
                         .loginProcessingUrl("/login/ott")
                         .tokenService(emailOtpOneTimeTokenService)
                         .tokenGenerationSuccessHandler(emailOtpGenerationSuccessHandler)
-                        .failureHandler(new SimpleUrlAuthenticationFailureHandler("/mfa/verify?error")));
+                        .failureHandler(ottAuthenticationFailureHandler));
 
         http.oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")
@@ -104,7 +122,8 @@ public class SecurityConfiguration {
                         .authorizationRequestResolver(
                                 new DeviceAwareAuthorizationRequestResolver(clientRegistrationRepository)))
                 .userInfoEndpoint(userInfo -> userInfo.oidcUserService(socialLoginOidcUserService))
-                .successHandler(deviceAwareAuthenticationSuccessHandler()));
+                .successHandler(deviceAwareAuthenticationSuccessHandler())
+                .failureHandler(socialLoginFailureHandler()));
 
         return http.build();
     }
@@ -115,6 +134,10 @@ public class SecurityConfiguration {
 
     public AuthenticationFailureHandler deviceAwareAuthenticationFailureHandler() {
         return applicationContext.getBean(DeviceAwareAuthenticationFailureHandler.class);
+    }
+
+    public AuthenticationFailureHandler socialLoginFailureHandler() {
+        return applicationContext.getBean(SocialLoginFailureHandler.class);
     }
 
     @Bean

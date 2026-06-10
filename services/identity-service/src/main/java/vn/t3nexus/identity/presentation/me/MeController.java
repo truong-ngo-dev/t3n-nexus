@@ -76,15 +76,14 @@ public class MeController {
     }
 
     @GetMapping("/login-history")
-    public ApiResponse<List<GetLoginHistory.HistoryItem>> getLoginHistory(
+    public ApiResponse<GetLoginHistory.Page> getLoginHistory(
             Authentication authentication,
-            @RequestParam(defaultValue = "0")  int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size
     ) {
-        List<GetLoginHistory.HistoryItem> items = getLoginHistory.handle(
+        return ApiResponse.ok(getLoginHistory.handle(
                 new GetLoginHistory.Query(authentication.getName(), page, size)
-        );
-        return ApiResponse.ok(items);
+        ));
     }
 
     @GetMapping("/devices")

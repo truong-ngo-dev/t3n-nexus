@@ -1,19 +1,24 @@
-<mat-tab-group class="profile-tabs">
+<div class="profile-container">
+  <!-- Breadcrumb / Header -->
+  <nav class="profile-breadcrumb">
+    <span class="parent-label">{{ parentTitle() }}</span>
+    <mat-icon>chevron_right</mat-icon>
+    <span class="active-label">{{ pageTitle() }}</span>
+  </nav>
 
-  <mat-tab label="Thông tin cá nhân">
-    <app-personal-info-tab />
-  </mat-tab>
-
-  <mat-tab label="Hồ sơ">
-    <mat-card appearance="outlined" class="placeholder-card">
-      <mat-card-content>Đang phát triển</mat-card-content>
-    </mat-card>
-  </mat-tab>
-
-  <mat-tab label="Bảo mật">
-    <mat-card appearance="outlined" class="placeholder-card">
-      <mat-card-content>Đang phát triển</mat-card-content>
-    </mat-card>
-  </mat-tab>
-
-</mat-tab-group>
+  <div class="profile-content">
+    @if (activeTab() === 0) {
+      @switch (activeSubTab()) {
+        @case (0) { <app-personal-info-tab /> }
+        @case (1) { <app-change-password /> }
+        @case (2) {
+          <mat-card appearance="outlined" class="placeholder-card">
+            <mat-card-content>Đang phát triển</mat-card-content>
+          </mat-card>
+        }
+      }
+    } @else {
+      <app-security-tab [initialSubTab]="activeSubTab()" />
+    }
+  </div>
+</div>
