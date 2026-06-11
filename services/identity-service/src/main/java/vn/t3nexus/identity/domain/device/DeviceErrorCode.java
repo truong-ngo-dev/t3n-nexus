@@ -11,7 +11,10 @@ public enum DeviceErrorCode implements ErrorCode {
     DEVICE_ALREADY_TRUSTED     ("12005", "Device is already trusted",               "error.device.already_trusted",        409),
     DEVICE_NOT_BELONG_TO_USER  ("12006", "Device does not belong to user",          "error.device.not_belong_to_user",     403),
     CANNOT_REVOKE_CURRENT      ("12007", "Cannot revoke the current device",        "error.device.cannot_revoke_current",  400),
-    DEVICE_FINGERPRINT_INVALID ("12008", "Device fingerprint is invalid",           "error.device.fingerprint_invalid",    400);
+    DEVICE_FINGERPRINT_INVALID ("12008", "Device fingerprint is invalid",           "error.device.fingerprint_invalid",    400),
+    DEVICE_TRUST_OTP_RATE_LIMITED ("12009", "Too many OTP requests, please try again later", "error.device.trust_otp.rate_limited", 429),
+    DEVICE_TRUST_OTP_EXPIRED      ("12010", "OTP has expired, please request a new one",     "error.device.trust_otp.expired",      400),
+    DEVICE_TRUST_OTP_INVALID      ("12011", "OTP is incorrect",                              "error.device.trust_otp.invalid",      400);
 
     private final String code;
     private final String defaultMessage;

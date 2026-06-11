@@ -16,4 +16,7 @@ public class DeviceException extends DomainException {
     public static DeviceException cannotRevokeCurrent() { return new DeviceException(DeviceErrorCode.CANNOT_REVOKE_CURRENT); }
     public static DeviceException fingerprintInvalid()  { return new DeviceException(DeviceErrorCode.DEVICE_FINGERPRINT_INVALID); }
     public static DeviceException nameTooLong()         { return new DeviceException(DeviceErrorCode.DEVICE_NAME_TOO_LONG); }
+    public static DeviceException rateLimitExceeded()   { return new DeviceException(DeviceErrorCode.DEVICE_TRUST_OTP_RATE_LIMITED); }
+    public static DeviceException otpExpired()          { return new DeviceException(DeviceErrorCode.DEVICE_TRUST_OTP_EXPIRED); }
+    public static DeviceException otpInvalid()          { return new DeviceException(DeviceErrorCode.DEVICE_TRUST_OTP_INVALID); }
 }

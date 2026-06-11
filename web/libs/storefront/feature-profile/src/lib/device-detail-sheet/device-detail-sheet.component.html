@@ -1,0 +1,135 @@
+<div class="sheet-wrap">
+
+  <!-- Header -->
+  <div class="sheet-header">
+    <div class="device-icon-wrap">
+      <mat-icon>{{ deviceIcon() }}</mat-icon>
+    </div>
+
+    <div class="device-info">
+      <div class="name-row">
+        <span class="device-name">{{ device().displayName }}</span>
+        @if (device().isCurrent) {
+          <span class="badge badge-current">Thiết bị này</span>
+        }
+        @if (device().isTrusted) {
+          <span class="badge badge-trusted">
+            <mat-icon class="badge-icon">verified</mat-icon>Đáng tin cậy
+          </span>
+        }
+      </div>
+      <span class="device-meta">{{ device().browser }} · {{ device().os }}</span>
+      <span class="device-last">Hoạt động: {{ device().lastSeenAt | date:'dd/MM/yyyy HH:mm' }}</span>
+    </div>
+
+    <button mat-icon-button class="close-btn" (click)="close()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+
+    <!-- Remote Logout -->
+    @if (!device().isCurrent && device().sessionId && currentDeviceTrusted()) {
+      <div class="action-item">
+        <div class="action-left">
+          <mat-icon class="action-icon icon-danger">logout</mat-icon>
+          <div class="action-text">
+            <span class="action-title">Đăng xuất từ xa</span>
+            <span class="action-desc">Kết thúc phiên đăng nhập trên thiết bị này</span>
+          </div>
+        </div>
+        <button mat-stroked-button class="btn-danger"
+                [disabled]="remoteLoggingOut()"
+                (click)="remoteLogout()">
+          @if (remoteLoggingOut()) {
+            <mat-spinner diameter="14" />
+          } @else {
+            Đăng xuất
+          }
+        </button>
+      </div>
+    }
+
+    <!-- Trust Device -->
+    @if (device().isCurrent && !device().isTrusted) {
+      <div class="action-item">
+        <div class="action-left">
+          <mat-icon class="action-icon">verified_user</mat-icon>
+          <div class="action-text">
+            <span class="action-title">Tin tưởng thiết bị</span>
+            <span class="action-desc">Cho phép thiết bị này đăng xuất các thiết bị khác</span>
+          </div>
+        </div>
+
+        @switch (trustState()) {
+          @case ('idle') {
+            <button mat-flat-button class="btn-primary" (click)="requestOtp()">
+              Yêu cầu OTP
+            </button>
+          }
+          @case ('requesting') {
+            <button mat-flat-button class="btn-primary" disabled>
+              <mat-spinner diameter="14" />
+            </button>
+          }
+          @case ('success') {
+            <span class="success-label">
+              <mat-icon>check_circle</mat-icon>Đã tin tưởng
+            </span>
+          }
+          @default {}
+        }
+      </div>
+
+      @if (trustState() === 'otp_input' || trustState() === 'verifying') {
+        <div class="otp-form">
+          <p class="otp-hint">Nhập mã 6 chữ số đã gửi đến email của bạn</p>
+          <div class="otp-row">
+            <input class="otp-input"
+                   type="text"
+                   inputmode="numeric"
+                   maxlength="6"
+                   placeholder="000000"
+                   [value]="otpValue()"
+                   (input)="onOtpInput($event)"
+                   [disabled]="trustState() === 'verifying'" />
+            <button mat-flat-button class="btn-primary"
+                    [disabled]="otpValue().length !== 6 || trustState() === 'verifying'"
+                    (click)="verifyOtp()">
+              @if (trustState() === 'verifying') {
+                <mat-spinner diameter="14" />
+              } @else {
+                Xác nhận
+              }
+            </button>
+          </div>
+        </div>
+      }
+    }
+
+    <!-- Untrust -->
+    @if (device().isTrusted && currentDeviceTrusted()) {
+      <div class="action-item">
+        <div class="action-left">
+          <mat-icon class="action-icon icon-muted">remove_moderator</mat-icon>
+          <div class="action-text">
+            <span class="action-title">Bỏ tin tưởng thiết bị</span>
+            <span class="action-desc">Thiết bị này sẽ không thể đăng xuất các thiết bị khác</span>
+          </div>
+        </div>
+        <button mat-stroked-button class="btn-outline"
+                [disabled]="untrusting()"
+                (click)="untrustDevice()">
+          @if (untrusting()) {
+            <mat-spinner diameter="14" />
+          } @else {
+            Bỏ tin tưởng
+          }
+        </button>
+      </div>
+    }
+
+</div>
+</div>

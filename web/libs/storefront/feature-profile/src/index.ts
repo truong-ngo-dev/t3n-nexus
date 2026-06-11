@@ -3,3 +3,4 @@ export { SecurityTabComponent } from './lib/security-tab/security-tab.component'
 export { ChangePasswordComponent } from './lib/change-password/change-password.component';
 export { LoginHistoryComponent } from './lib/login-history/login-history.component';
 export { DeviceListComponent } from './lib/device-list/device-list.component';
+export { DeviceDetailSheetComponent, DeviceDetailSheetData } from './lib/device-detail-sheet/device-detail-sheet.component';

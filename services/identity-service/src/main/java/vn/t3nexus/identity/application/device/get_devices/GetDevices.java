@@ -1,5 +1,6 @@
 package vn.t3nexus.identity.application.device.get_devices;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import vn.t3nexus.identity.domain.device.Device;
@@ -30,6 +31,10 @@ public class GetDevices implements QueryHandler<GetDevices.Query, List<GetDevice
             String acceptLanguage
     ) {}
 
+    @JsonAutoDetect(
+            fieldVisibility    = JsonAutoDetect.Visibility.ANY,
+            isGetterVisibility = JsonAutoDetect.Visibility.NONE
+    )
     public record DeviceItem(
             String  deviceId,
             String  displayName,
@@ -38,7 +43,8 @@ public class GetDevices implements QueryHandler<GetDevices.Query, List<GetDevice
             Instant lastSeenAt,
             String  lastAction,
             boolean isCurrent,
-            boolean isTrusted
+            boolean isTrusted,
+            String  sessionId
     ) {}
 
     private final DeviceRepository        deviceRepository;
@@ -66,6 +72,8 @@ public class GetDevices implements QueryHandler<GetDevices.Query, List<GetDevice
             UserAgentParser.ParsedUserAgent ua = userAgentParser.parse(device.getFingerprint().getUserAgent());
             LoginActivity lastActivity = activityMap.get(device.getLastHistoryId());
             String  lastAction = lastActivity != null ? lastActivity.getResult().name() : null;
+            String  sessionId  = (lastActivity != null && lastActivity.getEndedAt() == null)
+                                 ? lastActivity.getSessionId() : null;
             boolean isCurrent  = currentHash != null && currentHash.equals(device.getFingerprint().getCompositeHash());
             return new DeviceItem(
                     device.getId().getValueAsString(),
@@ -75,7 +83,8 @@ public class GetDevices implements QueryHandler<GetDevices.Query, List<GetDevice
                     device.getLastSeenAt(),
                     lastAction,
                     isCurrent,
-                    device.isTrusted()
+                    device.isTrusted(),
+                    sessionId
             );
         }).toList();
     }

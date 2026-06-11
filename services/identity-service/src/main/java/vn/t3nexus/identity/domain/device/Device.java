@@ -95,6 +95,14 @@ public class Device extends AbstractAggregateRoot<DeviceId> implements Aggregate
         addDomainEvent(new DeviceTrustedEvent(getId().getValueAsString(), userId.getValueAsString()));
     }
 
+    /** Bỏ trust device — chỉ trusted device mới có thể thực hiện action này. */
+    public void unTrust() {
+        assertActive();
+        if (!this.trusted) throw DeviceException.notTrusted();
+        this.trusted = false;
+        addDomainEvent(new DeviceUntrustedEvent(getId().getValueAsString(), userId.getValueAsString()));
+    }
+
     /** Revoke device — thường từ xa, sau khi revoke không thể login cho đến khi đăng ký lại. */
     public void revoke() {
         assertActive();

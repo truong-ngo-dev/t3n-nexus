@@ -12,7 +12,8 @@
   } @else {
     <ul class="devices">
       @for (device of devices(); track device.deviceId) {
-        <li class="device-item">
+        <li class="device-item" (click)="openDetail(device)" role="button" tabindex="0"
+            (keydown.enter)="openDetail(device)" (keydown.space)="openDetail(device)">
           <div class="device-icon">
             <mat-icon>{{ deviceIcon(device.browser) }}</mat-icon>
           </div>
@@ -23,24 +24,17 @@
               @if (device.isCurrent) {
                 <span class="badge-current">Thiết bị này</span>
               }
+              @if (device.isTrusted) {
+                <span class="badge-trusted">
+                  <mat-icon class="badge-icon">verified</mat-icon>
+                </span>
+              }
             </div>
             <span class="device-meta">{{ device.browser }} · {{ device.os }}</span>
             <span class="device-last">Hoạt động lần cuối: {{ device.lastSeenAt | date: 'dd/MM/yyyy HH:mm' }}</span>
           </div>
 
-          @if (!device.isCurrent) {
-            <button mat-stroked-button
-                    class="revoke-btn"
-                    [disabled]="revoking() === device.deviceId"
-                    (click)="confirmRevoke(device)">
-              @if (revoking() === device.deviceId) {
-                <mat-spinner diameter="14" />
-              } @else {
-                <mat-icon>logout</mat-icon>
-              }
-              Thu hồi
-            </button>
-          }
+          <mat-icon class="chevron">chevron_right</mat-icon>
         </li>
       }
     </ul>

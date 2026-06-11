@@ -23,6 +23,7 @@ public class NotificationOutboxEventConsumer {
             topics  = {"${app.kafka.topic.password-setup-requested}",
                        "${app.kafka.topic.password-setup-resent}",
                        "${app.kafka.topic.login-otp-requested}",
+                       "${app.kafka.topic.device-trust-otp-requested}",
                        "${app.kafka.topic.email-verification-requested}",
                        "${app.kafka.topic.email-verification-reissued}",
                        "${app.kafka.topic.email-verification-verified}"},

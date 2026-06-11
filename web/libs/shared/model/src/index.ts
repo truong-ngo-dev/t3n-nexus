@@ -26,6 +26,7 @@ export interface DeviceItem {
   lastAction:  string;
   isCurrent:   boolean;
   isTrusted:   boolean;
+  sessionId:   string | null;
 }
 
 export interface PagedData<T> {

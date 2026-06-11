@@ -10,6 +10,11 @@ body {
 }
 
 /* Global Material Overrides */
+.white-bottom-sheet .mat-bottom-sheet-container {
+  background: #ffffff;
+}
+
+
 .mat-mdc-snack-bar-container {
   --mdc-snackbar-container-color: #0d0d0d;
   --mdc-snackbar-supporting-text-color: #ffffff;

@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import vn.t3nexus.identity.application.device.get_devices.GetDevices;
+import vn.t3nexus.identity.application.device.trust_otp.RequestDeviceTrustOtp;
+import vn.t3nexus.identity.application.device.trust_otp.TrustDevice;
+import vn.t3nexus.identity.application.device.untrust.UntrustDevice;
 import vn.t3nexus.identity.application.login_activity.get_login_history.GetLoginHistory;
 import vn.t3nexus.identity.application.user_account.get_user_profile.GetUserProfile;
 import vn.t3nexus.identity.application.user_account.update_user_profile.UpdateUserProfile;
@@ -31,11 +34,14 @@ public class MeController {
     private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final long        MAX_AVATAR_SIZE      = 5 * 1024 * 1024L;
 
-    private final GetUserProfile    getUserProfile;
-    private final UpdateUserProfile updateUserProfile;
-    private final UploadAvatar      uploadAvatar;
-    private final GetLoginHistory   getLoginHistory;
-    private final GetDevices        getDevices;
+    private final GetUserProfile        getUserProfile;
+    private final UpdateUserProfile     updateUserProfile;
+    private final UploadAvatar          uploadAvatar;
+    private final GetLoginHistory       getLoginHistory;
+    private final GetDevices            getDevices;
+    private final RequestDeviceTrustOtp requestDeviceTrustOtp;
+    private final TrustDevice           trustDevice;
+    private final UntrustDevice untrustDevice;
 
     @GetMapping
     public ApiResponse<GetUserProfile.Result> getProfile(Authentication authentication) {
@@ -99,6 +105,49 @@ public class MeController {
         );
         return ApiResponse.ok(getDevices.handle(query));
     }
+
+    @PostMapping("/devices/{deviceId}/trust/otp-request")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void requestDeviceTrustOtp(
+            Authentication authentication,
+            @PathVariable String deviceId
+    ) {
+        requestDeviceTrustOtp.handle(new RequestDeviceTrustOtp.Command(
+                authentication.getName(), deviceId
+        ));
+    }
+
+    @PostMapping("/devices/{deviceId}/trust/verify")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void verifyDeviceTrustOtp(
+            Authentication authentication,
+            @PathVariable String deviceId,
+            @RequestBody @Valid VerifyOtpRequest request
+    ) {
+        trustDevice.handle(new TrustDevice.Command(
+                authentication.getName(), deviceId, request.otp()
+        ));
+    }
+
+    @DeleteMapping("/devices/{deviceId}/trust")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unTrustDevice(
+            Authentication authentication,
+            @PathVariable String deviceId,
+            HttpServletRequest request
+    ) {
+        untrustDevice.handle(new UntrustDevice.Command(
+                authentication.getName(),
+                deviceId,
+                request.getHeader("X-Device-Hash"),
+                request.getHeader("User-Agent"),
+                request.getHeader("Accept-Language")
+        ));
+    }
+
+    public record VerifyOtpRequest(
+            @NotBlank @jakarta.validation.constraints.Size(min = 6, max = 6) String otp
+    ) {}
 
     public record UpdateProfileRequest(
             @NotBlank String fullName,

@@ -1,7 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { map, Observable } from 'rxjs';
+import { map, Observable, switchMap } from 'rxjs';
 import { API_CONFIG } from './api-config';
+import { DeviceFingerprintService } from './device-fingerprint.service';
 import { DeviceItem, LoginHistoryItem, PagedData } from '@t3n/shared/model';
 
 export interface UserProfile {
@@ -28,8 +29,9 @@ interface ApiResponse<T> {
 
 @Injectable({ providedIn: 'root' })
 export class IdentityService {
-  private readonly http   = inject(HttpClient);
-  private readonly config = inject(API_CONFIG);
+  private readonly http        = inject(HttpClient);
+  private readonly config      = inject(API_CONFIG);
+  private readonly fingerprint = inject(DeviceFingerprintService);
 
   getMe(): Observable<UserProfile> {
     return this.http.get<ApiResponse<UserProfile>>(`${this.config.identity}/v1/me`).pipe(
@@ -58,13 +60,39 @@ export class IdentityService {
   }
 
   getDevices(): Observable<DeviceItem[]> {
-    return this.http.get<ApiResponse<DeviceItem[]>>(
-      `${this.config.identity}/v1/me/devices`
-    ).pipe(map(res => res.data));
+    return this.fingerprint.getHash().pipe(
+      switchMap(hash =>
+        this.http.get<ApiResponse<DeviceItem[]>>(`${this.config.identity}/v1/me/devices`, {
+          headers: { 'X-Device-Hash': hash },
+        }).pipe(map(res => res.data))
+      )
+    );
   }
 
-  revokeDevice(deviceId: string): Observable<void> {
-    return this.http.delete<void>(`${this.config.identity}/v1/me/devices/${deviceId}`);
+  requestDeviceTrustOtp(deviceId: string): Observable<void> {
+    return this.http.post<void>(
+      `${this.config.identity}/v1/me/devices/${deviceId}/trust/otp-request`, {}
+    );
+  }
+
+  verifyDeviceTrustOtp(deviceId: string, otp: string): Observable<void> {
+    return this.http.post<void>(
+      `${this.config.identity}/v1/me/devices/${deviceId}/trust/verify`, { otp }
+    );
+  }
+
+  untrustDevice(deviceId: string): Observable<void> {
+    return this.fingerprint.getHash().pipe(
+      switchMap(hash =>
+        this.http.delete<void>(`${this.config.identity}/v1/me/devices/${deviceId}/trust`, {
+          headers: { 'X-Device-Hash': hash },
+        })
+      )
+    );
+  }
+
+  remoteLogout(sessionId: string): Observable<void> {
+    return this.http.delete<void>(`${this.config.oauth2}/v1/me/sessions/${sessionId}`);
   }
 
   getPasswordStatus(): Observable<{ hasPassword: boolean }> {
