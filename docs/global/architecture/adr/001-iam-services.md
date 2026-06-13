@@ -18,12 +18,12 @@ Tách IAM thành 2 services độc lập với ownership rõ ràng:
 
 **Aggregates / domain objects:**
 
-| Object | Mô tả |
-|---|---|
+| Object           | Mô tả                                                          |
+|------------------|----------------------------------------------------------------|
 | `UserCredential` | email, hashedPassword, role, status (replica) — login hot path |
-| `SocialIdentity` | provider, providerSub, userId — social login lookup |
-| `MfaConfig` | userId, enabled, method=EMAIL |
-| `OAuthSession` | sid, userId, deviceId — wrap SAS OAuth2Authorization |
+| `SocialIdentity` | provider, providerSub, userId — social login lookup            |
+| `MfaConfig`      | userId, enabled, method=EMAIL                                  |
+| `OAuthSession`   | sid, userId, deviceId — wrap SAS OAuth2Authorization           |
 
 **Responsibilities:**
 - Spring Authorization Server — Authorization Code Flow + PKCE
@@ -40,12 +40,12 @@ Tách IAM thành 2 services độc lập với ownership rõ ràng:
 
 **Aggregates / domain objects:**
 
-| Object | Mô tả |
-|---|---|
-| `UserAccount` | userId, email, fullName, phoneNumber, status — source of truth |
-| `EmailVerification` | token, userId, expiresAt — registration/verification flow |
-| `Device` | deviceId, userId, fingerprint, userAgent, ip — populated từ event |
-| `LoginActivity` | userId, deviceId, status, ip, timestamp — populated từ event |
+| Object              | Mô tả                                                             |
+|---------------------|-------------------------------------------------------------------|
+| `UserAccount`       | userId, email, fullName, phoneNumber, status — source of truth    |
+| `EmailVerification` | token, userId, expiresAt — registration/verification flow         |
+| `Device`            | deviceId, userId, fingerprint, userAgent, ip — populated từ event |
+| `LoginActivity`     | userId, deviceId, status, ip, timestamp — populated từ event      |
 
 **Responsibilities:**
 - Email verification flow — `GET /verify?token=...`, publish `UserActivated`

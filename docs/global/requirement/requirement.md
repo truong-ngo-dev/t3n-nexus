@@ -38,21 +38,6 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 | Peak RPS (checkout) | ~8,000 req/s  | Sau rate limiting tại api-gateway         |
 | Duration            | 15–30 phút    | Đủ để trigger Saga timeout, auto-cancel   |
 
-**Kịch bản hot-SKU contention (showcase pattern):**
-
-```
-1 hot SKU, stock = 1,000 units
-200,000 users tranh mua trong 60 giây → ~3,333 checkout req/s trên 1 Redis key
-```
-
-| Pattern                          | Vai trò trong kịch bản                               |
-|----------------------------------|------------------------------------------------------|
-| Bloom Filter (inventory-service) | Loại sớm sold-out check trước khi hit Redis          |
-| Redis atomic DECR + Lua script   | Oversell prevention — decrement và check nguyên tử   |
-| Kafka queue                      | Flatten spike — consumer xử lý tuần tự per-partition |
-| Temporal Saga                    | Rollback nếu payment fail sau khi đã deduct stock    |
-| Rate limiting (api-gateway)      | Giảm checkout RPS xuống mức Redis chịu được          |
-
 ### 2.3 Latency SLAs
 
 | Operation                           | P99 target         | Justify                              |
@@ -64,24 +49,12 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 | Real-time location update (shipper) | < 500ms end-to-end | MQTT QoS 1 qua EMQX                  |
 | In-app notification                 | < 1s end-to-end    | Redis Pub/Sub → WebSocket Gateway    |
 
-### 2.4 Local Test Baseline
-
-> NFR numbers ở trên justify architectural decisions. Section này định nghĩa con số thực tế chạy với Simulator Service trên máy dev (X1 Carbon Gen 6, 16GB RAM).
-> Pattern được validate là như nhau — correctness không phụ thuộc vào scale.
-
-| Scenario                  | Production target             | Local test                                       | Services cần bật                                    |
-|---------------------------|-------------------------------|--------------------------------------------------|-----------------------------------------------------|
-| Hot-SKU contention        | ~3,333 checkout req/s / 1 SKU | 200 concurrent users / 1 SKU                     | inventory + order + Redis + Kafka + MySQL           |
-| Voucher race condition    | N concurrent                  | 50 concurrent                                    | promotion + Redis + MySQL                           |
-| Saga failure injection    | —                             | 20 concurrent flows, inject failure tại mỗi bước | order + inventory + payment + Kafka + MySQL         |
-| Notification stress       | ~1,000,000 events/ngày        | 500 events / 10s                                 | notification + websocket-gateway + Redis + RabbitMQ |
-| Shipper location tracking | —                             | 5 simulated shippers, update 1s/interval         | fulfillment + shipper + EMQX                        |
 
 ### 2.5 Data Volume
 
 | Entity                        | Volume          | Justify                                            |
 |-------------------------------|-----------------|----------------------------------------------------|
-| SKUs trong catalog            | 5,000,000       | Elasticsearch (MySQL LIKE không scale ở mức này)   |
+| SKUs trong catalog            | 5,000,000       | Elasticsearch (SQL LIKE không scale ở mức này)     |
 | Chat messages / ngày          | ~500,000        | MongoDB (document model phù hợp hơn relational)    |
 | Notification events / ngày    | ~1,000,000      | Redis Pub/Sub + WebSocket Gateway horizontal scale |
 | Order events (Event Sourcing) | ~250,000 / ngày | Kafka retention, audit trail                       |
@@ -98,7 +71,9 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 | Shipper   | External | Nhận và thực hiện giao vận                       |
 | Admin     | External | Quản trị platform, duyệt seller, xử lý khiếu nại |
 | Scheduler | Internal | Trigger các job định kỳ                          |
-| Event Bus | Internal | Kafka (chính), RabbitMQ (một số trường hợp)      |
+| Event Bus | Internal | Kafka                                             |
+
+> Chi tiết tại [usecase-diagram][]
 
 ---
 
@@ -112,7 +87,7 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 |-----------------|-----------------------|------------------------------------------------------------|
 | Catalog         | `catalog-service`     | Product, Category, SKU, Warranty attribute                 |
 | Inventory       | `inventory-service`   | Stock level, Reservation, Limited offer (high-concurrency) |
-| Warehouse       | `warehouse-service`   | **Phase 2** — platform-managed warehouse, Event Sourcing   |
+| Warehouse       | `warehouse-service`   | platform-managed warehouse, Event Sourcing                 |
 | Cart            | `cart-service`        | Guest cart (Redis), persistent cart, merge khi login       |
 | Order           | `order-service`       | Order lifecycle, Saga choreography, Event Sourcing         |
 | Payment         | `payment-service`     | Payment processing, COD reconciliation, batch payout       |
@@ -173,9 +148,3 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 
 ---
 
-## 6. Câu Hỏi Còn Mở
-
-- [x] Service mapping: **23 services**, mỗi BC thành một service riêng — `architecture/service-mapping.md`
-- [x] Warehouse scope: **chỉ platform-fulfilled** với full Event Sourcing trên movement aggregate
-- [x] Loyalty point: **Points Ledger có expiration**, không có tier
-- [x] Shipper: **đăng ký thủ công**, auto-assignment pool ở Fulfillment BC; Shipper BC lo availability state machine + location via MQTT

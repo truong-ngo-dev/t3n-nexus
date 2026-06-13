@@ -1,6 +1,6 @@
 # oauth2-service — Login Flow Implementation
 
-**Framework reference**: [`docs/architecture/spring-security-mfa-bff.md`](../../../architecture/spring-security-login-mfa-bff)  
+**Framework reference**: [`docs/architecture/spring-security-mfa-bff.md`](../../../global/technical/spring-security-login-mfa-bff.md)  
 **Domain design**: [`design.md`](design.md)  
 **Session components**: [`session-management.md`](session-management.md)
 

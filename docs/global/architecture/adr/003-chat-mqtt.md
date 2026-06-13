@@ -27,6 +27,6 @@ Dùng **EMQX** làm MQTT broker cho Chat BC và shipper location tracking.
 **+** Offline delivery — tin nhắn queue khi recipient disconnect  
 **+** Native mobile support — MQTT client library trên Android/iOS  
 **+** Scale tốt hơn WebSocket cho high-frequency GPS updates  
-**−** Thêm 1 broker (EMQX) bên cạnh Kafka + RabbitMQ  
+**−** Thêm 1 broker (EMQX) bên cạnh Kafka  
 **−** Browser cần MQTT over WebSocket (EMQX support sẵn — không phải custom implement)  
 **−** WebSocket Gateway và EMQX phục vụ hai use case khác nhau — cần phân biệt rõ cho dev mới

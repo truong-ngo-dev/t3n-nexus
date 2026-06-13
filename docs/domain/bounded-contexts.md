@@ -258,8 +258,8 @@ identity-service: consume → upsert Device entity, append LoginActivity
 - Consume domain event từ tất cả BC
 - Kênh: in-app (WebSocket Gateway), email, push notification
 - Message theo template, mapping với từng loại event
-- RabbitMQ cho email/push (fire-and-forget, có retry)
-- Persist notification vào MySQL — client fetch lại qua `GET /notifications?since=` khi reconnect
+- notification-service gọi trực tiếp SMTP/FCM — Kafka consumer retry cho failed delivery
+- Persist notification vào PostgreSQL — client fetch lại qua `GET /notifications?since=` khi reconnect
 - Publish tới Redis Pub/Sub `notif:user:{userId}` → WebSocket Gateway deliver
 
 **WebSocket Gateway** (service riêng, không phải Notification BC):
@@ -270,7 +270,7 @@ identity-service: consume → upsert Device entity, append LoginActivity
 
 ```
 Any BC → Kafka → Notification BC → Redis Pub/Sub → WebSocket Gateway → Browser
-                                └→ RabbitMQ → Email / Push
+                                └→ SMTP / FCM   → Email / Push
 ```
 
 #### Chat BC

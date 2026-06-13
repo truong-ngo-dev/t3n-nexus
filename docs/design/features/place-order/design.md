@@ -93,5 +93,5 @@ payment-service publish PaymentFailed
 
 ## ADR liên quan
 
-- [`adr/004-saga-choreography.md`](../../../architecture/adr/004-saga-choreography.md)
-- [`adr/005-outbox-pattern.md`](../../../architecture/adr/005-outbox-pattern.md)
+- [`adr/004-saga-choreography.md`](../../../global/architecture/adr/004-saga-choreography.md)
+- [`adr/005-outbox-pattern.md`](../../../global/architecture/adr/005-outbox-pattern.md)

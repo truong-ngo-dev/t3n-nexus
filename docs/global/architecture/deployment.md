@@ -48,12 +48,12 @@ Nếu cần ổn định hơn: `m6i.2xlarge` on-demand ~$7.68 cho 20h/tháng.
 
 Không bật toàn bộ 23 services cùng lúc. Làm việc theo slice:
 
-| Profile             | Services                                            | RAM ước tính |
-|---------------------|-----------------------------------------------------|--------------|
-| `order-flow`        | order + inventory + payment + Kafka + MySQL + Redis | ~3.5GB       |
-| `search-flow`       | catalog + search + Elasticsearch + MySQL            | ~2.5GB       |
-| `chat-flow`         | chat + MongoDB + EMQX                               | ~1.5GB       |
-| `notification-flow` | notification + websocket-gateway + Redis + RabbitMQ | ~2.5GB       |
+| Profile             | Services                                                 | RAM ước tính |
+|---------------------|----------------------------------------------------------|--------------|
+| `order-flow`        | order + inventory + payment + Kafka + PostgreSQL + Redis | ~3.5GB       |
+| `search-flow`       | catalog + search + Elasticsearch + PostgreSQL            | ~2.5GB       |
+| `chat-flow`         | chat + MongoDB + EMQX                                    | ~1.5GB       |
+| `notification-flow` | notification + websocket-gateway + Redis + Kafka         | ~2GB         |
 
 Máy dev: X1 Carbon Gen 6 (16GB RAM) — chạy thoải mái từng slice, không chạy full stack.
 

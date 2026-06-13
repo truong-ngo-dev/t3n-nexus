@@ -1,6 +1,6 @@
 # ADR-002 — Messaging Strategy: Kafka + RabbitMQ
 
-**Status:** Accepted
+**Status:** Superseded by ADR-008
 
 ## Context
 

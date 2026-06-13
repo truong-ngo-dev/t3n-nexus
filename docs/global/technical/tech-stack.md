@@ -19,24 +19,24 @@
 
 ## Databases & Storage
 
-| Hạng mục       | Công nghệ             | Dùng ở đâu                                                               |
-|----------------|-----------------------|--------------------------------------------------------------------------|
-| Relational     | MySQL                 | 12 services — 1 schema / service                                         |
-| Document       | MongoDB               | chat-service                                                             |
-| Search         | Elasticsearch         | search-service                                                           |
-| Cache / KV     | Redis                 | cart (guest session), notification pub/sub, idempotency keys, ABAC cache |
-| Object Storage | MinIO (S3-compatible) | Proof of delivery, invoice PDF                                           |
-| Data Warehouse | *(chưa chỉ định)*     | reporting-service                                                        |
+| Hạng mục       | Công nghệ                      | Dùng ở đâu                                                               |
+|----------------|--------------------------------|--------------------------------------------------------------------------|
+| Relational     | PostgreSQL                     | 12 services — 1 schema / service                                         |
+| Document       | MongoDB                        | chat-service                                                             |
+| Search         | Elasticsearch                  | search-service                                                           |
+| Cache / KV     | Redis                          | cart (guest session), notification pub/sub, idempotency keys, ABAC cache |
+| Object Storage | MinIO (S3-compatible)          | Proof of delivery, invoice PDF                                           |
+| Data Warehouse | *(chưa chỉ định)*              | reporting-service                                                        |
 
 ## Messaging & Streaming
 
-| Hạng mục          | Công nghệ                        | Dùng ở đâu                                    |
-|-------------------|----------------------------------|-----------------------------------------------|
-| Event streaming   | Kafka                            | Domain events, Saga choreography              |
-| Schema management | Confluent Schema Registry (Avro) | Tránh breaking change producer/consumer       |
-| CDC               | Debezium                         | Outbox pattern — đọc MySQL binlog, push Kafka |
-| Task queue        | RabbitMQ                         | Email/push notification (fire-and-forget)     |
-| MQTT broker       | EMQX                             | Chat, shipper location tracking               |
+| Hạng mục          | Công nghệ                        | Dùng ở đâu                                                                     |
+|-------------------|----------------------------------|--------------------------------------------------------------------------------|
+| Event streaming   | Kafka                            | Domain events, Saga choreography                                               |
+| Schema management | Confluent Schema Registry (Avro) | Tránh breaking change producer/consumer                                        |
+| CDC               | Debezium                         | Outbox pattern — đọc PostgreSQL WAL (logical replication), push Kafka          |
+| Task queue        | Kafka + Outbox (CDC)             | Email/push notification — outbox-starter + Debezium, không cần retry job riêng |
+| MQTT broker       | EMQX                             | Chat, shipper location tracking                                                |
 
 ## Infrastructure Middleware
 

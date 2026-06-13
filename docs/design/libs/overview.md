@@ -15,7 +15,7 @@ Chi tiết thiết kế từng lib tại file riêng trong thư mục này.
 | `outbox-starter`        | Infrastructure | Transactional Outbox auto-config                 | Hiếm                  |
 | `observability-starter` | Infrastructure | OTel, structured logging, Micrometer             | Hiếm                  |
 | `idempotency-support`   | Infrastructure | Redis-based idempotency key checking             | Hiếm                  |
-| `common-web`           | Infrastructure | REST conventions, error format, filters          | Hiếm                  |
+| `common-web`            | Infrastructure | REST conventions, error format, filters          | Hiếm                  |
 | `security-commons`      | Security       | JWT utils, Spring Security + ABAC bridge         | Khi đổi auth flow     |
 
 ---

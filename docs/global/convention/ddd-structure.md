@@ -185,7 +185,7 @@ RoleId { value }   // reference đến aggregate khác — chỉ lưu ID, không
 │   │   ├── key/
 │   │   └── SecurityConfiguration
 │   │
-│   ├── messaging/          ← Kafka, RabbitMQ — optional
+│   ├── messaging/          ← Kafka — optional
 │   ├── scheduling/         ← @Scheduled jobs — optional
 │   └── cross-cutting/      ← không implement Port cụ thể nào
 │       ├── config/
@@ -830,7 +830,7 @@ Không implement domain Port — là Spring Security concern riêng. Cấu trúc
 
 #### `messaging/`, `scheduling/` *(optional)*
 
-Thêm khi cần. `messaging/` cho Kafka/RabbitMQ producer-consumer. `scheduling/` cho `@Scheduled` jobs và batch tasks.
+Thêm khi cần. `messaging/` cho Kafka producer-consumer. `scheduling/` cho `@Scheduled` jobs và batch tasks.
 
 #### `cross-cutting/`
 

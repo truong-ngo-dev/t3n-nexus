@@ -29,6 +29,7 @@
         <module>notification-service</module>
         <module>email-worker</module>
         <module>web-gateway</module>
+        <module>catalog-service</module>
     </modules>
 
 	<dependencyManagement>

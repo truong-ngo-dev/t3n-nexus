@@ -60,6 +60,6 @@ identity-service expose REST APIs sau khi login:
 | [`logout-impl.md`](logout-impl.md)                                                                       | Implementation chi tiết: kịch bản 4–5 (logout/expire), remote revocation        |
 | [`session-management.md`](session-management.md)                                                         | Notation [A]–[F], TTL, invariant, domain model, events                          |
 | [`deferred.md`](deferred.md)                                                                             | Pending items: session cleanup job, short TTL cho access token, v.v.            |
-| [`docs/architecture/spring-security-mfa-bff.md`](../../../architecture/spring-security-login-mfa-bff)    | Framework: login + MFA flow                                                     |
-| [`docs/architecture/spring-security-logout-bff.md`](../../../architecture/spring-security-logout-bff.md) | Framework: logout + remote revocation                                           |
+| [`docs/architecture/spring-security-mfa-bff.md`](../../../global/technical/spring-security-login-mfa-bff.md)    | Framework: login + MFA flow                                                     |
+| [`docs/architecture/spring-security-logout-bff.md`](../../../global/technical/spring-security-logout-bff.md) | Framework: logout + remote revocation                                           |
 

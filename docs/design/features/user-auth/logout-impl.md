@@ -1,6 +1,6 @@
 # oauth2-service & web-gateway — Chi tiết implement Logout & Remote Revocation
 
-**Framework reference**: [`docs/architecture/spring-security-logout-bff.md`](../../../architecture/spring-security-logout-bff.md)  
+**Framework reference**: [`docs/architecture/spring-security-logout-bff.md`](../../../global/technical/spring-security-logout-bff.md)  
 **Domain design**: [`design.md`](design.md)  
 **Session components**: [`session-management.md`](session-management.md)
 
