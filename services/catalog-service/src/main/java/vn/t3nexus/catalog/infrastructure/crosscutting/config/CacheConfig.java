@@ -1,6 +1,7 @@
 package vn.t3nexus.catalog.infrastructure.crosscutting.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -13,15 +14,16 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import tools.jackson.databind.ObjectMapper;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.LocalCacheInvalidator;
+import vn.t3nexus.catalog.infrastructure.crosscutting.cache.TwoLevelCacheManager;
 
 import java.time.Duration;
+import java.util.Set;
 
 @Configuration
 @EnableCaching
@@ -61,7 +63,6 @@ public class CacheConfig {
     // ── L2: Redis (shared across all instances) ───────────────────────────────
 
     @Bean
-    @Primary
     public RedisCacheManager redisCacheManager(RedisConnectionFactory connectionFactory,
                                                ObjectMapper objectMapper) {
         GenericJacksonJsonRedisSerializer jsonSerializer =
@@ -87,12 +88,24 @@ public class CacheConfig {
                 .build();
     }
 
+    // ── Primary: two-level cache manager ─────────────────────────────────────
+
+    @Bean
+    @Primary
+    public TwoLevelCacheManager twoLevelCacheManager(
+            @Qualifier("caffeineCacheManager") CacheManager caffeineCacheManager,
+            RedisCacheManager redisCacheManager) {
+        return new TwoLevelCacheManager(
+                caffeineCacheManager,
+                redisCacheManager,
+                Set.of(CacheNames.CATEGORY_TREE, CacheNames.PRODUCT, CacheNames.PRODUCT_VARIANTS));
+    }
+
     // ── Pub/Sub: broadcast L1 invalidation across fleet ──────────────────────
 
     @Bean
     public LocalCacheInvalidator localCacheInvalidator(
-            @org.springframework.beans.factory.annotation.Qualifier("caffeineCacheManager")
-            CacheManager caffeineCacheManager) {
+            @Qualifier("caffeineCacheManager") CacheManager caffeineCacheManager) {
         return new LocalCacheInvalidator(caffeineCacheManager);
     }
 

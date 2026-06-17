@@ -35,9 +35,8 @@ Những tài liệu này là **inputs** cho toàn bộ quá trình phát triển
 | File                              | Nội dung                                             | Phase        |
 |-----------------------------------|------------------------------------------------------|--------------|
 | `requirement.md`                  | NFR, Actors, BC summary, Technical Scenarios         | Analysis     |
-| `domain/bounded-contexts.md`      | BC detail — business rules, patterns, relationships  | Analysis     |
-| `domain/ubiquitous-language.md`   | Glossary — định nghĩa thuật ngữ theo từng BC         | Analysis     |
-| `design/events/event-catalog.md`  | Domain events — topic, payload, consumers            | Analysis     |
+| `global/architecture/bounded-contexts.md` | BC detail — business rules, patterns, terminology | Architecture |
+| `global/2.architecture/event-catalog.md`  | Domain events — topic, payload, consumers            | Analysis     |
 | `architecture/overview.md`        | C4 Level 1+2 — service topology, communication style | Architecture |
 | `architecture/tech-stack.md`      | Toàn bộ tech stack với justification                 | Architecture |
 | `architecture/service-mapping.md` | 23 services, phân nhóm theo domain                   | Architecture |
@@ -56,10 +55,9 @@ Mục tiêu: hiểu **cần làm gì**, chưa quan tâm làm thế nào.
 
 **Tạo mới:**
 - `requirement.md`
-- `domain/bounded-contexts.md`
-- `domain/ubiquitous-language.md`
+- `global/architecture/bounded-contexts.md`
 - `diagrams/use-case-overview.puml`
-- `design/events/event-catalog.md` *(draft — domain events từ Event Storming)*
+- `global/2.architecture/event-catalog.md` *(draft — domain events từ Event Storming)*
 
 ---
 
@@ -74,7 +72,7 @@ Mục tiêu: quyết định hệ thống trông như thế nào — service nà
 - `diagrams/c4-containers.puml`
 
 **Cập nhật:**
-- `design/events/event-catalog.md` — bổ sung integration events (Kafka)
+- `global/2.architecture/event-catalog.md` — bổ sung integration events (Kafka)
 
 ---
 
@@ -91,7 +89,7 @@ Mục tiêu: trước khi code, biết chính xác component đó làm gì.
 - `design/libs/{name}.md` — interface, auto-config, cách dùng
 
 **Cập nhật:**
-- `domain/ubiquitous-language.md` — tinh chỉnh khi design làm rõ thêm ngôn ngữ
+- `global/architecture/bounded-contexts.md` — tinh chỉnh terminology khi design làm rõ thêm ngôn ngữ
 - `architecture/adr/` — quyết định mới nảy sinh khi design chi tiết
 
 ---
@@ -103,7 +101,7 @@ Mục tiêu: code, và cập nhật tài liệu khi thực tế khác với thi�
 **Cập nhật liên tục:**
 - `design/services/{name}.md` — khi schema, event, dependency thay đổi
 - `design/data/{name}.md` — khi schema thực tế sau migration khác design
-- `design/events/event-catalog.md` — event payload cuối cùng sau implement
+- `global/2.architecture/event-catalog.md` — event payload cuối cùng sau implement
 
 **Tạo thêm khi cần:**
 - `architecture/adr/` — mỗi khi có quyết định kỹ thuật quan trọng (pivot, trade-off)
@@ -129,7 +127,7 @@ Project phát triển theo từng UC. Mỗi UC có thể chạm nhiều services
    → Cập nhật design/api/{name}.yaml nếu expose endpoint mới
    → Cập nhật design/data/{name}.md nếu có schema mới
          ↓
-4. Cập nhật design/events/event-catalog.md ← events UC này sinh ra
+4. Cập nhật global/2.architecture/event-catalog.md ← events UC này sinh ra
          ↓
 5. Code từng service
          ↓
@@ -165,7 +163,7 @@ ADR (Architecture Decision Record) là loại tài liệu **không bao giờ s�
 | `design/services/{name}.md` | Phase 3 | Phase 4 liên tục | Living document |
 | `design/api/{name}.yaml` | Phase 3 | Khi API thay đổi | |
 | `design/data/{name}.md` | Phase 3 | Khi schema thay đổi | |
-| `design/events/event-catalog.md` | Phase 1 | Hoàn thiện dần theo UC | |
+| `global/2.architecture/event-catalog.md` | Phase 1 | Hoàn thiện dần theo UC | |
 | `design/features/{uc}/design.md` | Khi bắt đầu UC phức tạp | Khi flow thay đổi | Living document |
 | `design/features/{uc}/implementation.md` | Khi bắt đầu UC phức tạp | Khi task hoàn thành | Checklist |
 | `design/features/{uc}/sequence.puml` | Khi bắt đầu UC phức tạp | Khi flow thay đổi | |

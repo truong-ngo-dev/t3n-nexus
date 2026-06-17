@@ -10,6 +10,7 @@ import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
+import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
@@ -24,7 +25,7 @@ public class CreateBrand implements CommandHandler<CreateBrand.Command, CreateBr
 
     @Override
     @Transactional
-    @CacheEvict(value = "brands:active", allEntries = true)
+    @CacheEvict(value = CacheNames.BRANDS_ACTIVE, allEntries = true)
     public Result handle(Command command) {
         if (brandRepository.existsBySlug(command.slug())) {
             throw new DomainException(BrandErrorCode.BRAND_SLUG_ALREADY_EXISTS);

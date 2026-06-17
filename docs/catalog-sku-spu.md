@@ -1,7 +1,7 @@
 # Catalog BC — Phân Tích Thiết Kế: SPU, SKU, Attribute System
 
 > Tài liệu phân tích khái niệm và thiết kế chi tiết cho Catalog BC.
-> Liên quan: `../domain/bounded-contexts.md` (Catalog BC section), `../requirement.md` (Actors, NFR).
+> Liên quan: `global/architecture/bounded-contexts.md` (Catalog BC section), `global/requirement/requirement.md` (Actors, NFR).
 
 ---
 

@@ -10,6 +10,7 @@ import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
+import vn.t3nexus.catalog.domain.product.ProductRepository;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
@@ -20,6 +21,7 @@ import vn.t3nexus.lib.common.domain.exception.DomainException;
 public class DeactivateBrand implements CommandHandler<DeactivateBrand.Command, DeactivateBrand.Result> {
 
     private final BrandRepository brandRepository;
+    private final ProductRepository productRepository;
 
     @Override
     @Transactional
@@ -28,10 +30,9 @@ public class DeactivateBrand implements CommandHandler<DeactivateBrand.Command, 
         Brand brand = brandRepository.findById(BrandId.of(command.id()))
                 .orElseThrow(() -> new DomainException(BrandErrorCode.BRAND_NOT_FOUND));
 
-        // TODO: thêm check BRAND_IN_USE khi ProductRepository available
-        // if (productRepository.existsByBrandId(brand.getId())) {
-        //     throw new DomainException(BrandErrorCode.BRAND_IN_USE);
-        // }
+        if (productRepository.existsByBrandId(brand.getId().getValue())) {
+            throw new DomainException(BrandErrorCode.BRAND_IN_USE);
+        }
 
         brand.deactivate();
         brandRepository.save(brand);

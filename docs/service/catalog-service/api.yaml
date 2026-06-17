@@ -1,0 +1,1527 @@
+openapi: 3.0.3
+info:
+  title: catalog-service API
+  version: "0.1"
+  description: |
+    Quản lý Catalog — Brand, Category, AttributeTemplate, Product (SPU), Variant (SKU).
+    Upstream thuần túy: không consume event, chỉ publish.
+
+    **Auth:**
+    - `/api/**` — public (không cần token)
+    - `/api/admin/**` — yêu cầu role `ADMIN` (bearer token từ oauth2-service)
+
+servers:
+  - url: http://localhost:8082
+    description: Local dev
+
+tags:
+  - name: Brand (Public)
+    description: Danh sách thương hiệu active — dùng cho storefront
+  - name: Brand (Admin)
+    description: Quản lý thương hiệu — tạo, cập nhật, vô hiệu hóa
+  - name: Category (Public)
+    description: Category tree và attribute list — dùng cho storefront và product form
+  - name: Category (Admin)
+    description: Quản lý category taxonomy và attribute assignment
+  - name: AttributeTemplate (Admin)
+    description: Quản lý attribute template và option pool
+  - name: Product (Public)
+    description: Chi tiết sản phẩm và variants — dùng cho storefront
+  - name: Product (Seller)
+    description: Seller quản lý sản phẩm của mình — CRUD, publish, upload ảnh
+  - name: Product (Admin)
+    description: Admin block/unblock sản phẩm vi phạm
+  - name: Variant (Seller)
+    description: Seller quản lý SKU variants của sản phẩm
+
+# ─── Wrapper schema dùng chung ───────────────────────────────────────────────
+components:
+  schemas:
+
+    ApiResponseVoid:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          nullable: true
+          example: null
+
+    # ── Brand ─────────────────────────────────────────────────────────────────
+
+    BrandResponse:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id:
+          type: string
+          description: ULID
+          example: "01HX4KZ7B3QNMR2VFPJ6W8Y9T"
+        name:
+          type: string
+          example: "Nike"
+        slug:
+          type: string
+          example: "nike"
+
+    CreateBrandRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          example: "Nike"
+        slug:
+          type: string
+          example: "nike"
+
+    UpdateBrandRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: "Nike International"
+
+    # ── Category ──────────────────────────────────────────────────────────────
+
+    CategoryLevel:
+      type: integer
+      enum: [1, 2, 3]
+      description: "1=L1 (root), 2=L2, 3=L3 (leaf)"
+
+    CategoryTreeResponse:
+      type: object
+      required: [id, name, slug, level, children]
+      properties:
+        id:
+          type: string
+          description: ULID
+        name:
+          type: string
+          example: "Electronics"
+        slug:
+          type: string
+          example: "electronics"
+        level:
+          $ref: '#/components/schemas/CategoryLevel'
+        imageUrl:
+          type: string
+          nullable: true
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryTreeResponse'
+
+    CategoryAttributeResponse:
+      type: object
+      required: [templateId, name, displayName, inputType, scope, variantDefining, required, filterable, displayOrder]
+      properties:
+        templateId:
+          type: string
+          description: ULID
+        name:
+          type: string
+          example: "color"
+        displayName:
+          type: string
+          example: "Màu sắc"
+        inputType:
+          $ref: '#/components/schemas/InputType'
+        scope:
+          $ref: '#/components/schemas/AttributeScope'
+        variantDefining:
+          type: boolean
+          description: Nếu true — attribute này phân biệt Variant (SKU)
+        required:
+          type: boolean
+        filterable:
+          type: boolean
+        displayOrder:
+          type: integer
+          description: "-1 cho GLOBAL templates (luôn hiện trước CATEGORY)"
+
+    CreateCategoryRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          example: "Smartphones"
+        slug:
+          type: string
+          example: "smartphones"
+        parentId:
+          type: string
+          nullable: true
+          description: "null = L1 root. Nếu parentId là L3 → 422 MAX_DEPTH_EXCEEDED"
+
+    UpdateCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: "Smartphones & Tablets"
+        imageUrl:
+          type: string
+          nullable: true
+
+    AssignAttributeRequest:
+      type: object
+      required: [templateId, variantDefining, required, filterable, displayOrder]
+      properties:
+        templateId:
+          type: string
+          description: ULID của AttributeTemplate (phải tồn tại)
+        variantDefining:
+          type: boolean
+        required:
+          type: boolean
+        filterable:
+          type: boolean
+        displayOrder:
+          type: integer
+          minimum: 0
+
+    UpdateAssignmentRequest:
+      type: object
+      required: [variantDefining, required, filterable, displayOrder]
+      properties:
+        variantDefining:
+          type: boolean
+        required:
+          type: boolean
+        filterable:
+          type: boolean
+        displayOrder:
+          type: integer
+          minimum: 0
+
+    # ── AttributeTemplate ─────────────────────────────────────────────────────
+
+    InputType:
+      type: string
+      enum: [SELECT, TEXT, NUMBER, BOOLEAN]
+
+    AttributeScope:
+      type: string
+      enum: [GLOBAL, CATEGORY]
+
+    AttributeOptionStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    AttributeOptionResponse:
+      type: object
+      required: [id, value, displayValue]
+      properties:
+        id:
+          type: string
+          description: ULID
+          example: "01HX4KZ7B3QNMR2VFPJ6W8Y9T"
+        value:
+          type: string
+          example: "black"
+        displayValue:
+          type: string
+          example: "Đen"
+        status:
+          $ref: '#/components/schemas/AttributeOptionStatus'
+          nullable: true
+          description: null khi option mới tạo (ngầm hiểu là ACTIVE)
+
+    AttributeTemplateResponse:
+      type: object
+      required: [id, name, displayName, inputType, scope, options]
+      properties:
+        id:
+          type: string
+          description: ULID
+          example: "01HX4KZ7B3QNMR2VFPJ6W8Y9T"
+        name:
+          type: string
+          description: Immutable identifier (snake_case)
+          example: "color"
+        displayName:
+          type: string
+          example: "Màu sắc"
+        inputType:
+          $ref: '#/components/schemas/InputType'
+        scope:
+          $ref: '#/components/schemas/AttributeScope'
+        options:
+          type: array
+          description: Non-empty chỉ khi inputType=SELECT
+          items:
+            $ref: '#/components/schemas/AttributeOptionResponse'
+
+    CreateAttributeTemplateRequest:
+      type: object
+      required: [name, displayName, inputType, scope]
+      properties:
+        name:
+          type: string
+          description: Immutable, phải là snake_case, unique
+          example: "color"
+        displayName:
+          type: string
+          example: "Màu sắc"
+        inputType:
+          $ref: '#/components/schemas/InputType'
+        scope:
+          $ref: '#/components/schemas/AttributeScope'
+
+    UpdateAttributeTemplateRequest:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          description: Chỉ displayName được phép sửa; name và inputType là immutable
+          example: "Màu sắc (mới)"
+
+    AddAttributeOptionRequest:
+      type: object
+      required: [value, displayValue]
+      properties:
+        value:
+          type: string
+          description: Internal key (snake_case)
+          example: "black"
+        displayValue:
+          type: string
+          description: Label hiển thị cho user
+          example: "Đen"
+
+  # ── Error responses ─────────────────────────────────────────────────────────
+  responses:
+    400:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: { type: boolean, example: false }
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: "VALIDATION_ERROR" }
+                  message: { type: string }
+    404:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: { type: boolean, example: false }
+              error:
+                type: object
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+    409:
+      description: Conflict (duplicate, in-use)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: { type: boolean, example: false }
+              error:
+                type: object
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+    422:
+      description: Business rule violation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: { type: boolean, example: false }
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: "INPUT_TYPE_NOT_SELECT" }
+                  message: { type: string }
+
+    # ── Product ───────────────────────────────────────────────────────────────
+
+    ProductStatus:
+      type: string
+      enum: [DRAFT, PUBLISHED, UNPUBLISHED, BLOCKED]
+
+    WarrantyInfoResponse:
+      type: object
+      properties:
+        months: { type: integer, example: 12 }
+        type: { type: string, example: "chính hãng" }
+        coverage: { type: string, example: "toàn cầu" }
+
+    ProductImageResponse:
+      type: object
+      properties:
+        imageId: { type: string }
+        objectKey: { type: string }
+        displayOrder: { type: integer }
+
+    AttributeValueResponse:
+      type: object
+      properties:
+        templateId: { type: string }
+        value: { type: string }
+
+    ProductResponse:
+      type: object
+      required: [id, sellerId, categoryId, brandId, name, status]
+      properties:
+        id: { type: string, description: ULID }
+        sellerId: { type: string }
+        categoryId: { type: string }
+        brandId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+        warrantyInfo: { $ref: '#/components/schemas/WarrantyInfoResponse' }
+        attributeValues:
+          type: array
+          items: { $ref: '#/components/schemas/AttributeValueResponse' }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ProductImageResponse' }
+
+    ProductSummaryResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+        categoryId: { type: string }
+        brandId: { type: string }
+        thumbnailObjectKey: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PagedProductSummaryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ProductSummaryResponse' }
+        total: { type: integer, format: int64 }
+        page: { type: integer }
+        size: { type: integer }
+
+    CreateProductRequest:
+      type: object
+      required: [categoryId, brandId, name, attributeValues]
+      properties:
+        categoryId: { type: string }
+        brandId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        warrantyMonths: { type: integer, example: 12 }
+        warrantyType: { type: string, example: "chính hãng" }
+        warrantyCoverage: { type: string, example: "toàn cầu" }
+        attributeValues:
+          type: array
+          items:
+            type: object
+            required: [templateId, value]
+            properties:
+              templateId: { type: string }
+              value: { type: string }
+
+    UpdateProductRequest:
+      type: object
+      required: [name, attributeValues]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        warrantyMonths: { type: integer }
+        warrantyType: { type: string }
+        warrantyCoverage: { type: string }
+        attributeValues:
+          type: array
+          items:
+            type: object
+            required: [templateId, value]
+            properties:
+              templateId: { type: string }
+              value: { type: string }
+
+    # ── Variant ───────────────────────────────────────────────────────────────
+
+    VariantStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    CombinationItemResponse:
+      type: object
+      properties:
+        templateId: { type: string }
+        optionId: { type: string }
+
+    SkuImageResponse:
+      type: object
+      properties:
+        imageId: { type: string }
+        objectKey: { type: string }
+        displayOrder: { type: integer }
+
+    VariantResponse:
+      type: object
+      properties:
+        skuId: { type: string, description: Variant ULID }
+        productId: { type: string }
+        combination:
+          type: array
+          items: { $ref: '#/components/schemas/CombinationItemResponse' }
+        skuCode: { type: string }
+        price: { type: integer, format: int64, description: "Đơn vị: đồng VND" }
+        stock: { type: integer }
+        status: { $ref: '#/components/schemas/VariantStatus' }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/SkuImageResponse' }
+
+    AddVariantRequest:
+      type: object
+      required: [combination, price]
+      properties:
+        combination:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [templateId, optionId]
+            properties:
+              templateId: { type: string }
+              optionId: { type: string }
+        skuCode: { type: string }
+        price:
+          type: integer
+          format: int64
+          minimum: 1
+          description: "Đơn vị: đồng VND"
+        stock:
+          type: integer
+          minimum: 0
+          default: 0
+
+    UpdateVariantRequest:
+      type: object
+      required: [price]
+      properties:
+        price:
+          type: integer
+          format: int64
+          minimum: 1
+        skuCode: { type: string }
+
+# ─── Paths ───────────────────────────────────────────────────────────────────
+paths:
+
+  # ── Category (Public) ──────────────────────────────────────────────────────
+
+  /api/categories:
+    get:
+      tags: [Category (Public)]
+      summary: Lấy category tree
+      description: Không cần auth. Kết quả được cache L1+L2 (TTL L1=30min, L2=1hr).
+      operationId: getCategoryTree
+      responses:
+        "200":
+          description: OK — danh sách L1 roots, mỗi node có nested children (max depth 3)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryTreeResponse'
+
+  /api/categories/{id}/attributes:
+    get:
+      tags: [Category (Public)]
+      summary: Lấy danh sách attributes của category
+      description: |
+        Merge GLOBAL attributes (scope=GLOBAL, displayOrder=-1, hiện trước) và
+        CATEGORY attributes đã assign (scope=CATEGORY, sorted by displayOrder).
+        Kết quả cache L2 (TTL 1hr) per categoryId.
+      operationId: getCategoryAttributes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Category ULID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryAttributeResponse'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: CATEGORY_NOT_FOUND
+
+  # ── Category (Admin) ────────────────────────────────────────────────────────
+
+  /api/admin/categories:
+    post:
+      tags: [Category (Admin)]
+      summary: Tạo category mới
+      description: |
+        `parentId=null` → tạo L1 root.
+        `parentId` của L3 category → 422 MAX_DEPTH_EXCEEDED.
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        "201":
+          description: Created — trả về ULID của category mới
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: string, description: ULID }
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: CATEGORY_NOT_FOUND (parentId không tồn tại)
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: CATEGORY_SLUG_EXISTS
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: MAX_DEPTH_EXCEEDED
+
+  /api/admin/categories/{id}:
+    put:
+      tags: [Category (Admin)]
+      summary: Cập nhật tên và ảnh category
+      operationId: updateCategory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+    delete:
+      tags: [Category (Admin)]
+      summary: Xóa category (hard delete)
+      description: |
+        Guard: có sub-category → 409 HAS_CHILDREN.
+        Guard: đang được Product reference → 409 HAS_PRODUCT_REFERENCE.
+        Xóa cascade: closure rows + attribute assignments + entity.
+      operationId: deleteCategory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: HAS_CHILDREN | HAS_PRODUCT_REFERENCE
+
+  /api/admin/categories/{id}/attributes:
+    post:
+      tags: [Category (Admin)]
+      summary: Assign attribute template vào category
+      description: |
+        Chỉ CATEGORY-scope templates mới có ý nghĩa khi assign.
+        GLOBAL templates tự động hiện trong GetCategoryAttributes mà không cần assign.
+      operationId: assignAttributeToCategory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Category ULID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignAttributeRequest'
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: CATEGORY_NOT_FOUND | TEMPLATE_NOT_FOUND
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: ASSIGNMENT_ALREADY_EXISTS
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: GLOBAL_TEMPLATE_NOT_ASSIGNABLE — GLOBAL templates tự động áp dụng, không cần assign
+
+  /api/admin/categories/{id}/attributes/{templateId}:
+    put:
+      tags: [Category (Admin)]
+      summary: Cập nhật config assignment
+      operationId: updateCategoryAttributeAssignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: templateId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssignmentRequest'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: CATEGORY_NOT_FOUND | ASSIGNMENT_NOT_FOUND
+    delete:
+      tags: [Category (Admin)]
+      summary: Bỏ assignment attribute khỏi category
+      operationId: removeCategoryAttributeAssignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: templateId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: CATEGORY_NOT_FOUND | ASSIGNMENT_NOT_FOUND
+
+  # ── Brand (Public) ──────────────────────────────────────────────────────────
+
+  /api/brands:
+    get:
+      tags: [Brand (Public)]
+      summary: Lấy danh sách brand active
+      description: Không cần auth. Kết quả được cache Redis (TTL 30 min).
+      operationId: listActiveBrands
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrandResponse'
+
+  # ── Brand (Admin) ──────────────────────────────────────────────────────────
+
+  /api/admin/brands:
+    post:
+      tags: [Brand (Admin)]
+      summary: Tạo brand mới
+      operationId: createBrand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBrandRequest'
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/BrandResponse'
+        "400":
+          $ref: '#/components/responses/400'
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: BRAND_SLUG_ALREADY_EXISTS
+
+  /api/admin/brands/{id}:
+    put:
+      tags: [Brand (Admin)]
+      summary: Cập nhật tên brand
+      description: Chỉ cho phép đổi `name`. `slug` là immutable sau khi tạo.
+      operationId: updateBrand
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Brand ULID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBrandRequest'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: BRAND_NOT_FOUND
+    delete:
+      tags: [Brand (Admin)]
+      summary: Vô hiệu hóa brand (soft delete)
+      description: |
+        Chuyển brand sang INACTIVE. Brand sẽ không còn xuất hiện ở storefront.
+        **NOTE:** Guard `BRAND_IN_USE` chưa active — sẽ enable khi Product feature hoàn thành (Phase 4).
+      operationId: deactivateBrand
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+
+  # ── AttributeTemplate (Admin) ───────────────────────────────────────────────
+
+  /api/admin/attribute-templates:
+    get:
+      tags: [AttributeTemplate (Admin)]
+      summary: Lấy toàn bộ attribute templates
+      description: Không paginate — Admin-only, số lượng nhỏ. Không cache.
+      operationId: listAttributeTemplates
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AttributeTemplateResponse'
+    post:
+      tags: [AttributeTemplate (Admin)]
+      summary: Tạo attribute template
+      description: |
+        `name` là immutable identifier (không thể sửa sau khi tạo).
+        `inputType` cũng immutable — xác định template dùng option pool (SELECT) hay free-text.
+      operationId: createAttributeTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAttributeTemplateRequest'
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/AttributeTemplateResponse'
+        "400":
+          $ref: '#/components/responses/400'
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: TEMPLATE_NAME_EXISTS
+
+  /api/admin/attribute-templates/{id}:
+    put:
+      tags: [AttributeTemplate (Admin)]
+      summary: Cập nhật display name của template
+      description: Chỉ `displayName` được phép sửa. `name` và `inputType` là immutable.
+      operationId: updateAttributeTemplate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAttributeTemplateRequest'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND
+
+  /api/admin/attribute-templates/{id}/options:
+    post:
+      tags: [AttributeTemplate (Admin)]
+      summary: Thêm option vào template
+      description: |
+        Chỉ áp dụng cho template có `inputType=SELECT`.
+        Gọi trên template TEXT/NUMBER/BOOLEAN → 422.
+      operationId: addAttributeOption
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: AttributeTemplate ULID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddAttributeOptionRequest'
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/AttributeOptionResponse'
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: INPUT_TYPE_NOT_SELECT
+
+  /api/admin/attribute-templates/{id}/options/{optionId}:
+    put:
+      tags: [AttributeTemplate (Admin)]
+      summary: Cập nhật displayValue của option
+      description: Chỉ `displayValue` (UI label) được phép sửa. `value` là immutable.
+      operationId: updateAttributeOption
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: AttributeTemplate ULID
+        - name: optionId
+          in: path
+          required: true
+          schema: { type: string }
+          description: AttributeOption ULID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayValue]
+              properties:
+                displayValue:
+                  type: string
+                  example: "Đen Matte"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND | OPTION_NOT_FOUND
+    delete:
+      tags: [AttributeTemplate (Admin)]
+      summary: Vô hiệu hóa option (soft delete)
+      description: |
+        Chuyển option sang INACTIVE. Option đang được dùng bởi Variant sẽ bị reject (409).
+        Guard được thực hiện qua `VariantRepository.existsByOptionId` trước khi load AR.
+      operationId: deactivateAttributeOption
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: AttributeTemplate ULID
+        - name: optionId
+          in: path
+          required: true
+          schema: { type: string }
+          description: AttributeOption ULID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND | OPTION_NOT_FOUND
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: OPTION_IN_USE
+
+  # ── Product (Public) ────────────────────────────────────────────────────────
+
+  /api/products/{id}:
+    get:
+      tags: [Product (Public)]
+      summary: Chi tiết sản phẩm (chỉ PUBLISHED)
+      description: Không cần auth. Cache L1+L2 (TTL 10 min). Trả 404 nếu không PUBLISHED.
+      operationId: getPublishedProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Product ULID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/ProductResponse' }
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: PRODUCT_NOT_FOUND hoặc không PUBLISHED
+
+  /api/products/{id}/variants:
+    get:
+      tags: [Product (Public)]
+      summary: Danh sách variants của sản phẩm
+      description: Không cần auth. Cache L1+L2 per productId (TTL 10 min).
+      operationId: getProductVariants
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Product ULID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/VariantResponse' }
+
+  # ── Product (Seller) ────────────────────────────────────────────────────────
+
+  /api/seller/products:
+    post:
+      tags: [Product (Seller)]
+      summary: Tạo product mới (DRAFT)
+      description: |
+        Seller tạo product. Product bắt đầu ở trạng thái DRAFT.
+        Header `X-Seller-Id` được gateway inject sau khi xác thực session.
+      operationId: createProduct
+      parameters:
+        - name: X-Seller-Id
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProductRequest' }
+      responses:
+        "201":
+          description: Created — trả về Product ULID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: string, description: Product ULID }
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: CATEGORY_NOT_FOUND | BRAND_NOT_FOUND
+    get:
+      tags: [Product (Seller)]
+      summary: Danh sách products của seller (paged)
+      operationId: listSellerProducts
+      parameters:
+        - name: X-Seller-Id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/PagedProductSummaryResponse' }
+
+  /api/seller/products/{id}:
+    get:
+      tags: [Product (Seller)]
+      summary: Chi tiết product (mọi status)
+      operationId: getSellerProduct
+      parameters:
+        - name: X-Seller-Id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/ProductResponse' }
+        "404":
+          $ref: '#/components/responses/404'
+    put:
+      tags: [Product (Seller)]
+      summary: Cập nhật thông tin product
+      description: Cập nhật name, description, warrantyInfo, attributeValues. Không đổi categoryId sau khi có variant.
+      operationId: updateProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProductRequest' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: PRODUCT_BLOCKED
+
+  /api/seller/products/{id}/publish:
+    post:
+      tags: [Product (Seller)]
+      summary: Publish product → PUBLISHED
+      description: |
+        Guard: phải có ít nhất 1 Variant ACTIVE. Emit `ProductPublishedEvent`.
+      operationId: publishProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: PUBLISH_REQUIRES_ACTIVE_VARIANT | PRODUCT_BLOCKED
+
+  /api/seller/products/{id}/unpublish:
+    post:
+      tags: [Product (Seller)]
+      summary: Unpublish product → UNPUBLISHED
+      description: Emit `ProductUnpublishedEvent`.
+      operationId: unpublishProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: PRODUCT_BLOCKED
+
+  /api/seller/products/{id}/images/upload-url:
+    post:
+      tags: [Product (Seller)]
+      summary: Lấy presigned PUT URL để upload ảnh lên MinIO
+      description: |
+        Presigned URL TTL = 5 phút. Browser upload thẳng lên MinIO,
+        sau đó gọi /confirm để đăng ký vào Product.
+      operationId: getProductImageUploadUrl
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      uploadUrl: { type: string, format: uri }
+                      objectKey: { type: string }
+                      ttlSeconds: { type: integer, example: 300 }
+
+  /api/seller/products/{id}/images/confirm:
+    post:
+      tags: [Product (Seller)]
+      summary: Confirm upload ảnh — append vào Product.images
+      description: catalog-service verify object tồn tại trên MinIO trước khi lưu.
+      operationId: confirmProductImageUpload
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [objectKey]
+              properties:
+                objectKey: { type: string }
+      responses:
+        "201":
+          description: Created — trả về imageId
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: string, description: Image ULID }
+        "422":
+          $ref: '#/components/responses/422'
+          # Object chưa tồn tại trên MinIO
+
+  /api/seller/products/{id}/images/{imageId}:
+    delete:
+      tags: [Product (Seller)]
+      summary: Xóa ảnh khỏi Product
+      operationId: removeProductImage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: imageId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: PRODUCT_NOT_FOUND | IMAGE_NOT_FOUND
+
+  # ── Product (Admin) ──────────────────────────────────────────────────────────
+
+  /api/admin/products/{id}/block:
+    post:
+      tags: [Product (Admin)]
+      summary: Block product vi phạm chính sách
+      description: Emit `ProductBlockedEvent`. Seller không thể tự publish lại.
+      operationId: blockProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'
+
+  /api/admin/products/{id}/unblock:
+    post:
+      tags: [Product (Admin)]
+      summary: Unblock product — chuyển về UNPUBLISHED
+      description: Emit `ProductUnblockedEvent`.
+      operationId: unblockProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'
+
+  # ── Variant (Seller) ─────────────────────────────────────────────────────────
+
+  /api/seller/products/{productId}/variants:
+    post:
+      tags: [Variant (Seller)]
+      summary: Tạo Variant mới cho Product
+      description: |
+        Combination phải unique trong Product (check qua combination_hash).
+        Guard: VARIANT_COMBINATION_EXISTS nếu trùng.
+      operationId: addVariant
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddVariantRequest' }
+      responses:
+        "201":
+          description: Created — trả về skuId (VariantId)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: string, description: SKU ULID }
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: PRODUCT_NOT_FOUND
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: VARIANT_COMBINATION_EXISTS
+
+  /api/seller/products/{productId}/variants/{skuId}:
+    put:
+      tags: [Variant (Seller)]
+      summary: Cập nhật giá và skuCode của Variant
+      description: |
+        Combination là bất biến — không thể đổi sau khi tạo.
+        Đổi price sẽ emit `VariantPriceChangedEvent`.
+      operationId: updateVariant
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: skuId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateVariantRequest' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'
+
+  /api/seller/products/{productId}/variants/{skuId}/deactivate:
+    post:
+      tags: [Variant (Seller)]
+      summary: Deactivate variant → INACTIVE
+      description: Emit `VariantDeactivatedEvent`. Idempotent nếu đã INACTIVE.
+      operationId: deactivateVariant
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: skuId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'
+
+  /api/seller/products/{productId}/variants/{skuId}/activate:
+    post:
+      tags: [Variant (Seller)]
+      summary: Activate variant → ACTIVE
+      operationId: activateVariant
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: skuId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'

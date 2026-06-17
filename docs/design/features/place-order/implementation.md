@@ -19,7 +19,7 @@
 | `design/data/inventory-service.md`        | Tạo mới   | Tables: `reservations`, `outbox`                                                                             |
 | `design/data/payment-service.md`          | Tạo mới   | Tables: `payments`, `outbox`                                                                                 |
 | `design/data/fulfillment-service.md`      | Tạo mới   | Tables: `shipments`, `outbox`                                                                                |
-| `design/events/event-catalog.md`          | Cập nhật  | Thêm events của UC này vào đúng section                                                                      |
+| `global/2.architecture/event-catalog.md`          | Cập nhật  | Thêm events của UC này vào đúng section                                                                      |
 
 ---
 
@@ -87,7 +87,7 @@ Consume events, không publish lại — implement sau cùng.
 
 ### Bước 7 — Integration & docs
 
-- [ ] Cập nhật `design/events/event-catalog.md`
+- [ ] Cập nhật `global/2.architecture/event-catalog.md`
 - [ ] Cập nhật sequence diagram nếu flow thực tế thay đổi
 - [ ] Tạo ADR nếu có quyết định kỹ thuật mới trong quá trình implement
 - [ ] Tick checklist bên dưới

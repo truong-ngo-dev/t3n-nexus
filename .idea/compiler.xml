@@ -10,6 +10,7 @@
         <module name="web-gateway" />
         <module name="observability-starter" />
         <module name="customer-service" />
+        <module name="catalog-service" />
         <module name="common-utils" />
         <module name="notification-service" />
         <module name="oauth2-service" />
@@ -30,6 +31,7 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="catalog-service" options="-parameters" />
       <module name="common-domain" options="-parameters" />
       <module name="common-events" options="-parameters" />
       <module name="common-utils" options="-parameters" />
