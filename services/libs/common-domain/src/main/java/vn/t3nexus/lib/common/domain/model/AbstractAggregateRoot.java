@@ -2,6 +2,7 @@ package vn.t3nexus.lib.common.domain.model;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 
 /**
  * Base implementation for aggregate roots.
@@ -11,11 +12,13 @@ import java.util.Collection;
  */
 public abstract class AbstractAggregateRoot<T extends Id<?>> extends AbstractEntity<T> implements AggregateRoot<T> {
 
+    private Long version;
+
     private Collection<DomainEvent> domainEvents;
 
     @Override
     public Collection<DomainEvent> getDomainEvents() {
-        return domainEvents;
+        return domainEvents != null ? domainEvents : Collections.emptyList();
     }
 
     @Override

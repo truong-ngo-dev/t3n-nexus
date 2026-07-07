@@ -32,7 +32,6 @@ public final class VariantMapper {
                 new VariantCombination(pairs),
                 entity.getSkuCode(),
                 entity.getPrice(),
-                entity.getStock(),
                 entity.getStatus(),
                 images,
                 entity.getCreatedAt(),
@@ -47,7 +46,6 @@ public final class VariantMapper {
         entity.setCombinationHash(variant.getCombination().toHash());
         entity.setSkuCode(variant.getSkuCode());
         entity.setPrice(variant.getPrice());
-        entity.setStock(variant.getStock());
         entity.setStatus(variant.getStatus());
         entity.setCreatedAt(variant.getCreatedAt());
         entity.setUpdatedAt(variant.getUpdatedAt());

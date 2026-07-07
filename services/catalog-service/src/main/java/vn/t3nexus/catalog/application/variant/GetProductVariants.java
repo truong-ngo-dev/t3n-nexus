@@ -46,7 +46,6 @@ public class GetProductVariants
                 combination,
                 variant.getSkuCode(),
                 variant.getPrice(),
-                variant.getStock(),
                 variant.getStatus().name(),
                 images
         );
@@ -62,7 +61,6 @@ public class GetProductVariants
             List<CombinationItemDto> combination,
             String skuCode,
             long price,
-            int stock,
             String status,
             List<SkuImageDto> images
     ) {}

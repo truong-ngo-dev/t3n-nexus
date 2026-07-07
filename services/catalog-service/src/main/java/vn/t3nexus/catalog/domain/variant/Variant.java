@@ -13,7 +13,6 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
     private final VariantCombination combination;
     private String skuCode;
     private long price;
-    private int stock;
     private VariantStatus status;
     private final List<SkuImage> images;
     private final Instant createdAt;
@@ -24,7 +23,6 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
                     VariantCombination combination,
                     String skuCode,
                     long price,
-                    int stock,
                     VariantStatus status,
                     List<SkuImage> images,
                     Instant createdAt,
@@ -34,7 +32,6 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
         this.combination = combination;
         this.skuCode     = skuCode;
         this.price       = price;
-        this.stock       = stock;
         this.status      = status;
         this.images      = new ArrayList<>(images);
         this.createdAt   = createdAt;
@@ -45,10 +42,9 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
                                  String productId,
                                  VariantCombination combination,
                                  String skuCode,
-                                 long price,
-                                 int stock) {
+                                 long price) {
         Instant now = Instant.now();
-        return new Variant(id, productId, combination, skuCode, price, stock,
+        return new Variant(id, productId, combination, skuCode, price,
                 VariantStatus.ACTIVE, List.of(), now, now);
     }
 
@@ -57,12 +53,11 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
                                        VariantCombination combination,
                                        String skuCode,
                                        long price,
-                                       int stock,
                                        VariantStatus status,
                                        List<SkuImage> images,
                                        Instant createdAt,
                                        Instant updatedAt) {
-        return new Variant(id, productId, combination, skuCode, price, stock,
+        return new Variant(id, productId, combination, skuCode, price,
                 status, images, createdAt, updatedAt);
     }
 
@@ -80,8 +75,10 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
     }
 
     public void activate() {
+        if (this.status == VariantStatus.ACTIVE) return;
         this.status    = VariantStatus.ACTIVE;
         this.updatedAt = Instant.now();
+        addDomainEvent(new VariantActivatedEvent(getId().getValue(), productId));
     }
 
     public void updateSkuCode(String skuCode) {
@@ -104,7 +101,6 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
     public VariantCombination getCombination() { return combination; }
     public String getSkuCode()                 { return skuCode; }
     public long getPrice()                     { return price; }
-    public int getStock()                      { return stock; }
     public VariantStatus getStatus()           { return status; }
     public List<SkuImage> getImages()          { return List.copyOf(images); }
     public Instant getCreatedAt()              { return createdAt; }

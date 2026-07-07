@@ -71,7 +71,7 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 | Shipper   | External | Nhận và thực hiện giao vận                       |
 | Admin     | External | Quản trị platform, duyệt seller, xử lý khiếu nại |
 | Scheduler | Internal | Trigger các job định kỳ                          |
-| Event Bus | Internal | Kafka                                             |
+| Event Bus | Internal | Kafka                                            |
 
 > Chi tiết tại [usecase-diagram][]
 

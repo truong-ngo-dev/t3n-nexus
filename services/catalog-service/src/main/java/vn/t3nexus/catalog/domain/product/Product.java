@@ -21,6 +21,7 @@ public class Product extends AbstractAggregateRoot<ProductId> implements Aggrega
     private String description;
     private WarrantyInfo warrantyInfo;
     private ProductStatus status;
+    private boolean adminBlocked;
     private final List<ProductAttributeValue> attributeValues;
     private final List<ProductImage> images;
     private final Instant createdAt;
@@ -34,6 +35,7 @@ public class Product extends AbstractAggregateRoot<ProductId> implements Aggrega
                     String description,
                     WarrantyInfo warrantyInfo,
                     ProductStatus status,
+                    boolean adminBlocked,
                     List<ProductAttributeValue> attributeValues,
                     List<ProductImage> images,
                     Instant createdAt,
@@ -46,6 +48,7 @@ public class Product extends AbstractAggregateRoot<ProductId> implements Aggrega
         this.description     = description;
         this.warrantyInfo    = warrantyInfo;
         this.status          = status;
+        this.adminBlocked    = adminBlocked;
         this.attributeValues = new ArrayList<>(attributeValues);
         this.images          = new ArrayList<>(images);
         this.createdAt       = createdAt;
@@ -62,7 +65,7 @@ public class Product extends AbstractAggregateRoot<ProductId> implements Aggrega
                                  List<ProductAttributeValue> attributeValues) {
         Instant now = Instant.now();
         return new Product(id, sellerId, categoryId, brandId, name, description, warrantyInfo,
-                ProductStatus.DRAFT, attributeValues, List.of(), now, now);
+                ProductStatus.DRAFT, false, attributeValues, List.of(), now, now);
     }
 
     public static Product reconstitute(ProductId id,
@@ -73,12 +76,13 @@ public class Product extends AbstractAggregateRoot<ProductId> implements Aggrega
                                        String description,
                                        WarrantyInfo warrantyInfo,
                                        ProductStatus status,
+                                       boolean adminBlocked,
                                        List<ProductAttributeValue> attributeValues,
                                        List<ProductImage> images,
                                        Instant createdAt,
                                        Instant updatedAt) {
         return new Product(id, sellerId, categoryId, brandId, name, description, warrantyInfo,
-                status, attributeValues, images, createdAt, updatedAt);
+                status, adminBlocked, attributeValues, images, createdAt, updatedAt);
     }
 
     public void update(String name, String description, WarrantyInfo warrantyInfo,
@@ -118,14 +122,14 @@ public class Product extends AbstractAggregateRoot<ProductId> implements Aggrega
     }
 
     public void block(String reason) {
-        this.status    = ProductStatus.BLOCKED;
-        this.updatedAt = Instant.now();
+        this.adminBlocked = true;
+        this.updatedAt    = Instant.now();
         addDomainEvent(new ProductBlockedEvent(getId().getValue(), sellerId, reason));
     }
 
     public void unblock() {
-        this.status    = ProductStatus.UNPUBLISHED;
-        this.updatedAt = Instant.now();
+        this.adminBlocked = false;
+        this.updatedAt    = Instant.now();
         addDomainEvent(new ProductUnblockedEvent(getId().getValue()));
     }
 
@@ -143,7 +147,7 @@ public class Product extends AbstractAggregateRoot<ProductId> implements Aggrega
     }
 
     private void guardNotBlocked() {
-        if (status == ProductStatus.BLOCKED) throw new DomainException(PRODUCT_BLOCKED);
+        if (adminBlocked) throw new DomainException(PRODUCT_BLOCKED);
     }
 
     public String getSellerId()                              { return sellerId; }
@@ -153,6 +157,7 @@ public class Product extends AbstractAggregateRoot<ProductId> implements Aggrega
     public String getDescription()                           { return description; }
     public WarrantyInfo getWarrantyInfo()                    { return warrantyInfo; }
     public ProductStatus getStatus()                         { return status; }
+    public boolean isAdminBlocked()                          { return adminBlocked; }
     public List<ProductAttributeValue> getAttributeValues()  { return List.copyOf(attributeValues); }
     public List<ProductImage> getImages()                    { return List.copyOf(images); }
     public Instant getCreatedAt()                            { return createdAt; }

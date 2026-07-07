@@ -47,6 +47,9 @@ public class ProductJpaEntity {
     @Column(name = "status", nullable = false)
     private ProductStatus status;
 
+    @Column(name = "admin_blocked", nullable = false)
+    private boolean adminBlocked;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

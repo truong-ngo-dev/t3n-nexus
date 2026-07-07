@@ -8,7 +8,6 @@ public record VariantResponse(
         List<CombinationItemResponse> combination,
         String skuCode,
         long price,
-        int stock,
         String status,
         List<SkuImageResponse> images
 ) {

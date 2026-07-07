@@ -41,7 +41,7 @@ public class VariantController {
                 .map(item -> new AddVariant.CombinationItemDto(item.templateId(), item.optionId()))
                 .toList();
         AddVariant.Result result = addVariant.handle(new AddVariant.Command(
-                productId, combination, request.skuCode(), request.price(), request.stock()));
+                productId, combination, request.skuCode(), request.price()));
         return ApiResponse.ok(result.skuId());
     }
 
@@ -79,6 +79,6 @@ public class VariantController {
                 .toList();
         return new VariantResponse(
                 dto.skuId(), dto.productId(), combination,
-                dto.skuCode(), dto.price(), dto.stock(), dto.status(), images);
+                dto.skuCode(), dto.price(), dto.status(), images);
     }
 }

@@ -81,10 +81,10 @@ public class CreateProduct implements CommandHandler<CreateProduct.Command, Crea
             Integer warrantyMonths,
             String warrantyType,
             String warrantyCoverage,
-            List<AttributeValueDto> attributeValues
+            List<AttributeValue> attributeValues
     ) {}
 
-    public record AttributeValueDto(String templateId, String value) {}
+    public record AttributeValue(String templateId, String value) {}
 
     public record Result(String id) {}
 }

@@ -30,6 +30,7 @@
         <module>email-worker</module>
         <module>web-gateway</module>
         <module>catalog-service</module>
+        <module>inventory-service</module>
     </modules>
 
 	<dependencyManagement>

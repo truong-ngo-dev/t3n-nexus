@@ -31,9 +31,6 @@ public class VariantJpaEntity {
     @Column(name = "price", nullable = false)
     private long price;
 
-    @Column(name = "stock", nullable = false)
-    private int stock;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private VariantStatus status;

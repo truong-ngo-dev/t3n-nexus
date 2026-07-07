@@ -40,6 +40,7 @@ public final class ProductMapper {
                 entity.getDescription(),
                 warrantyInfo,
                 entity.getStatus(),
+                entity.isAdminBlocked(),
                 attributeValues,
                 images,
                 entity.getCreatedAt(),
@@ -56,6 +57,7 @@ public final class ProductMapper {
         entity.setName(product.getName());
         entity.setDescription(product.getDescription());
         entity.setStatus(product.getStatus());
+        entity.setAdminBlocked(product.isAdminBlocked());
         entity.setCreatedAt(product.getCreatedAt());
         entity.setUpdatedAt(product.getUpdatedAt());
 

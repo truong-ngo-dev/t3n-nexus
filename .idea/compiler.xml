@@ -14,6 +14,7 @@
         <module name="common-utils" />
         <module name="notification-service" />
         <module name="oauth2-service" />
+        <module name="inventory-service" />
         <module name="idempotency-support" />
         <module name="common-domain" />
         <module name="common-web" />
@@ -40,6 +41,7 @@
       <module name="email-worker" options="-parameters" />
       <module name="idempotency-support" options="-parameters" />
       <module name="identity-service" options="-parameters" />
+      <module name="inventory-service" options="-parameters" />
       <module name="notification" options="-parameters" />
       <module name="notification-service" options="-parameters" />
       <module name="oauth2-service" options="-parameters" />

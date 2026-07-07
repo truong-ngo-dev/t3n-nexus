@@ -34,8 +34,8 @@ public class ProductController {
     public ApiResponse<String> createProduct(
             @RequestHeader("X-Seller-Id") String sellerId,
             @Valid @RequestBody CreateProductRequest request) {
-        List<CreateProduct.AttributeValueDto> attrDtos = request.attributeValues().stream()
-                .map(a -> new CreateProduct.AttributeValueDto(a.templateId(), a.value()))
+        List<CreateProduct.AttributeValue> attrs = request.attributeValues().stream()
+                .map(a -> new CreateProduct.AttributeValue(a.templateId(), a.value()))
                 .toList();
         CreateProduct.Result result = createProduct.handle(new CreateProduct.Command(
                 sellerId,
@@ -46,7 +46,7 @@ public class ProductController {
                 request.warrantyMonths(),
                 request.warrantyType(),
                 request.warrantyCoverage(),
-                attrDtos));
+                attrs));
         return ApiResponse.ok(result.id());
     }
 

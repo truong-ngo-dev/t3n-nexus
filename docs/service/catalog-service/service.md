@@ -183,9 +183,11 @@ DRAFT ──────────► PUBLISHED ◄─────────
 | `catalog.product.published`     | `ProductPublishedEvent`    | `productId`   | `search-service`, `inventory-service` |
 | `catalog.product.unpublished`   | `ProductUnpublishedEvent`  | `productId`   | `search-service`, `inventory-service` |
 | `catalog.product.blocked`       | `ProductBlockedEvent`      | `productId`   | `search-service`, `inventory-service` |
-| `catalog.product.unblocked`     | `ProductUnblockedEvent`    | `productId`   | —                                     |
+| `catalog.product.unblocked`     | `ProductUnblockedEvent`    | `productId`   | `inventory-service`                   |
 | `catalog.product.updated`       | `ProductUpdatedEvent`      | `productId`   | `search-service`                      |
+| `catalog.variant.created`       | `VariantCreatedEvent`      | `skuId`       | `inventory-service`                   |
 | `catalog.variant.price-changed` | `VariantPriceChangedEvent` | `skuId`       | `search-service`                      |
+| `catalog.variant.activated`     | `VariantActivatedEvent`    | `skuId`       | `search-service`, `inventory-service` |
 | `catalog.variant.deactivated`   | `VariantDeactivatedEvent`  | `skuId`       | `search-service`, `inventory-service` |
 | `catalog.category.updated`      | `CategoryUpdatedEvent`     | `categoryId`  | `search-service`                      |
 
