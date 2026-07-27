@@ -37,8 +37,11 @@ public class AuthController {
 
     @GetMapping("/login")
     public Mono<Void> login(ServerWebExchange exchange) {
+        // contextPath rỗng khi gọi thẳng web-gateway; = "/web" khi qua api-gateway
+        // (ForwardedHeaderTransformer đọc X-Forwarded-Prefix — xem RouteConfiguration bên api-gateway).
+        String contextPath = exchange.getRequest().getPath().contextPath().value();
         exchange.getResponse().setStatusCode(HttpStatus.FOUND);
-        exchange.getResponse().getHeaders().setLocation(URI.create("/oauth2/authorization/web-gateway"));
+        exchange.getResponse().getHeaders().setLocation(URI.create(contextPath + "/oauth2/authorization/web-gateway"));
         return exchange.getResponse().setComplete();
     }
 

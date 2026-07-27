@@ -354,7 +354,10 @@ components:
 
     ProductStatus:
       type: string
-      enum: [DRAFT, PUBLISHED, UNPUBLISHED, BLOCKED]
+      enum: [DRAFT, PUBLISHED, UNPUBLISHED]
+      description: |
+        Không có giá trị BLOCKED — Admin block là cờ `adminBlocked` độc lập trên Product,
+        không phải 1 trạng thái của status. Hiện chưa expose qua API (ProductResponse chưa có field này).
 
     WarrantyInfoResponse:
       type: object
@@ -483,7 +486,6 @@ components:
           items: { $ref: '#/components/schemas/CombinationItemResponse' }
         skuCode: { type: string }
         price: { type: integer, format: int64, description: "Đơn vị: đồng VND" }
-        stock: { type: integer }
         status: { $ref: '#/components/schemas/VariantStatus' }
         images:
           type: array
@@ -508,10 +510,6 @@ components:
           format: int64
           minimum: 1
           description: "Đơn vị: đồng VND"
-        stock:
-          type: integer
-          minimum: 0
-          default: 0
 
     UpdateVariantRequest:
       type: object
@@ -1420,6 +1418,9 @@ paths:
       description: |
         Combination phải unique trong Product (check qua combination_hash).
         Guard: VARIANT_COMBINATION_EXISTS nếu trùng.
+        Variant tạo mới luôn ACTIVE. Không có field `stock`/quantity ở đây — số lượng tồn kho
+        set riêng qua `PUT /api/seller/inventory/stocks/{skuId}/quantity` (inventory-service),
+        sau khi inventory-service khởi tạo Stock từ `VariantCreatedEvent`.
       operationId: addVariant
       parameters:
         - name: productId

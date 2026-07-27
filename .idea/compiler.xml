@@ -12,14 +12,18 @@
         <module name="customer-service" />
         <module name="catalog-service" />
         <module name="common-utils" />
+        <module name="event-sourcing-starter" />
+        <module name="reactive-rate-limiter-starter" />
         <module name="notification-service" />
         <module name="oauth2-service" />
         <module name="inventory-service" />
         <module name="idempotency-support" />
         <module name="common-domain" />
+        <module name="api-gateway" />
         <module name="common-web" />
         <module name="email-worker" />
         <module name="rate-limiter-starter" />
+        <module name="order-service" />
         <module name="outbox-starter" />
         <module name="identity-service" />
         <module name="common-events" />
@@ -32,6 +36,7 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="api-gateway" options="-parameters" />
       <module name="catalog-service" options="-parameters" />
       <module name="common-domain" options="-parameters" />
       <module name="common-events" options="-parameters" />
@@ -39,6 +44,7 @@
       <module name="common-web" options="-parameters" />
       <module name="customer-service" options="-parameters" />
       <module name="email-worker" options="-parameters" />
+      <module name="event-sourcing-starter" options="-parameters" />
       <module name="idempotency-support" options="-parameters" />
       <module name="identity-service" options="-parameters" />
       <module name="inventory-service" options="-parameters" />
@@ -46,8 +52,10 @@
       <module name="notification-service" options="-parameters" />
       <module name="oauth2-service" options="-parameters" />
       <module name="observability-starter" options="-parameters" />
+      <module name="order-service" options="-parameters" />
       <module name="outbox-starter" options="-parameters" />
       <module name="rate-limiter-starter" options="-parameters" />
+      <module name="reactive-rate-limiter-starter" options="-parameters" />
       <module name="web-gateway" options="-parameters" />
     </option>
   </component>

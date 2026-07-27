@@ -17,23 +17,27 @@
 
 Mỗi SKU có đúng 1 row. `reserved_quantity` do service quản lý, không do seller nhập.
 
-| Column                | Type          | Nullable | Notes                                                       |
-|-----------------------|---------------|----------|-------------------------------------------------------------|
-| `id`                  | `uuid`        | NO       | PK                                                          |
-| `sku_id`              | `uuid`        | NO       | UNIQUE — reference sang Catalog BC                          |
-| `product_id`          | `uuid`        | NO       | Dùng để deactivate theo nhóm khi product bị block/unpublish |
-| `seller_id`           | `uuid`        | NO       |                                                             |
-| `total_quantity`      | `int`         | NO       | Default 0; không được âm                                    |
-| `reserved_quantity`   | `int`         | NO       | Default 0; không được âm; ≤ `total_quantity`                |
-| `status`              | `varchar(20)` | NO       | `ACTIVE` \| `INACTIVE`                                      |
-| `low_stock_threshold` | `int`         | NO       | Default 0; emit `StockDepleted` khi `available < threshold` |
-| `version`             | `bigint`      | NO       | Default 0; JPA `@Version` — optimistic lock fallback        |
-| `created_at`          | `timestamp`   | NO       |                                                             |
-| `updated_at`          | `timestamp`   | NO       |                                                             |
+`seller_active`/`product_published`/`admin_blocked` là **3 trục độc lập** — không nén chung vào 1 `status` enum như thiết kế ban đầu (V1/V2). Bài học từ bug thực tế: variant thêm mới vào product đã publish bị kẹt "không sellable" vì lúc đó `sellerActive` phải cố đại diện luôn cho cả trạng thái publish của product — xem `V3`/`V4` bên dưới. `isSellable() = seller_active AND product_published AND NOT admin_blocked`.
+
+| Column                | Type        | Nullable | Notes                                                                                                    |
+|-----------------------|-------------|----------|----------------------------------------------------------------------------------------------------------|
+| `id`                  | `uuid`      | NO       | PK                                                                                                       |
+| `sku_id`              | `uuid`      | NO       | UNIQUE — reference sang Catalog BC                                                                       |
+| `product_id`          | `uuid`      | NO       | Dùng để publish/unpublish/block/unblock theo nhóm                                                        |
+| `seller_id`           | `uuid`      | NO       |                                                                                                          |
+| `total_quantity`      | `int`       | NO       | Default 0; không được âm                                                                                 |
+| `reserved_quantity`   | `int`       | NO       | Default 0; không được âm; ≤ `total_quantity`                                                             |
+| `seller_active`       | `boolean`   | NO       | Trục variant — mirror `Variant.status ACTIVE/INACTIVE` bên catalog-service                               |
+| `product_published`   | `boolean`   | NO       | Trục product — mirror `Product.status PUBLISHED/UNPUBLISHED`, áp cho toàn bộ SKU của product (thêm ở V4) |
+| `admin_blocked`       | `boolean`   | NO       | Trục admin — mirror `Product.adminBlocked`, độc lập với 2 trục trên                                      |
+| `low_stock_threshold` | `int`       | NO       | Default 0; emit `StockDepleted` khi `available < threshold`                                              |
+| `version`             | `bigint`    | NO       | Default 0; JPA `@Version` — optimistic lock fallback                                                     |
+| `created_at`          | `timestamp` | NO       |                                                                                                          |
+| `updated_at`          | `timestamp` | NO       |                                                                                                          |
 
 **Indexes:**
 - `uk_stock_sku_id` UNIQUE on `(sku_id)` — lookup chính, 1 SKU = 1 Stock
-- `idx_stock_product_id` on `(product_id)` — bulk deactivate khi ProductBlocked/Unpublished
+- `idx_stock_product_id` on `(product_id)` — bulk update khi ProductPublished/Unpublished/Blocked/Unblocked
 - `idx_stock_seller_id` on `(seller_id)` — seller dashboard, list tất cả SKU của mình
 
 **Locking note:**
@@ -57,6 +61,8 @@ Một row per Order. `order_id` là business key — dùng để dedup khi `Orde
 **Indexes:**
 - `uk_reservation_order_id` UNIQUE on `(order_id)` — Saga lookup + idempotency guard
 - `idx_reservation_status_expires` on `(status, expires_at)` — Scheduler query: tìm PENDING đã quá TTL
+
+> `ReserveInventory.handle()` check `existsByOrderId()` trước khi insert (fast pre-check, không phải nguồn bảo vệ chính) — data integrity thật sự do `UNIQUE(order_id)` ở DB đảm bảo, insert trùng sẽ fail ở tầng DB nếu 2 transaction race qua được check-then-act. Gap hiện tại: exception vi phạm constraint chưa được catch riêng để xử lý "graceful — coi như duplicate, skip" mà rơi vào nhánh lỗi chung (`OrderCreatedConsumer` release Redis guard rồi rethrow → Kafka retry) — không mất data integrity, chỉ chưa tối ưu retry path.
 
 ---
 
@@ -133,9 +139,12 @@ Standard Outbox table. Debezium đọc CDC từ bảng này và push lên Kafka.
 
 ## Flyway Migration Plan
 
-| Version | File                  | Nội dung                     |
-|---------|-----------------------|------------------------------|
-| V1      | `V1__init_schema.sql` | Tạo tất cả tables và indexes |
+| Version | File                                              | Nội dung                                                                                                                                   |
+|---------|---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| V1      | `V1__init_schema.sql`                             | Tạo tất cả tables và indexes — `stock.status` ban đầu là `ACTIVE`\|`INACTIVE`                                                              |
+| V2      | `V2__add_blocked_status.sql`                      | Thêm `BLOCKED` vào `chk_stock_status` — bước tạm, bị thay thế hoàn toàn ở V3                                                               |
+| V3      | `V3__split_stock_seller_active_admin_blocked.sql` | Bỏ cột `status`, thêm `seller_active`/`admin_blocked` (boolean) — tách trục variant vs trục admin                                          |
+| V4      | `V4__add_stock_product_published.sql`             | Thêm `product_published` (boolean, default `TRUE`, backfill `= seller_active` cho data cũ) — tách nốt trục product ra khỏi `seller_active` |
 
 ---
 
@@ -145,6 +154,7 @@ Standard Outbox table. Debezium đọc CDC từ bảng này và push lên Kafka.
 stock.total_quantity        >= 0   (CHECK constraint)
 stock.reserved_quantity     >= 0   (CHECK constraint)
 stock.reserved_quantity     <= stock.total_quantity  (enforce tại domain, không CHECK — quá đắt với concurrent update)
+reservation.order_id        UNIQUE (DB constraint — nguồn bảo vệ chính chống duplicate reservation, không phải Redis)
 reservation_item.qty        > 0    (CHECK constraint)
 limited_offer.max_quantity  > 0    (CHECK constraint)
 limited_offer.window_seconds > 0   (CHECK constraint)

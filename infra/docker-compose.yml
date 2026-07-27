@@ -100,6 +100,23 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-order:
+    image: postgres:16-alpine
+    command: postgres -c wal_level=logical
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: t3nexus
+      POSTGRES_PASSWORD: t3nexus
+    ports:
+      - "5438:5432"
+    volumes:
+      - postgres_order_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U t3nexus -d order_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   mailhog:
     image: mailhog/mailhog:latest
     ports:
@@ -217,6 +234,7 @@ volumes:
   postgres_oauth2_data:
   postgres_catalog_data:
   postgres_inventory_data:
+  postgres_order_data:
   redis_data:
   kafka_data:
   minio_data:

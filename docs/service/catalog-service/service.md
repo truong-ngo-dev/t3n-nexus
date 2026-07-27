@@ -51,7 +51,8 @@ Là **upstream thuần túy** — không consume event từ BC nào, chỉ publi
 Product (AR)
   ├─ productId, sellerId, categoryId, brandId
   ├─ name, description (rich text)
-  ├─ status: DRAFT | PUBLISHED | UNPUBLISHED | BLOCKED
+  ├─ status: DRAFT | PUBLISHED | UNPUBLISHED     [3 giá trị — KHÔNG có BLOCKED]
+  ├─ adminBlocked: boolean                       [cờ độc lập với status — Admin block/unblock]
   ├─ warrantyInfo: WarrantyInfo                 [VO: { months, type, coverage }]
   ├─ attributeValues: ProductAttributeValue[]   [VO list: { attributeTemplateId, value }]
   └─ images: ProductImage[]                     [Entity: { imageId, objectKey, displayOrder }]
@@ -81,24 +82,25 @@ Brand (AR)
 
 ### Product Lifecycle
 
+`status` và `adminBlocked` là **2 trục độc lập** — không nén chung thành 1 enum (đúng bài học rút ra từ Stock aggregate ở inventory-service, xem `service/inventory-service/service.md`).
+
 ```
+Trục 1 — status (seller điều khiển qua publish/unpublish):
         publish()              unpublish()
 DRAFT ──────────► PUBLISHED ◄────────────► UNPUBLISHED
-                      │
-               block() [Admin]
-                      ▼
-                   BLOCKED
-                      │
-              unblock() [Admin]
-                      ▼
-                UNPUBLISHED
+
+Trục 2 — adminBlocked (admin điều khiển qua block/unblock, độc lập với status):
+false ──block()──► true ──unblock()──► false
 ```
 
-| Transition                | Guard                                                                   |
-|---------------------------|-------------------------------------------------------------------------|
-| `DRAFT → PUBLISHED`       | `variantRepository.existsActiveByProductId(productId)` — cross-AR query |
-| `BLOCKED → *`             | Chỉ Admin — Seller không thể tự thoát BLOCKED                           |
-| `UNPUBLISHED → PUBLISHED` | Guard tương tự DRAFT                                                    |
+Mọi guard write-operation (`update`, `updateCategory`, `publish`, `unpublish`, `addImage`, `removeImage`) đều gọi `guardNotBlocked()` trước — nếu `adminBlocked=true` thì reject bất kể `status` đang là gì. `block()`/`unblock()` tự nó **không đổi `status`**.
+
+| Transition                 | Guard                                                                                             |
+|----------------------------|---------------------------------------------------------------------------------------------------|
+| `DRAFT → PUBLISHED`        | `variantRepository.existsActiveByProductId(productId)` — cross-AR query, cộng `guardNotBlocked()` |
+| `adminBlocked: false→true` | Chỉ Admin (`BlockProduct`) — không có guard nào chặn, admin block được ở mọi status               |
+| `adminBlocked: true→false` | Chỉ Admin (`UnblockProduct`) — Seller không thể tự gọi                                            |
+| `UNPUBLISHED → PUBLISHED`  | Guard tương tự DRAFT                                                                              |
 
 ---
 
@@ -106,14 +108,14 @@ DRAFT ──────────► PUBLISHED ◄─────────
 
 ### Admin
 
-| Use Case                      | Command / Query                                                                                       | Endpoint                                                  |
-|-------------------------------|-------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
-| Quản lý Brand                 | `CreateBrand`, `UpdateBrand`, `DeactivateBrand`, `ListActiveBrands`                                   | `POST/PUT/DELETE/GET /api/admin/brands`                   |
-| Quản lý Category tree         | `CreateCategory`, `UpdateCategory`, `DeleteCategory`                                                  | `POST/PUT/DELETE /api/admin/categories`                   |
-| Assign attribute vào Category | `AssignAttributeToCategory`, `UpdateCategoryAttributeAssignment`, `RemoveCategoryAttributeAssignment` | `POST/PUT/DELETE /api/admin/categories/{id}/attributes`   |
-| Quản lý AttributeTemplate     | `CreateAttributeTemplate`, `UpdateAttributeTemplate`                                                  | `POST/PUT /api/admin/attribute-templates`                 |
+| Use Case                      | Command / Query                                                                                       | Endpoint                                                                 |
+|-------------------------------|-------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| Quản lý Brand                 | `CreateBrand`, `UpdateBrand`, `DeactivateBrand`, `ListActiveBrands`                                   | `POST/PUT/DELETE/GET /api/admin/brands`                                  |
+| Quản lý Category tree         | `CreateCategory`, `UpdateCategory`, `DeleteCategory`                                                  | `POST/PUT/DELETE /api/admin/categories`                                  |
+| Assign attribute vào Category | `AssignAttributeToCategory`, `UpdateCategoryAttributeAssignment`, `RemoveCategoryAttributeAssignment` | `POST/PUT/DELETE /api/admin/categories/{id}/attributes`                  |
+| Quản lý AttributeTemplate     | `CreateAttributeTemplate`, `UpdateAttributeTemplate`                                                  | `POST/PUT /api/admin/attribute-templates`                                |
 | Quản lý AttributeOption       | `AddAttributeOption`, `UpdateAttributeOption`, `DeactivateAttributeOption`                            | `POST/PUT/DELETE /api/admin/attribute-templates/{id}/options/{optionId}` |
-| Block / Unblock Product       | `BlockProduct`, `UnblockProduct`                                                                      | `POST /api/admin/products/{id}/block                      |unblock` |
+| Block / Unblock Product       | `BlockProduct`, `UnblockProduct`                                                                      | `POST /api/admin/products/{id}/block                                     |unblock` |
 
 ### Seller
 

@@ -94,20 +94,21 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 
 ### `product`
 
-| Column              | Type        | Nullable | Notes                                              |
-|---------------------|-------------|----------|----------------------------------------------------|
-| `id`                | `uuid`      | NO       | PK                                                 |
-| `seller_id`         | `uuid`      | NO       | không thay đổi sau khi tạo                         |
-| `category_id`       | `uuid`      | NO       | FK → `category`; không thay đổi sau khi có Variant |
-| `brand_id`          | `uuid`      | NO       | FK → `brand`                                       |
-| `name`              | `varchar`   | NO       |                                                    |
-| `description`       | `text`      | YES      |                                                    |
-| `status`            | `varchar`   | NO       | `DRAFT, PUBLISHED, UNPUBLISHED, BLOCKED`           |
-| `warranty_months`   | `int`       | YES      |                                                    |
-| `warranty_type`     | `varchar`   | YES      |                                                    |
-| `warranty_coverage` | `varchar`   | YES      |                                                    |
-| `created_at`        | `timestamp` | NO       |                                                    |
-| `updated_at`        | `timestamp` | NO       |                                                    |
+| Column              | Type        | Nullable | Notes                                                            |
+|---------------------|-------------|----------|------------------------------------------------------------------|
+| `id`                | `uuid`      | NO       | PK                                                               |
+| `seller_id`         | `uuid`      | NO       | không thay đổi sau khi tạo                                       |
+| `category_id`       | `uuid`      | NO       | FK → `category`; không thay đổi sau khi có Variant               |
+| `brand_id`          | `uuid`      | NO       | FK → `brand`                                                     |
+| `name`              | `varchar`   | NO       |                                                                  |
+| `description`       | `text`      | YES      |                                                                  |
+| `status`            | `varchar`   | NO       | `DRAFT, PUBLISHED, UNPUBLISHED` — không có `BLOCKED`             |
+| `admin_blocked`     | `boolean`   | NO       | Cờ độc lập với `status` — Admin block/unblock không đổi `status` |
+| `warranty_months`   | `int`       | YES      |                                                                  |
+| `warranty_type`     | `varchar`   | YES      |                                                                  |
+| `warranty_coverage` | `varchar`   | YES      |                                                                  |
+| `created_at`        | `timestamp` | NO       |                                                                  |
+| `updated_at`        | `timestamp` | NO       |                                                                  |
 
 **Indexes:**
 - `idx_product_seller` on `(seller_id)`
@@ -139,21 +140,22 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 
 ### `variant`
 
-| Column             | Type          | Nullable | Notes                                     |
-|--------------------|---------------|----------|-------------------------------------------|
-| `id`               | `varchar(26)` | NO       | PK (= skuId)                              |
-| `product_id`       | `varchar(26)` | NO       | ref → `product.id` (no FK constraint)     |
-| `combination_hash` | `varchar(64)` | NO       | deterministic hash của VariantCombination |
-| `sku_code`         | `varchar(100)`| YES      | seller-assigned SKU code                  |
-| `price`            | `bigint`      | NO       | đơn vị: đồng, phải > 0                    |
-| `stock`            | `int`         | NO       | default 0                                 |
-| `status`           | `varchar`     | NO       | `ACTIVE, INACTIVE`                        |
-| `created_at`       | `timestamp`   | NO       |                                           |
-| `updated_at`       | `timestamp`   | NO       |                                           |
+| Column             | Type           | Nullable | Notes                                     |
+|--------------------|----------------|----------|-------------------------------------------|
+| `id`               | `varchar(26)`  | NO       | PK (= skuId)                              |
+| `product_id`       | `varchar(26)`  | NO       | ref → `product.id` (no FK constraint)     |
+| `combination_hash` | `varchar(64)`  | NO       | deterministic hash của VariantCombination |
+| `sku_code`         | `varchar(100)` | YES      | seller-assigned SKU code                  |
+| `price`            | `bigint`       | NO       | đơn vị: đồng, phải > 0                    |
+| `status`           | `varchar`      | NO       | `ACTIVE, INACTIVE`                        |
+| `created_at`       | `timestamp`    | NO       |                                           |
+| `updated_at`       | `timestamp`    | NO       |                                           |
 
 **Unique:** `uq_variant_combination` on `(product_id, combination_hash)`  
 **Indexes:**
 - `idx_variant_product` on `(product_id)`
+
+> Không có cột `stock`/`quantity` — số lượng tồn kho thuộc sở hữu hoàn toàn của `inventory-service` (aggregate `Stock`, xem `service/inventory-service/data.md`). `VariantCreatedEvent` mang theo `active`/`productPublished` để inventory-service tự khởi tạo `sellerActive`/`productPublished` đúng ngay từ đầu.
 
 ### `variant_combination_item`
 
@@ -198,13 +200,13 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 **Strategy:** Caffeine L1 + Redis L2. Redis pub/sub broadcast L1 invalidation cross-instance.  
 **Key prefix:** `catalog:{entity}:{id}`
 
-| Key                                  | L1 TTL | L2 TTL | Invalidate khi                                                          |
-|--------------------------------------|--------|--------|-------------------------------------------------------------------------|
-| `catalog:product:{id}`               | 2 min  | 10 min | `ProductUpdatedEvent`, `ProductUnpublishedEvent`, `ProductBlockedEvent` |
-| `catalog:product:{id}:variants`      | 2 min  | 10 min | `VariantPriceChangedEvent`, `VariantDeactivatedEvent`                   |
-| `catalog:category:tree`              | 30 min | 1 hr   | `CategoryUpdatedEvent`                                                  |
-| `catalog:categories:{id}:attributes` | 30 min | 1 hr   | Admin sửa CategoryAttributeAssignment                                   |
-| `brands:active`                      | —      | 30 min | `CreateBrand`, `UpdateBrand`, `DeactivateBrand`                         |
+| Key                                  | L1 TTL | L2 TTL | Invalidate khi                                                              |
+|--------------------------------------|--------|--------|-----------------------------------------------------------------------------|
+| `catalog:product:{id}`               | 2 min  | 10 min | Product update/publish/unpublish/block/unblock, Variant activate/deactivate |
+| `catalog:product:{id}:variants`      | 2 min  | 10 min | Variant add/update/activate/deactivate                                      |
+| `catalog:category:tree`              | 30 min | 1 hr   | `CategoryUpdatedEvent`                                                      |
+| `catalog:categories:{id}:attributes` | 30 min | 1 hr   | Admin sửa CategoryAttributeAssignment                                       |
+| `brands:active`                      | —      | 30 min | `CreateBrand`, `UpdateBrand`, `DeactivateBrand`                             |
 
 **Invalidation channel:** `catalog:cache:invalidate` (Redis pub/sub)
 

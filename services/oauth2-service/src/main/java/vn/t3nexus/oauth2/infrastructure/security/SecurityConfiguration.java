@@ -58,8 +58,13 @@ public class SecurityConfiguration {
     @Value("${app.cors.allowed-origins:http://localhost:4200}")
     private String allowedOrigins;
 
-    @Value("${spring.security.oauth2.authorizationserver.issuer}")
-    private String issuerUri;
+    /**
+     * Self-reference nội bộ (fetch JWKS của chính mình để verify Bearer JWT trên /api/**) —
+     * KHÔNG dùng spring.security.oauth2.authorizationserver.issuer, vì giá trị đó giờ là định danh
+     * public qua api-gateway (http://localhost:8000/auth), còn call này là loopback nội bộ.
+     */
+    @Value("${app.oauth2.internal-base-url}")
+    private String internalBaseUrl;
 
     /**
      * Resource server filter chain — bảo vệ /api/** bằng Bearer JWT.
@@ -74,7 +79,7 @@ public class SecurityConfiguration {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
-                        jwt.jwkSetUri(issuerUri + "/oauth2/jwks")));
+                        jwt.jwkSetUri(internalBaseUrl + "/oauth2/jwks")));
         return http.build();
     }
 

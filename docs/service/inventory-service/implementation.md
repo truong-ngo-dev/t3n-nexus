@@ -2,6 +2,8 @@
 
 **Design:** [`service.md`](service.md) | **Schema:** [`data.md`](data.md)
 
+> **Cập nhật 2026-07-08**: Model `Stock` đã tiến hoá qua V2/V3/V4 migration, khác với mô tả `StockStatus ACTIVE|INACTIVE` ở Phase 1.1 bên dưới (giữ nguyên phần lịch sử để tham khảo, không sửa lại). Trạng thái đúng hiện tại: `service.md` + `data.md`. Tóm tắt: 1 enum `status` ban đầu → tách thành `sellerActive` + `adminBlocked` (V3) → tách tiếp `productPublished` (V4), vì `sellerActive` một mình không đủ đại diện cho cả trạng thái publish của product lẫn trạng thái bật/tắt riêng của variant — bug thực tế: variant thêm vào product đã publish bị kẹt non-sellable. Phase 1.4 (catalog consumers) cũng đã có thêm 3 consumer không nằm trong plan gốc: `VariantCreatedConsumer` (init Stock, mirror `active`/`productPublished` từ event thay vì hardcode), `VariantActivatedConsumer`, `ProductUnblockedConsumer`. `ProductPublishedHandler` đã đổi tên/logic thành `PublishProductStocks` — set `productPublished=true` cho toàn bộ SKU theo `productId`, không còn cần snapshot `skuIds[]` từ event.
+
 ---
 
 ## Docs cần tạo / cập nhật

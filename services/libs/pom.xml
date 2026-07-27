@@ -21,8 +21,10 @@
 		<module>common-web</module>
 		<module>observability-starter</module>
 		<module>outbox-starter</module>
+		<module>event-sourcing-starter</module>
 		<module>idempotency-support</module>
 		<module>rate-limiter-starter</module>
+		<module>reactive-rate-limiter-starter</module>
 	</modules>
 
 </project>

@@ -113,11 +113,12 @@ Không cần pub/sub — không có L1 để evict.
 
 ### `product-variants` — L1 + L2
 
-| Trigger                          | Handler             | Cách evict                                                                    |
-|----------------------------------|---------------------|-------------------------------------------------------------------------------|
-| Variant update (price / skuCode) | `UpdateVariant`     | `@CacheEvict(key=productId)` + `publisher.evict(PRODUCT_VARIANTS, productId)` |
-| Variant deactivate               | `DeactivateVariant` | `@CacheEvict(key=productId)` + `publisher.evict(PRODUCT_VARIANTS, productId)` |
-| Variant activate                 | `ActivateVariant`   | `@CacheEvict(key=productId)` + `publisher.evict(PRODUCT_VARIANTS, productId)` |
+| Trigger                          | Handler             | Cách evict                                                                                                                         |
+|----------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| Variant thêm mới                 | `AddVariant`        | `@CacheEvict(key=productId)` + `publisher.evict(PRODUCT_VARIANTS, productId)` — chỉ evict `product-variants`, không đụng `product` |
+| Variant update (price / skuCode) | `UpdateVariant`     | `@CacheEvict(key=productId)` + `publisher.evict(PRODUCT_VARIANTS, productId)`                                                      |
+| Variant deactivate               | `DeactivateVariant` | `@CacheEvict(key=productId)` + `publisher.evict(PRODUCT_VARIANTS, productId)`                                                      |
+| Variant activate                 | `ActivateVariant`   | `@CacheEvict(key=productId)` + `publisher.evict(PRODUCT_VARIANTS, productId)`                                                      |
 
 ---
 

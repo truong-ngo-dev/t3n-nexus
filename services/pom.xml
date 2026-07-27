@@ -29,8 +29,10 @@
         <module>notification-service</module>
         <module>email-worker</module>
         <module>web-gateway</module>
+        <module>api-gateway</module>
         <module>catalog-service</module>
         <module>inventory-service</module>
+        <module>order-service</module>
     </modules>
 
 	<dependencyManagement>
