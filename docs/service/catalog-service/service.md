@@ -80,6 +80,9 @@ Brand (AR)
   └─ brandId, name, slug, status: ACTIVE | INACTIVE
 ```
 
+> **Tại sao `AttributeTemplate` là Aggregate Root riêng, không phải entity trong `Category`:**  
+> Tham khảo Tiki/Shopee/Lazada: `attribute_id` là global stable ID — "Màu sắc" giữ cùng ID dù xuất hiện ở category nào. Nếu để `AttributeTemplate` sống trong `Category`, thêm 1 option mới ("Đỏ") phải sửa nhiều category riêng biệt, "Màu sắc" ở 2 category khác nhau thành 2 object mất đồng bộ option pool, và Search BC không facet nhất quán được cross-category. Giải pháp: `AttributeTemplate` là AR riêng, `Category` chỉ assign + config cách dùng qua `CategoryAttributeAssignment`.
+
 ### Product Lifecycle
 
 `status` và `adminBlocked` là **2 trục độc lập** — không nén chung thành 1 enum (đúng bài học rút ra từ Stock aggregate ở inventory-service, xem `service/inventory-service/service.md`).
@@ -147,6 +150,19 @@ Mọi guard write-operation (`update`, `updateCategory`, `publish`, `unpublish`,
 5. catalog-service verify object tồn tại → append vào Product.images
 ```
 
+### Flow: Seller Tạo Product
+
+```
+1. Seller chọn Category
+2. System load: GLOBAL AttributeTemplates (luôn hiển thị) + CategoryAttributeAssignment của Category đó
+3. Seller điền non-variant attributes (Brand, RAM, OS...)
+4. Seller chọn variant-defining templates + options — VD: Color: [Đen, Trắng] × Size: [S, M, L]
+5. System auto-generate Cartesian matrix → N Variant rows (2×3 = 6 ở VD trên)
+6. Seller điền price, weight, barcode cho từng Variant (bulk-edit)
+7. Upload ảnh (flow trên) → save → DRAFT
+8. publish() → PUBLISHED → emit ProductPublishedEvent
+```
+
 ---
 
 ## Business Rules
@@ -164,6 +180,7 @@ Mọi guard write-operation (`update`, `updateCategory`, `publish`, `unpublish`,
 - Cùng `attributeTemplateId` không được assign 2 lần trong cùng Category.
 
 ### Product
+- **Không có approval flow** — Seller tự publish, Admin chỉ force-block khi vi phạm chính sách (đã trust từ lúc Seller BC onboarding).
 - Phải có ít nhất 1 Variant ACTIVE trước khi `publish()`.
 - `publish()` ném exception nếu `status=BLOCKED`.
 - `sellerId` và `categoryId` không thể thay đổi sau khi có Variant.
@@ -215,3 +232,8 @@ Không có outbound sync call. Inbound từ `web-gateway` qua REST.
 | PostgreSQL (port 5436)  | Primary store                                    |
 | Redis                   | L2 cache + pub/sub invalidation                  |
 | MinIO                   | Object storage cho product/variant images        |
+
+## Tài liệu liên quan
+
+- [`cache.md`](cache.md) — chiến lược cache 2 tầng (Caffeine L1 + Redis L2), cache inventory, invalidation rules
+- [`downstream-effects.md`](downstream-effects.md) — hành vi cụ thể của inventory/search/pricing/cart/order/reporting-service khi nhận event từ catalog-service, kèm open questions chưa chốt

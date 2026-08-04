@@ -8,6 +8,8 @@ import vn.t3nexus.order.domain.order.Order;
 import vn.t3nexus.order.domain.order.OrderId;
 import vn.t3nexus.order.domain.order.OrderLineItem;
 import vn.t3nexus.order.domain.order.OrderRepository;
+import vn.t3nexus.order.domain.order.PaymentMethod;
+import vn.t3nexus.order.domain.order.ShippingAddress;
 
 import java.util.List;
 
@@ -21,12 +23,14 @@ public class CreateOrder implements CommandHandler<CreateOrder.Command, CreateOr
     @Override
     public Result handle(Command command) {
         OrderId id = OrderId.of(ulidGenerator.generate());
-        Order order = Order.create(id, command.customerId(), command.sellerId(), command.items());
+        Order order = Order.create(id, command.customerId(), command.sellerId(), command.items(),
+                command.paymentMethod(), command.address());
         orderRepository.save(order);
-        return new Result(id.getValue());
+        return new Result(id.getValue(), order.getStatus().name());
     }
 
-    public record Command(String customerId, String sellerId, List<OrderLineItem> items) {}
+    public record Command(String customerId, String sellerId, List<OrderLineItem> items,
+                          PaymentMethod paymentMethod, ShippingAddress address) {}
 
-    public record Result(String orderId) {}
+    public record Result(String orderId, String status) {}
 }

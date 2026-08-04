@@ -3,26 +3,29 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
--- event_store
--- Append-only. (aggregate_id, revision) is the optimistic-concurrency guard.
+-- orders
+-- CRUD aggregate — current-state row per Order, optimistic concurrency via `version`.
+-- (Not event-sourced: no temporal-query need, no replay-dependent invariant for Order;
+-- event-sourcing-starter reserved for a genuine ledger use case elsewhere, e.g. Loyalty.)
 -- ------------------------------------------------------------
-CREATE TABLE event_store (
-    id             BIGINT GENERATED ALWAYS AS IDENTITY,
-    aggregate_id   VARCHAR(100) NOT NULL,
-    aggregate_type VARCHAR(100) NOT NULL,
-    revision       BIGINT       NOT NULL,
-    correlation_id VARCHAR(100) NOT NULL,
-    event_id       VARCHAR(100) NOT NULL,
-    event_type     VARCHAR(255) NOT NULL,
-    payload        TEXT         NOT NULL,
-    occurred_on    TIMESTAMPTZ  NOT NULL,
-    created_at     TIMESTAMPTZ  NOT NULL,
+CREATE TABLE orders (
+    id               VARCHAR(26)  NOT NULL,
+    customer_id      VARCHAR(26)  NOT NULL,
+    seller_id        VARCHAR(26)  NOT NULL,
+    items            JSONB        NOT NULL,
+    payment_method   VARCHAR(20)  NOT NULL,
+    shipping_address JSONB        NOT NULL,
+    status           VARCHAR(20)  NOT NULL,
+    cancel_reason    VARCHAR(30),
+    version          BIGINT       NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ  NOT NULL,
+    updated_at       TIMESTAMPTZ  NOT NULL,
 
-    CONSTRAINT pk_event_store PRIMARY KEY (id),
-    CONSTRAINT uq_event_store_aggregate_revision UNIQUE (aggregate_id, revision)
+    CONSTRAINT pk_orders PRIMARY KEY (id),
+    CONSTRAINT chk_orders_status CHECK (status IN ('CREATED', 'CONFIRMED', 'CANCELLED'))
 );
 
-CREATE INDEX idx_event_store_aggregate_id ON event_store (aggregate_id);
+CREATE INDEX idx_orders_customer_id ON orders (customer_id);
 
 -- ------------------------------------------------------------
 -- outbox_events  (managed by outbox-starter, monitored by Debezium CDC)

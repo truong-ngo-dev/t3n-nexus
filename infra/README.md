@@ -45,6 +45,14 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
 curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-notification.json
 ```
 
+### Đăng ký order-outbox-connector
+
+Đọc WAL của `order_db.public.outbox_events`, route theo `routing_key` → topic tương ứng.
+
+```bash
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-order-outbox.json
+```
+
 ---
 
 ## Kiểm tra trạng thái
@@ -56,6 +64,7 @@ curl http://localhost:8083/connectors
 # Trạng thái chi tiết từng connector
 curl http://localhost:8083/connectors/identity-outbox-connector/status
 curl http://localhost:8083/connectors/notification-connector/status
+curl http://localhost:8083/connectors/order-outbox-connector/status
 ```
 
 Kết quả mong đợi — connector và task đều `RUNNING`:
@@ -106,6 +115,11 @@ docker compose exec postgres-identity \
 docker compose exec postgres-notification \
   psql -U t3nexus -d notification_db \
   -c "SELECT pg_drop_replication_slot('debezium');"
+
+# Drop replication slot sau khi xóa order connector
+docker compose exec postgres-order \
+  psql -U t3nexus -d order_db \
+  -c "SELECT pg_drop_replication_slot('debezium');"
 ```
 
 ---
@@ -119,6 +133,9 @@ docker compose exec postgres-notification \
 | `notification.email.transactional`     | notification-connector    | email-worker                           |
 | `notification.email.bulk`              | notification-connector    | email-worker                           |
 | `notification.inapp.dispatch`          | notification-connector    | (in-app worker)                        |
+| `order.order.created`                  | order-outbox-connector    | inventory-service                      |
+| `order.order.confirmed`                | order-outbox-connector    | notification-service                   |
+| `order.order.cancelled`                | order-outbox-connector    | inventory-service, notification-service |
 
 ---
 

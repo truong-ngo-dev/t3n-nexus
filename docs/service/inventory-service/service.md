@@ -189,9 +189,9 @@ Trước mỗi event: `INSERT INTO processed_event(event_id) VALUES(?) ON CONFLI
 
 | Feature                                                | Role                           | Handles                         | Publishes                                         |
 |--------------------------------------------------------|--------------------------------|---------------------------------|---------------------------------------------------|
-| [checkout-saga](../../feature/checkout-saga/design.md) | Participant — reservation step | `OrderCreated`                  | `InventoryReserved`, `InventoryReservationFailed` |
-| [checkout-saga](../../feature/checkout-saga/design.md) | Participant — compensate step  | `OrderCancelled`                | `InventoryReleased`                               |
-| [limited-offer](../../feature/limited-offer/design.md) | Enforcer — slot guard          | `OrderCreated` *(limited path)* | `InventoryReserved`, `InventoryReservationFailed` |
+| [place-order](../../feature/place-order/design.md) | Participant — reservation step | `OrderCreated`                  | `InventoryReserved`, `InventoryReservationFailed` |
+| [place-order](../../feature/place-order/design.md) | Participant — compensate step  | `OrderCancelled`                | `InventoryReleased`                               |
+| [flashsale.md](flashsale.md) | Enforcer — slot guard          | `OrderCreated` *(limited path)* | `InventoryReserved`, `InventoryReservationFailed` |
 
 ---
 
@@ -239,3 +239,8 @@ Không có. Inventory service không thực hiện sync call ra ngoài và khôn
   - Redis — limited offer slot counters + Bloom Filter (Redisson)
   - Kafka — consumer groups: `inventory-catalog-consumer`, `inventory-order-consumer`
   - Debezium — CDC từ `outbox_events` table sang Kafka (shared infra)
+
+## Tài liệu liên quan
+
+- [`data.md`](data.md) — DB schema, index strategy
+- [`flashsale.md`](flashsale.md) — thiết kế pipeline flash sale riêng biệt khỏi normal reservation path (rate limit → Bloom Filter → Redis Lua slot decrement)

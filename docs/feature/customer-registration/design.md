@@ -1,0 +1,249 @@
+# Design: Customer Registration
+
+**Status**: Draft
+**Deferred items**: [`deferred.md`](deferred.md)
+
+---
+
+## Services liên quan
+
+| Service                | Vai trò                                                          | Loại tham gia           |
+|------------------------|------------------------------------------------------------------|-------------------------|
+| `web-gateway`          | BFF — nhận request, forward đến oauth2-service                   | Entry point             |
+| `oauth2-service`       | Validate input, hash password, tạo UserCredential, publish event | Sync + Event publisher  |
+| `identity-service`     | Tạo UserAccount + EmailVerification, publish events downstream   | Async + Event publisher |
+| `customer-service`     | Tạo CustomerProfile khi nhận CustomerAccountCreated              | Async consumer          |
+| `notification-service` | Gửi verification email khi nhận VerificationEmailRequested       | Async consumer          |
+
+---
+
+## Happy Path — CREDENTIAL
+
+```
+Buyer → POST /api/auth/register {email, password, fullName}
+  → oauth2-service: tạo UserCredential (role=CUSTOMER, status=PENDING)
+  → publish oauth2.user.registered {userId, email, fullName, role=CUSTOMER, registrationMethod=CREDENTIAL}
+
+  [async] identity-service:
+    → tạo UserAccount (status=PENDING) + EmailVerification (TTL 24h)
+    → publish identity.email-verification.requested
+    → publish identity.customer-account.created
+
+  [async] customer-service ← identity.customer-account.created:
+    → tạo CustomerProfile (loyaltyBalance=0)
+
+  [async] notification-service ← identity.email-verification.requested:
+    → gửi verification email
+
+-- Buyer click link trong email --
+  → GET /api/identity/users/verify?token={token}
+  → identity-service: UserAccount.status = ACTIVE
+  → publish identity.user.activated
+
+  [async] oauth2-service ← identity.user.activated:
+    → UserCredential.status = ACTIVE
+    → Buyer có thể login
+```
+
+```plantuml
+@startuml sequence-customer-registration-credential
+title Customer Registration (CREDENTIAL) — ADR-001\nEntry point: oauth2-service
+
+actor Buyer
+participant "web-gateway" as WG
+participant "oauth2-service" as OAUTH
+participant "identity-service" as ID
+participant "customer-service" as CS
+participant "notification-service" as NOTIF
+queue "Kafka" as K
+
+== Happy Path — CREDENTIAL Registration ==
+
+Buyer -> WG : POST /api/auth/register\n{email, password, fullName}
+activate WG
+
+WG -> OAUTH : forward request
+activate OAUTH
+
+OAUTH -> OAUTH : validate input\ncheck email unique (UserCredential table — local)\nhash password\ntạo UserCredential\n(email, hashedPassword, role=CUSTOMER, status=PENDING)
+OAUTH -> K : oauth2.user.registered\n{userId, email, fullName, role=CUSTOMER, registrationMethod=CREDENTIAL}\n[via Outbox]
+OAUTH --> WG : 201 Created {userId}
+deactivate OAUTH
+
+WG --> Buyer : 201 Created
+deactivate WG
+
+note right of Buyer
+  status=PENDING — chưa thể login.
+  Phần dưới xử lý async.
+end note
+
+== Async downstream — oauth2.user.registered ==
+
+K -> ID : oauth2.user.registered
+activate ID
+ID -> ID : idempotency check (skip nếu userId đã tồn tại)\ntạo UserAccount (status=PENDING)\ntạo EmailVerification (token, expiresAt=now+24h)
+ID -> K : identity.email-verification.requested\n{userId, email, fullName, verificationToken}\n[via Outbox]
+ID -> K : identity.customer-account.created\n{userId, email, fullName}\n[via Outbox]
+deactivate ID
+
+== Async downstream — identity.customer-account.created ==
+
+K -> CS : identity.customer-account.created
+activate CS
+CS -> CS : tạo CustomerProfile\n(loyaltyBalance=0)
+deactivate CS
+
+== Async downstream — identity.email-verification.requested ==
+
+K -> NOTIF : identity.email-verification.requested
+activate NOTIF
+NOTIF -> Buyer : Verification email\n(link kích hoạt chứa verificationToken)
+deactivate NOTIF
+
+== Email Verification — Happy Path ==
+
+Buyer -> WG : GET /api/identity/users/verify?token={verificationToken}
+activate WG
+WG -> ID : forward request
+activate ID
+ID -> ID : validate token\n(tồn tại, chưa expired, status=PENDING)\nUserAccount.status = ACTIVE
+ID -> K : identity.user.activated\n{userId}\n[via Outbox]
+ID --> WG : 200 OK
+deactivate ID
+WG --> Buyer : 200 OK
+deactivate WG
+
+== Async — identity.user.activated ==
+
+K -> OAUTH : identity.user.activated
+activate OAUTH
+OAUTH -> OAUTH : UserCredential.status = ACTIVE
+deactivate OAUTH
+
+note right of Buyer
+  Buyer có thể login qua\nPOST /api/auth/login (oauth2-service).
+end note
+
+== Resend Verification ==
+
+Buyer -> WG : POST /api/identity/users/resend-verification\n{email}
+activate WG
+
+note right of WG
+  Rate limit: 3 resend/giờ per email\n(identity-service enforce).
+end note
+
+WG -> ID : forward request
+activate ID
+ID -> ID : validate:\n- UserAccount tồn tại & status=PENDING\n- chưa vượt rate limit\nreissue token (invalidate cũ, TTL 24h mới)
+ID -> K : identity.email-verification.reissued\n{userId, email, fullName, verificationToken}\n[via Outbox]
+ID --> WG : 204 No Content
+deactivate ID
+WG --> Buyer : 204 No Content
+deactivate WG
+
+K -> NOTIF : identity.email-verification.reissued
+activate NOTIF
+NOTIF -> Buyer : Verification email (mới)
+deactivate NOTIF
+
+== Error: Email đã tồn tại ==
+
+Buyer -> WG : POST /api/auth/register\n{email đã tồn tại}
+activate WG
+WG -> OAUTH : forward request
+activate OAUTH
+OAUTH -> OAUTH : check email → đã tồn tại trong UserCredential table
+OAUTH --> WG : 409 EmailAlreadyExists
+deactivate OAUTH
+WG --> Buyer : 409 Conflict
+deactivate WG
+
+@enduml
+```
+
+## Happy Path — OAUTH (Google)
+
+```
+Buyer → POST /api/auth/register/oauth2 {provider=GOOGLE, code=...}
+  → oauth2-service: exchange code → Google profile
+    tạo UserCredential (role=CUSTOMER, status=ACTIVE)
+    tạo SocialIdentity
+  → publish oauth2.user.registered {registrationMethod=OAUTH}
+  → trả về tokens ngay (login thành công)
+
+  [async] identity-service:
+    → tạo UserAccount (status=ACTIVE, không có EmailVerification)
+    → publish identity.customer-account.created
+
+  [async] customer-service ← identity.customer-account.created:
+    → tạo CustomerProfile
+```
+
+```plantuml
+@startuml sequence-customer-registration-oauth
+title Customer Registration (OAUTH — Google) — ADR-001
+
+actor Buyer
+participant "web-gateway" as WG
+participant "oauth2-service" as OAUTH
+participant "identity-service" as ID
+participant "customer-service" as CS
+queue "Kafka" as K
+
+== OAUTH Registration (Social Login — Google) ==
+
+Buyer -> WG : POST /api/auth/register/oauth2\n{provider=GOOGLE, code=...}
+activate WG
+WG -> OAUTH : forward request
+activate OAUTH
+OAUTH -> OAUTH : exchange code → Google profile\ncheck SocialIdentity (provider+sub) chưa exist\ntạo UserCredential (role=CUSTOMER, status=ACTIVE — no password)\ntạo SocialIdentity (provider, providerSub, userId)
+OAUTH -> K : oauth2.user.registered\n{userId, email, fullName, role=CUSTOMER, registrationMethod=OAUTH}\n[via Outbox]
+OAUTH --> WG : 200 OK + tokens (cookie)
+deactivate OAUTH
+WG --> Buyer : login thành công ngay
+deactivate WG
+
+K -> ID : oauth2.user.registered (registrationMethod=OAUTH)
+activate ID
+ID -> ID : tạo UserAccount (status=ACTIVE)\n(không tạo EmailVerification — OAUTH đã verified)
+ID -> K : identity.customer-account.created\n{userId, email, fullName}\n[via Outbox]
+deactivate ID
+
+K -> CS : identity.customer-account.created
+activate CS
+CS -> CS : tạo CustomerProfile
+deactivate CS
+
+@enduml
+```
+
+---
+
+## Error Cases
+
+| Lỗi                         | Nơi xử lý               | Response                |
+|-----------------------------|-------------------------|-------------------------|
+| Email đã tồn tại            | oauth2-service (sync)   | 409 Conflict            |
+| oauth2-service down         | web-gateway             | 503 Service Unavailable |
+| Token không tồn tại         | identity-service (sync) | 404                     |
+| Token hết hạn               | identity-service (sync) | 410                     |
+| Email đã verified           | identity-service (sync) | 409                     |
+| Resend vượt 3 lần/giờ       | identity-service (sync) | 429 Too Many Requests   |
+| customer-service chậm xử lý | Kafka retry tự động     | —                       |
+
+Không có compensating saga — critical path là sync, downstream là fire-and-forget.
+
+---
+
+## Technical Constraints
+
+| Concern                | Giải pháp                                                                              |
+|------------------------|----------------------------------------------------------------------------------------|
+| Idempotency            | identity-service skip nếu userId đã tồn tại; customer-service `ON CONFLICT DO NOTHING` |
+| Event delivery         | Outbox Pattern + CDC tại oauth2-service và identity-service                            |
+| Password               | BCrypt hash tại oauth2-service — identity-service không biết password                  |
+| Email verification     | Chỉ áp dụng cho `registrationMethod=CREDENTIAL`, không áp dụng cho OAUTH               |
+| Token                  | Opaque 32-byte random, Base64URL, TTL 24h, rotate khi reissue                          |
+| CustomerProfile timing | Tạo async sau UserAccount — eventual consistency chấp nhận được                        |

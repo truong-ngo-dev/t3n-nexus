@@ -107,8 +107,7 @@ public class RedisPasswordSetupTokenService implements PasswordSetupTokenService
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(hmacSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return Base64.getUrlEncoder().withoutPadding()
-                    .encodeToString(mac.doFinal(data.getBytes(StandardCharsets.UTF_8)));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(data.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             throw new IllegalStateException("HmacSHA256 not available", e);
         }

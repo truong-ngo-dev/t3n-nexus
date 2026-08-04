@@ -6,7 +6,7 @@
 **Xem thêm**: [`spring-security-logout-bff.md`](spring-security-logout-bff.md) — Logout & Remote Revocation
 
 > Tài liệu này ở mức **framework** — không chứa business logic.  
-> Domain-specific design → `docs/design/features/user-login/design.md`.
+> Domain-specific design → `../../feature/user-auth/design.md`.
 
 ---
 

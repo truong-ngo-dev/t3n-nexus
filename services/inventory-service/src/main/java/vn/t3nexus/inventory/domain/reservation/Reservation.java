@@ -12,18 +12,16 @@ public class Reservation extends AbstractAggregateRoot<ReservationId> implements
 
     private final String orderId;
     private ReservationStatus status;
-    private final Instant expiresAt;
     private final List<ReservationItem> items;
     private final Instant createdAt;
     private Instant updatedAt;
 
     private Reservation(ReservationId id, String orderId, ReservationStatus status,
-                        List<ReservationItem> items, Instant expiresAt,
+                        List<ReservationItem> items,
                         Instant createdAt, Instant updatedAt) {
         setId(id);
         this.orderId   = orderId;
         this.status    = status;
-        this.expiresAt = expiresAt;
         this.items     = new ArrayList<>(items);
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -31,21 +29,25 @@ public class Reservation extends AbstractAggregateRoot<ReservationId> implements
 
     // ───────────── Factory Methods ─────────────
 
-    /** Success path (T1): creates PENDING reservation and raises InventoryReservedEvent. */
-    public static Reservation create(ReservationId id, String orderId,
-                                     List<ReservationItem> items, Instant expiresAt) {
+    /**
+     * Success path (T1): creates PENDING reservation and raises InventoryReservedEvent.
+     * <br>Không có TTL/expiresAt — release chỉ xảy ra qua {@link #release()} khi order-service
+     * publish {@code OrderCancelled} (kể cả khi tự huỷ do đơn kẹt ở CREATED quá lâu — order-service
+     * là chủ sở hữu quyết định đó, không phải Reservation tự dò hạn).
+     */
+    public static Reservation create(ReservationId id, String orderId, List<ReservationItem> items) {
         Instant now = Instant.now();
-        Reservation reservation = new Reservation(id, orderId, ReservationStatus.PENDING, items, expiresAt, now, now);
+        Reservation reservation = new Reservation(id, orderId, ReservationStatus.PENDING, items, now, now);
         reservation.addDomainEvent(new InventoryReservedEvent(id.getValue(), orderId, items));
         return reservation;
     }
 
     /** Failure path (T2): creates CANCELLED reservation and raises InventoryReservationFailedEvent. */
     public static Reservation createFailed(ReservationId id, String orderId,
-                                           List<ReservationItem> items, Instant expiresAt,
+                                           List<ReservationItem> items,
                                            String failedSkuId, String reason) {
         Instant now = Instant.now();
-        Reservation reservation = new Reservation(id, orderId, ReservationStatus.CANCELLED, items, expiresAt, now, now);
+        Reservation reservation = new Reservation(id, orderId, ReservationStatus.CANCELLED, items, now, now);
         reservation.addDomainEvent(
                 new InventoryReservationFailedEvent(id.getValue(), orderId, failedSkuId, reason));
         return reservation;
@@ -53,9 +55,9 @@ public class Reservation extends AbstractAggregateRoot<ReservationId> implements
 
     /** Reconstitute from persistence — no events raised. */
     public static Reservation reconstitute(ReservationId id, String orderId, ReservationStatus status,
-                                           List<ReservationItem> items, Instant expiresAt,
+                                           List<ReservationItem> items,
                                            Instant createdAt, Instant updatedAt) {
-        return new Reservation(id, orderId, status, items, expiresAt, createdAt, updatedAt);
+        return new Reservation(id, orderId, status, items, createdAt, updatedAt);
     }
 
     // ───────────── Behaviour ─────────────
@@ -74,7 +76,6 @@ public class Reservation extends AbstractAggregateRoot<ReservationId> implements
 
     public String getOrderId()               { return orderId; }
     public ReservationStatus getStatus()     { return status; }
-    public Instant getExpiresAt()            { return expiresAt; }
     public List<ReservationItem> getItems()  { return List.copyOf(items); }
     public Instant getCreatedAt()            { return createdAt; }
     public Instant getUpdatedAt()            { return updatedAt; }

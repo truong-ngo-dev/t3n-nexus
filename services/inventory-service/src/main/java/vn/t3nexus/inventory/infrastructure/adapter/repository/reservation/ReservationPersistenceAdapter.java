@@ -49,7 +49,10 @@ public class ReservationPersistenceAdapter implements ReservationRepository {
         String rawId = reservation.getId().getValue();
         boolean isNew = !jpaRepository.existsById(rawId);
 
-        jpaRepository.save(ReservationMapper.toJpaEntity(reservation));
+        // saveAndFlush forces the INSERT (and UNIQUE(order_id) check) to run inside this call,
+        // so a concurrent-duplicate conflict surfaces here instead of silently at commit time —
+        // callers (e.g. ReserveInventory) need to catch DataIntegrityViolationException synchronously.
+        jpaRepository.saveAndFlush(ReservationMapper.toJpaEntity(reservation));
 
         if (isNew) {
             List<ReservationItemJpaEntity> itemEntities = reservation.getItems().stream()

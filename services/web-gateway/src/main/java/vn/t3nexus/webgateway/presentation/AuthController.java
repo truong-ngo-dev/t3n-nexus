@@ -1,6 +1,7 @@
 package vn.t3nexus.webgateway.presentation;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
@@ -15,7 +16,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.Base64;
+import java.util.UUID;
 
 /**
  * UC-001: Khởi tạo OAuth2 Authorization Code Flow từ Angular.
@@ -26,13 +29,19 @@ import java.util.Base64;
 @Slf4j
 public class AuthController {
 
+    private static final String WS_TICKET_KEY_PREFIX = "wsticket:";
+    private static final Duration WS_TICKET_TTL = Duration.ofSeconds(10);
+
     private final ServerOAuth2AuthorizedClientRepository authorizedClientRepository;
     private final ObjectMapper objectMapper;
+    private final ReactiveStringRedisTemplate redisTemplate;
 
     public AuthController(ServerOAuth2AuthorizedClientRepository authorizedClientRepository,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          ReactiveStringRedisTemplate redisTemplate) {
         this.authorizedClientRepository = authorizedClientRepository;
         this.objectMapper = objectMapper;
+        this.redisTemplate = redisTemplate;
     }
 
     @GetMapping("/login")
@@ -69,6 +78,23 @@ public class AuthController {
                 .defaultIfEmpty(ResponseEntity.status(HttpStatus.UNAUTHORIZED).<SessionResponse>build());
     }
 
+    /**
+     * Mint 1 ticket dùng 1 lần (TTL 10s) để websocket-gateway resolve userId lúc handshake —
+     * WebSocket không mang được cookie session của web-gateway. Xem docs/design/services/notification-service.md.
+     */
+    @GetMapping("/ws-ticket")
+    public Mono<ResponseEntity<TicketResponse>> wsTicket(ServerWebExchange exchange) {
+        return exchange.getPrincipal()
+                .cast(OAuth2AuthenticationToken.class)
+                .flatMap(token -> {
+                    String ticket = UUID.randomUUID().toString();
+                    return redisTemplate.opsForValue()
+                            .set(WS_TICKET_KEY_PREFIX + ticket, token.getName(), WS_TICKET_TTL)
+                            .map(ok -> ResponseEntity.ok(new TicketResponse(ticket)));
+                })
+                .defaultIfEmpty(ResponseEntity.status(HttpStatus.UNAUTHORIZED).<TicketResponse>build());
+    }
+
     private String extractRole(String jwtToken) {
         try {
             String[] parts = jwtToken.split("\\.");
@@ -95,4 +121,6 @@ public class AuthController {
             String userId,
             String role
     ) {}
+
+    public record TicketResponse(String ticket) {}
 }

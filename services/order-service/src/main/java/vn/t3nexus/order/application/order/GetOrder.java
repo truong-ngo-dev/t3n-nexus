@@ -4,10 +4,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import vn.t3nexus.lib.common.domain.cqrs.QueryHandler;
 import vn.t3nexus.order.domain.order.Order;
+import vn.t3nexus.order.domain.order.OrderCancelReason;
 import vn.t3nexus.order.domain.order.OrderException;
 import vn.t3nexus.order.domain.order.OrderId;
 import vn.t3nexus.order.domain.order.OrderLineItem;
 import vn.t3nexus.order.domain.order.OrderRepository;
+import vn.t3nexus.order.domain.order.ShippingAddress;
 
 import java.util.List;
 
@@ -23,14 +25,14 @@ public class GetOrder implements QueryHandler<GetOrder.Query, GetOrder.Result> {
                 .orElseThrow(OrderException::notFound);
         return new Result(
                 order.getId().getValue(), order.getCustomerId(), order.getSellerId(),
-                order.getItems(), order.getStatus().name(), order.getCancelReason(),
-                order.getRevision());
+                order.getItems(), order.getPaymentMethod().name(), order.getShippingAddress(),
+                order.getStatus().name(), order.getCancelReason());
     }
 
     public record Query(String orderId) {}
 
     public record Result(
             String orderId, String customerId, String sellerId,
-            List<OrderLineItem> items, String status, String cancelReason,
-            long revision) {}
+            List<OrderLineItem> items, String paymentMethod, ShippingAddress shippingAddress,
+            String status, OrderCancelReason cancelReason) {}
 }

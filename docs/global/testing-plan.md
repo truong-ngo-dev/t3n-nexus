@@ -76,16 +76,16 @@ Mục tiêu: verify job trigger đúng điều kiện, không trùng lặp, có 
 
 Mục tiêu: verify correctness của domain logic và multi-step workflow — không cần concurrency.
 
-| Scenario                     | Verify                                                            | Services cần bật              |
-|------------------------------|-------------------------------------------------------------------|-------------------------------|
-| Lịch sử trạng thái đơn hàng  | Event Sourcing replay ra đúng state sequence                      | order, PostgreSQL, Kafka      |
-| Lịch sử di chuyển hàng hoá   | Warehouse movement events tái tạo đúng vị trí hàng                | warehouse, PostgreSQL, Kafka  |
-| Seller onboarding            | Temporal workflow hoàn thành đúng các bước, compensate khi reject | seller, workflow, Kafka       |
-| Hoàn hàng multi-step         | Return flow đi đúng các bước, dispute escalate khi cần            | return, workflow, Kafka       |
-| Tính phí vận chuyển          | Drools rule trả ra đúng fee theo zone + weight                    | pricing (gRPC)                |
-| Tự động phân công shipper    | Rule Engine chọn đúng shipper theo availability + zone            | fulfillment, pricing, shipper |
-| Tìm kiếm sản phẩm có filter  | Full-text + faceted search trả kết quả đúng, latency < 200ms      | search, Elasticsearch         |
-| Pipeline phân tích doanh thu | Flink/Spark aggregate đúng số liệu vào DWH                        | reporting, Kafka, DWH         |
+| Scenario                     | Verify                                                                                     | Services cần bật              |
+|------------------------------|--------------------------------------------------------------------------------------------|-------------------------------|
+| Lịch sử trạng thái đơn hàng  | State transition đúng (CRUD + `@Version`), Outbox publish đủ mọi bước sang Kafka (ADR-010) | order, PostgreSQL, Kafka      |
+| Lịch sử di chuyển hàng hoá   | Warehouse movement events tái tạo đúng vị trí hàng                                         | warehouse, PostgreSQL, Kafka  |
+| Seller onboarding            | Temporal workflow hoàn thành đúng các bước, compensate khi reject                          | seller, workflow, Kafka       |
+| Hoàn hàng multi-step         | Return flow đi đúng các bước, dispute escalate khi cần                                     | return, workflow, Kafka       |
+| Tính phí vận chuyển          | Drools rule trả ra đúng fee theo zone + weight                                             | pricing (gRPC)                |
+| Tự động phân công shipper    | Rule Engine chọn đúng shipper theo availability + zone                                     | fulfillment, pricing, shipper |
+| Tìm kiếm sản phẩm có filter  | Full-text + faceted search trả kết quả đúng, latency < 200ms                               | search, Elasticsearch         |
+| Pipeline phân tích doanh thu | Flink/Spark aggregate đúng số liệu vào DWH                                                 | reporting, Kafka, DWH         |
 
 ---
 

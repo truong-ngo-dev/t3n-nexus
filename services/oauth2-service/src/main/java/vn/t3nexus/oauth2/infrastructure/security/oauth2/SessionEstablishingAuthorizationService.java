@@ -4,28 +4,36 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
-import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationCode;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
-import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.security.oauth2.server.authorization.*;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
 import vn.t3nexus.oauth2.application.session.establish_session.EstablishSession;
 import vn.t3nexus.oauth2.domain.session.OAuthSessionRepository;
 
+import java.util.Objects;
+
 
 /**
- * Wraps JdbcOAuth2AuthorizationService để hook vào login flow:
- *
- * Phase 1.5 — Authorization Code Issued (browser request, có HTTP session):
- *   Resolve OAuthSession ID + copy device signals từ HTTP session vào OAuth2Authorization.attributes.
- *   Silent SSO: reuse existing OAuthSession ID (idpSessionId + clientId đã có active session)
- *               → EstablishSession gọi onTokenRotated(), không publish SessionIssuedEvent.
- *   Fresh login: generate ULID mới → EstablishSession gọi IssueSession → publish SessionIssuedEvent.
- *
- * Phase 2 — Token Issuance (server-to-server, không có HTTP session):
- *   Gọi EstablishSession với ULID đã resolve từ Phase 1.5.
+ * Wraps {@link JdbcOAuth2AuthorizationService} để hook vào login flow:
+ * <ul>
+ *   <li>
+ *     <b>Phase 1.5 — Authorization Code Issued</b> (browser request, có HTTP session):
+ *     <ul>
+ *       <li>Resolve OAuthSession ID + copy device signals từ HTTP session vào {@code OAuth2Authorization.attributes}.</li>
+ *       <li><b>Silent SSO:</b> Reuse existing OAuthSession ID (idpSessionId + clientId đã có active session)
+ *           &rarr; {@code EstablishSession} gọi {@code onTokenRotated()}, không publish {@code SessionIssuedEvent}.</li>
+ *       <li><b>Fresh login:</b> Generate ULID mới &rarr; {@code EstablishSession} gọi {@code IssueSession}
+ *           &rarr; publish {@code SessionIssuedEvent}.</li>
+ *     </ul>
+ *   </li>
+ *   <li>
+ *     <b>Phase 2 — Token Issuance</b> (server-to-server, không có HTTP session):
+ *     <ul>
+ *       <li>Gọi {@code EstablishSession} với ULID đã resolve từ Phase 1.5.</li>
+ *     </ul>
+ *   </li>
+ * </ul>
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -86,8 +94,7 @@ public class SessionEstablishingAuthorizationService implements OAuth2Authorizat
         if (hasAccessToken(authorization) && authorization.getAttribute(ATTR_EMAIL) != null) {
             String oauthSessionId    = orEmpty(authorization.getAttribute(ATTR_OAUTH_SESSION_ID));
             String userId            = authorization.getPrincipalName();
-            log.warn("[DEV] access_token for userId={} : {}", userId,
-                    authorization.getToken(OAuth2AccessToken.class).getToken().getTokenValue());
+            log.warn("[DEV] access_token for userId={} : {}", userId, Objects.requireNonNull(authorization.getToken(OAuth2AccessToken.class)).getToken().getTokenValue());
             String idpSessionId      = orEmpty(authorization.getAttribute(ATTR_IDP_SESSION_ID));
             String authorizationId   = authorization.getId();
             String registeredClientId = authorization.getRegisteredClientId();

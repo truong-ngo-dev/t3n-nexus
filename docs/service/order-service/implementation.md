@@ -2,13 +2,16 @@
 
 > Tham khảo: [`design/features/place-order/design.md`](../../design/features/place-order/design.md) — chỉ mang tính demo/định hướng flow tổng (5 service), **không phải plan thực thi**. Plan thực thi của order-service nằm ở file này.
 
+> **⚠️ 2026-08-03 — ADR-010: Event Sourcing cho `Order` đã bị REVERT.** Toàn bộ Phase 0 (ES infra) và phần "Event Sourcing" của Phase 1 dưới đây là **lịch sử**, không còn phản ánh code thật — giữ nguyên để biết tại sao từng làm và tại sao đảo ngược, không xoá. Xem lý do đầy đủ ở [ADR-010](../../global/2.architecture/adr/010-order-crud-not-event-sourcing.md). Plan thực thi hiện tại (CRUD, không ES) nằm ở [`design/features/payment-checkout/implementation.md`](../../design/features/payment-checkout/implementation.md) Phase 1-2 — đó mới là nguồn sự thật cho state hiện tại của `order-service`.
+
 **Scope hiện tại**: chỉ order-service + inventory-service (đã build sẵn). payment-service / fulfillment-service / notification-service để phase sau, không nằm trong file này.
 
 ---
 
 ## Quyết định đã chốt cho order-service
 
-- **Event Sourcing** cho `Order` aggregate — tách thành Phase 0 riêng (build hạ tầng ES trong `common-domain` trước), không gộp chung phase với order-service để giữ đúng "blast radius nhỏ" / "session-size fit" (`feature-implementation.md`).
+- ~~**Event Sourcing** cho `Order` aggregate~~ — **REVERTED 2026-08-03, xem ADR-010**. `Order` giờ là CRUD (`orders` table, `@Version`). `event-sourcing-starter` không xoá, dành cho Loyalty Points Ledger (customer-service) sau này — xem ghi chú gốc ở dòng "Snapshot strategy" trong Phase 0 bên dưới, ý tưởng này đã được note từ lúc quyết định ES ban đầu.
+- ~~Tách thành Phase 0 riêng (build hạ tầng ES trong `common-domain` trước), không gộp chung phase với order-service để giữ đúng "blast radius nhỏ" / "session-size fit" (`feature-implementation.md`).~~ — không còn áp dụng sau revert.
 - **4 lớp bảo vệ idempotency/Saga-DLQ** — build ngay từ bản đầu tiên, không tách phase:
   1. **Redis** (`eventId`) — chặn Kafka redeliver cùng 1 message vật lý. Nhanh, nhưng có TTL và không biết business invariant.
   2. **DB unique constraint** — nguồn sự thật cuối cùng cho business invariant, không TTL, không thể bypass. Áp dụng ở 2 chỗ cụ thể của order-service (xem Phase 1 > Infrastructure): `UNIQUE(aggregate_id, revision)` trên `event_store`, và `UNIQUE` idempotency key trên bảng orders cho `POST /orders`.
@@ -24,9 +27,9 @@
 
 ## Phase 0 — Event Sourcing infra (`common-domain` + `event-sourcing-starter`)
 
-**Status:** `IN_PROGRESS`
+**Status:** `REVERTED` (2026-08-03, xem ADR-010 — infra vẫn còn nguyên trong `libs/event-sourcing-starter`, chỉ không dùng cho `Order` nữa, giữ cho Loyalty Points Ledger sau này)
 **Started:** 2026-07-07
-**Completed:** —
+**Completed:** — (không hoàn thành theo hướng ban đầu, xem session log 2026-08-03)
 
 ### Checklist
 - [x] `EventSourcedAggregateRoot<ID>` — `common-domain`, apply/raise/loadFromHistory pattern, field `revision` (đặt tên riêng, không đụng field `version` sẵn có trên `AbstractAggregateRoot` — tránh nhầm với optimistic-lock JPA)
@@ -58,6 +61,15 @@ Khi viết `OrderCreatedEvent`/`OrderConfirmedEvent`/`OrderCancelledEvent` thậ
 - Còn lại: test conflict thật (2 concurrent writer, cùng `expectedRevision`) — chưa làm, khó test qua curl tuần tự, cần JUnit hoặc script riêng. `docs/service/order-service/service.md`/`data.md`/`api.yaml` chưa tạo.
 - Blocker: —
 
+#### 2026-08-03 — REVERTED
+
+- Khi implement `CREATED`-state timeout cho `payment-checkout` (feature khác, xem `design/features/payment-checkout/implementation.md`), phát hiện Event Sourcing thuần không query được "mọi order status=X" — cần bolt-on bảng projection riêng chỉ để làm 1 việc tầm thường.
+- Đánh giá lại theo 4 tiêu chí đáng để trả chi phí ES (temporal query / invariant cần replay / optimistic concurrency / audit) — không tiêu chí nào đúng cho `Order`. Thêm dữ kiện: `order-service` là consumer duy nhất của `event-sourcing-starter` trong toàn hệ thống, chi phí không amortize qua aggregate nào khác.
+- Quyết định: revert `Order` về CRUD (`orders` table, `@Version`). Chi tiết đầy đủ + trade-off ở [ADR-010](../../global/2.architecture/adr/010-order-crud-not-event-sourcing.md).
+- `event-sourcing-starter` không xoá — đúng như dự đoán ở dòng "Snapshot strategy" bên trên (2026-07-07/08, đã note "candidate mạnh nhất nếu cần sau: Loyalty Points Ledger"), giữ lại cho use case đó.
+- Refactor thật (`Order` → CRUD, `OrderJpaEntity`/`OrderMapper`/`OrderRepositoryAdapter`, bỏ dual-constructor ở 3 event, sửa `InventoryReservedConsumer`/`InventoryReservationFailedConsumer` catch `OptimisticLockingFailureException` thay `EventStoreConflictException`) nằm trong `payment-checkout/implementation.md` Phase 2, không lặp lại chi tiết ở đây.
+- Bug tiện thể phát hiện: `OrderCancelledEvent.Payload` thiếu `orderId` — `inventory-service/OrderCancelledConsumer` đã kỳ vọng field này từ trước nhưng order-service chưa từng gửi. Đã sửa cùng lúc.
+
 ---
 
 ## Phase 1 — order-service core (happy path + 2 compensating path với inventory-service thật)
@@ -74,8 +86,8 @@ Khi viết `OrderCreatedEvent`/`OrderConfirmedEvent`/`OrderCancelledEvent` thậ
 - [ ] `docs/service/order-service/data.md` — event_store, outbox_events, processed_event, read model table (nếu cần query nhanh ngoài replay)
 - [ ] `docs/service/order-service/api.yaml` — `POST /orders`
 
-**Domain**
-- [x] `Order` aggregate (event-sourced), `OrderId`, `OrderLineItem`, `OrderStatus`, `OrderErrorCode`, `OrderException`
+**Domain** _(lịch sử tại thời điểm viết — `Order` lúc đó event-sourced, đã revert sang CRUD 2026-08-03, xem banner đầu file)_
+- [x] `Order` aggregate ~~(event-sourced)~~ (CRUD sau revert), `OrderId`, `OrderLineItem`, `OrderStatus`, `OrderErrorCode`, `OrderException`
 - [x] `OrderStatus` state machine: `CREATED → CONFIRMED / CANCELLED` (chưa có `FULFILLING/DELIVERED/COMPLETED` — chưa có fulfillment-service, đúng scope)
 - [x] `Order.canProcess(Class<? extends DomainEvent>)` — hiện chỉ check `status == CREATED`, chưa dùng bởi consumer nào (chưa có Kafka consumer)
 - [x] Domain events: `OrderCreatedEvent`, `OrderConfirmedEvent`, `OrderCancelledEvent` — đều theo đúng 2-constructor pattern (business + `@JsonCreator` reconstitution nhận `Payload` nested record khớp đúng shape lúc serialize)

@@ -57,7 +57,7 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 | SKUs trong catalog            | 5,000,000       | Elasticsearch (SQL LIKE không scale ở mức này)     |
 | Chat messages / ngày          | ~500,000        | MongoDB (document model phù hợp hơn relational)    |
 | Notification events / ngày    | ~1,000,000      | Redis Pub/Sub + WebSocket Gateway horizontal scale |
-| Order events (Event Sourcing) | ~250,000 / ngày | Kafka retention, audit trail                       |
+| Order events (Outbox → Kafka) | ~250,000 / ngày | Kafka retention, audit trail (CRUD — ADR-010)      |
 
 ---
 
@@ -89,7 +89,7 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 | Inventory       | `inventory-service`   | Stock level, Reservation, Limited offer (high-concurrency) |
 | Warehouse       | `warehouse-service`   | platform-managed warehouse, Event Sourcing                 |
 | Cart            | `cart-service`        | Guest cart (Redis), persistent cart, merge khi login       |
-| Order           | `order-service`       | Order lifecycle, Saga choreography, Event Sourcing         |
+| Order           | `order-service`       | Order lifecycle, Saga choreography (CRUD — ADR-010)        |
 | Payment         | `payment-service`     | Payment processing, COD reconciliation, batch payout       |
 | Fulfillment     | `fulfillment-service` | Shipper assignment (Rule Engine), shipment tracking        |
 | Return & Refund | `return-service`      | Return flow, dispute resolution qua Temporal               |
@@ -131,7 +131,7 @@ Nghiệp vụ ở mức tối giản — độ phức tạp tập trung ở tầ
 | Batch payout cho seller                        | Payment + Scheduler                     | Outbox + batch job                                 |
 | Mua hàng limited offer dưới high concurrency   | Inventory + Promotion                   | Redis atomic + Kafka queue                         |
 | Race condition dùng voucher                    | Promotion                               | Redis atomic INCR                                  |
-| Lịch sử trạng thái đơn hàng                    | Order                                   | Event Sourcing                                     |
+| Lịch sử trạng thái đơn hàng                    | Order                                   | Kafka topic retention qua Outbox (CRUD — ADR-010)  |
 | Lịch sử di chuyển hàng hoá                     | Warehouse                               | Event Sourcing                                     |
 | Seller onboarding                              | Seller + Workflow                       | Temporal workflow                                  |
 | Hoàn hàng multi-step                           | Return & Refund + Workflow              | Temporal workflow                                  |

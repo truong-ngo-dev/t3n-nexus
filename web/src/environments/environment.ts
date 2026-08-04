@@ -1,4 +1,4 @@
-import { ApiConfig } from '@t3n/shared/data-access';
+  import { ApiConfig } from '@t3n/shared/data-access';
 
 // Mọi call đều qua api-gateway (entry point duy nhất — adr/009-mobile-gateway.md).
 // Prefix /web bị api-gateway strip trước khi forward xuống web-gateway.

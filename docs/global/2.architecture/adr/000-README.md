@@ -16,3 +16,5 @@ Format tên: `{number}-{slug}.md`
 | 007 | Frontend UI Design System                    | Accepted          |
 | 008 | Drop RabbitMQ — Kafka cho tất cả             | Accepted          |
 | 009 | Mobile Gateway — BFF riêng cho mobile client | Accepted          |
+| 010 | Order dùng CRUD, không Event Sourcing        | Accepted          |
+| 011 | DLQ theo consumer service, không theo topic  | Accepted          |

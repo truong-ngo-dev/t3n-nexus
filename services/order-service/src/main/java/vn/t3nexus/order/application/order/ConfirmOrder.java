@@ -18,6 +18,7 @@ public class ConfirmOrder implements CommandHandler<ConfirmOrder.Command, Confir
     public Result handle(Command command) {
         Order order = orderRepository.findById(OrderId.of(command.orderId()))
                 .orElseThrow(OrderException::notFound);
+        if (!order.canProcess()) return new Result(); // late/duplicate reply — already resolved, no-op
         order.confirm();
         orderRepository.save(order);
         return new Result();

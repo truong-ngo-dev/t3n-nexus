@@ -6,6 +6,7 @@ public enum OrderErrorCode implements ErrorCode {
 
     ORDER_NOT_FOUND("ORDER_NOT_FOUND", "Order not found", "error.order.not_found", 404),
     ORDER_EMPTY_ITEMS("ORDER_EMPTY_ITEMS", "Order must have at least one item", "error.order.empty_items", 422),
+    ORDER_MISSING_SHIPPING_ADDRESS("ORDER_MISSING_SHIPPING_ADDRESS", "Order must have a shipping address", "error.order.missing_shipping_address", 422),
     ORDER_INVALID_TRANSITION("ORDER_INVALID_TRANSITION", "Invalid order state transition", "error.order.invalid_transition", 422);
 
     private final String code;

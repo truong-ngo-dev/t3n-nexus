@@ -10,21 +10,25 @@ import vn.t3nexus.inventory.application.reservation.ReserveInventory;
 import vn.t3nexus.lib.events.EventEnvelopeDecoder;
 import vn.t3nexus.lib.events.EventEnvelopeMdcPropagator;
 import vn.t3nexus.lib.events.OutboxEventData;
-import vn.t3nexus.lib.idempotency.IdempotencyGuard;
 
-import java.time.Duration;
 import java.util.List;
 
+/**
+ * Idempotency: DB-based, không dùng Redis — cùng lý do đã áp dụng cho order-service
+ * (xem {@code payment-checkout/implementation.md} Phase 3): Redis {@code tryAcquire}/{@code release}
+ * có lỗ hổng thật nếu consumer crash giữa 2 bước đó (key rò rỉ, event bị nuốt mất khi Kafka redeliver).
+ * {@code ReserveInventory.handle()} tự idempotent qua {@code existsByOrderId()} (fast-path) +
+ * {@code UNIQUE(order_id)} + catch {@code DataIntegrityViolationException} (race thật) —
+ * {@code RecordReservationFailure.handle()} cùng cơ chế UNIQUE constraint. Không có "khoá" nào
+ * có thể rò rỉ.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OrderCreatedConsumer {
 
-    private static final Duration IDEMPOTENCY_TTL = Duration.ofDays(7);
-
     private final ObjectMapper objectMapper;
     private final EventEnvelopeDecoder decoder;
-    private final IdempotencyGuard idempotencyGuard;
     private final ReserveInventory reserveInventory;
     private final RecordReservationFailure recordReservationFailure;
 
@@ -35,13 +39,6 @@ public class OrderCreatedConsumer {
     public void consume(String message) {
         OutboxEventData event = objectMapper.readValue(message, OutboxEventData.class);
         EventEnvelopeMdcPropagator.propagate(event.payload());
-
-        String idempotencyKey = "inv:order-created:" + event.payload().eventId();
-        if (!idempotencyGuard.tryAcquire(idempotencyKey, IDEMPOTENCY_TTL)) {
-            log.info("[OrderCreatedConsumer] duplicate eventId={}, skipping", event.payload().eventId());
-            EventEnvelopeMdcPropagator.clear();
-            return;
-        }
 
         try {
             Payload payload = decoder.decode(event, Payload.class);
@@ -65,7 +62,6 @@ public class OrderCreatedConsumer {
                         e.getReason()));
             }
         } catch (Exception e) {
-            idempotencyGuard.release(idempotencyKey);
             log.error("[OrderCreatedConsumer] failed to process eventId={}", event.payload().eventId(), e);
             throw e;
         } finally {

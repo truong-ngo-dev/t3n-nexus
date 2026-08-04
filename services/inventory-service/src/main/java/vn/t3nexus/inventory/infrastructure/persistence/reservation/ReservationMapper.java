@@ -20,7 +20,6 @@ public final class ReservationMapper {
                 e.getOrderId(),
                 e.getStatus(),
                 items,
-                e.getExpiresAt(),
                 e.getCreatedAt(),
                 e.getUpdatedAt()
         );
@@ -31,7 +30,6 @@ public final class ReservationMapper {
         e.setId(reservation.getId().getValue());
         e.setOrderId(reservation.getOrderId());
         e.setStatus(reservation.getStatus());
-        e.setExpiresAt(reservation.getExpiresAt());
         e.setCreatedAt(reservation.getCreatedAt());
         e.setUpdatedAt(reservation.getUpdatedAt());
         return e;

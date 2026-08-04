@@ -1,73 +1,94 @@
 package vn.t3nexus.order.domain.order;
 
-import vn.t3nexus.lib.common.domain.model.DomainEvent;
-import vn.t3nexus.lib.common.domain.model.EventSourcedAggregateRoot;
+import vn.t3nexus.lib.common.domain.model.AbstractAggregateRoot;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
-public class Order extends EventSourcedAggregateRoot<OrderId> {
+public class Order extends AbstractAggregateRoot<OrderId> {
 
     private String customerId;
     private String sellerId;
     private List<OrderLineItem> items;
+    private PaymentMethod paymentMethod;
+    private ShippingAddress shippingAddress;
     private OrderStatus status;
-    private String cancelReason;
+    private OrderCancelReason cancelReason;
+    private Instant createdAt;
+    private Instant updatedAt;
 
-    public static Order create(OrderId id, String customerId, String sellerId, List<OrderLineItem> items) {
+    private Order() {}
+
+    public static Order create(OrderId id, String customerId, String sellerId, List<OrderLineItem> items,
+                               PaymentMethod paymentMethod, ShippingAddress shippingAddress) {
         if (items.isEmpty()) throw OrderException.emptyItems();
+        if (shippingAddress == null) throw OrderException.missingShippingAddress();
+        Instant now = Instant.now();
         Order order = new Order();
-        order.raise(new OrderCreatedEvent(id.getValue(), customerId, sellerId, items));
+        order.setId(id);
+        order.customerId = customerId;
+        order.sellerId = sellerId;
+        order.items = new ArrayList<>(items);
+        order.paymentMethod = paymentMethod;
+        order.shippingAddress = shippingAddress;
+        order.status = OrderStatus.CREATED;
+        order.createdAt = now;
+        order.updatedAt = now;
+        order.addDomainEvent(new OrderCreatedEvent(id.getValue(), customerId, sellerId, items, paymentMethod, shippingAddress));
         return order;
     }
 
-    /** Rehydrate từ event_store — history không được rỗng, caller (repository) tự lo trường hợp not-found. */
-    public static Order rehydrate(List<DomainEvent> history) {
+    /** Reconstitute từ persistence — dùng bởi repository, không fire event. */
+    public static Order reconstitute(OrderId id, String customerId, String sellerId, List<OrderLineItem> items,
+                                     PaymentMethod paymentMethod, ShippingAddress shippingAddress,
+                                     OrderStatus status, OrderCancelReason cancelReason,
+                                     Instant createdAt, Instant updatedAt) {
         Order order = new Order();
-        order.loadFromHistory(history);
+        order.setId(id);
+        order.customerId = customerId;
+        order.sellerId = sellerId;
+        order.items = new ArrayList<>(items);
+        order.paymentMethod = paymentMethod;
+        order.shippingAddress = shippingAddress;
+        order.status = status;
+        order.cancelReason = cancelReason;
+        order.createdAt = createdAt;
+        order.updatedAt = updatedAt;
         return order;
     }
 
     public void confirm() {
         if (status != OrderStatus.CREATED) throw OrderException.invalidTransition(status, "confirm");
-        raise(new OrderConfirmedEvent(getId().getValue()));
+        this.status = OrderStatus.CONFIRMED;
+        this.updatedAt = Instant.now();
+        addDomainEvent(new OrderConfirmedEvent(getId().getValue()));
     }
 
-    public void cancel(String reason) {
+    public void cancel(OrderCancelReason reason) {
         if (status == OrderStatus.CANCELLED) return; // idempotent no-op
         if (status != OrderStatus.CREATED) throw OrderException.invalidTransition(status, "cancel");
-        raise(new OrderCancelledEvent(getId().getValue(), reason));
+        this.status = OrderStatus.CANCELLED;
+        this.cancelReason = reason;
+        this.updatedAt = Instant.now();
+        addDomainEvent(new OrderCancelledEvent(getId().getValue(), reason));
     }
 
     /**
-     * State machine check dùng bởi Saga consumer sau này (InventoryReserved/InventoryReservationFailed...)
-     * để chặn late reply — event chỉ hợp lệ khi order còn đang CREATED (chưa confirm/cancel).
+     * State machine check dùng bởi Saga consumer (InventoryReserved/InventoryReservationFailed) để
+     * chặn late/duplicate reply — event chỉ hợp lệ khi order còn đang CREATED (chưa confirm/cancel).
      */
-    public boolean canProcess(Class<? extends DomainEvent> incoming) {
+    public boolean canProcess() {
         return status == OrderStatus.CREATED;
-    }
-
-    @Override
-    protected void apply(DomainEvent event) {
-        switch (event) {
-            case OrderCreatedEvent e -> {
-                setId(OrderId.of(e.getAggregateId()));
-                this.customerId = e.customerId();
-                this.sellerId = e.sellerId();
-                this.items = e.items();
-                this.status = OrderStatus.CREATED;
-            }
-            case OrderConfirmedEvent ignored -> this.status = OrderStatus.CONFIRMED;
-            case OrderCancelledEvent e -> {
-                this.status = OrderStatus.CANCELLED;
-                this.cancelReason = e.reason();
-            }
-            default -> throw new IllegalStateException("Unhandled event for Order: " + event.getClass());
-        }
     }
 
     public String getCustomerId() { return customerId; }
     public String getSellerId() { return sellerId; }
     public List<OrderLineItem> getItems() { return List.copyOf(items); }
+    public PaymentMethod getPaymentMethod() { return paymentMethod; }
+    public ShippingAddress getShippingAddress() { return shippingAddress; }
     public OrderStatus getStatus() { return status; }
-    public String getCancelReason() { return cancelReason; }
+    public OrderCancelReason getCancelReason() { return cancelReason; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }
