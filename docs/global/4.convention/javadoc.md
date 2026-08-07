@@ -4,7 +4,39 @@
 
 Document the **WHY and WHAT IS NON-OBVIOUS** — not what the code already says.
 Well-named identifiers are self-documenting. Javadoc that only restates the method name adds noise.
-Use `<br>` for break line
+
+---
+
+## HTML formatting cho doc nhiều đoạn
+
+Khi class-level doc có ≥2 ý tách biệt (VD "làm gì" + "xác thực/bảo mật ra sao"), tách thành nhiều
+`<p>` — mỗi `<p>` là 1 khối ý, render ra cách dòng rõ ràng trên IDE/generated HTML thay vì dồn thành
+1 đoạn dài khó đọc. `<br>` chỉ dùng để xuống dòng **trong cùng 1 ý** (không tách khối), không thay
+thế cho `<p>`.
+
+Trong mỗi `<p>`, dùng tag inline để tăng khả năng scan nhanh:
+- `<code>` — tên class/method/config key/giá trị literal (VD `<code>app.oauth2.internal-base-url</code>`)
+- `<b>` — từ khoá cần nhấn, đặc biệt phủ định (VD `<b>KHÔNG</b>` qua api-gateway)
+- `&mdash;` — dấu gạch ngang dài (—) trong prose, an toàn hơn ký tự Unicode thô khi build doc qua công cụ không handle UTF-8 nhất quán
+- `{@link}` — vẫn theo quy tắc ở mục Tags reference bên dưới, dùng được cả bên trong `<p>`
+
+```java
+/**
+ * <p>Back-channel session revoke sang <b>web-gateway</b> (<code>POST /webgw/internal/sessions/revoke</code>) &mdash;
+ * server-to-server, <b>KHÔNG</b> qua api-gateway (cùng lý do các call nội bộ khác trong service này, xem
+ * <code>app.oauth2.internal-base-url</code>).</p>
+ *
+ * <p>Xác thực bằng service-account JWT: mint token <b>MỚI</b> mỗi lần gọi qua OAuth2 <code>client_credentials</code> grant
+ * (client <code>"oauth2-service-internal"</code>, scope <code>"webgw.internal"</code>, seed ở migration <code>V10</code>) &mdash;
+ * xem {@link ClientCredentialsTokenClient} (<code>common-web</code>) cho phần mint token dùng chung. web-gateway
+ * verify token qua JWKS đã có sẵn (<code>spring.security.oauth2.resourceserver.jwt.jwk-set-uri</code>,
+ * web-gateway <code>SecurityConfiguration</code>).</p>
+ */
+```
+
+Chỉ áp dụng khi doc thực sự nhiều đoạn/nhiều ý — 1-2 câu ngắn (trường hợp phổ biến nhất theo bảng ở
+mục "Classes and Interfaces") thì không cần `<p>`, viết prose thường là đủ, thêm tag HTML vào sẽ chỉ
+gây rườm rà không cần thiết.
 
 ---
 
