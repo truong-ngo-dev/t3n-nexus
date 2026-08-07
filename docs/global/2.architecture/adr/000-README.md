@@ -18,3 +18,4 @@ Format tên: `{number}-{slug}.md`
 | 009 | Mobile Gateway — BFF riêng cho mobile client | Accepted          |
 | 010 | Order dùng CRUD, không Event Sourcing        | Accepted          |
 | 011 | DLQ theo consumer service, không theo topic  | Accepted          |
+| 012 | API Gateway — Entry point cho toàn hệ thống  | Accepted          |

@@ -18,7 +18,7 @@
 | `design/data/inventory-service.md`        | Tạo mới   | Tables: `reservations`, `outbox`                                                                             |
 | `design/data/payment-service.md`          | Tạo mới   | Tables: `payments`, `outbox`                                                                                 |
 | `design/data/fulfillment-service.md`      | Tạo mới   | Tables: `shipments`, `outbox`                                                                                |
-| `global/2.architecture/event-catalog.md`          | Cập nhật  | Thêm events của UC này vào đúng section                                                                      |
+| `global/2.architecture/event-catalog.md`  | Cập nhật  | Thêm events của UC này vào đúng section                                                                      |
 
 ---
 

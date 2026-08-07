@@ -28,7 +28,7 @@
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>common-domain</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
         <!-- Test -->
         <dependency>

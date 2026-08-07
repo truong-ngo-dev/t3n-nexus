@@ -44,6 +44,22 @@ public class UserAccountRepositoryAdapter implements UserAccountRepository {
     }
 
     @Override
+    public boolean createIfAbsent(UserAccount userAccount) {
+        int inserted = jpaRepository.insertIgnoreConflict(
+                userAccount.getId().getValue(),
+                userAccount.getEmail(),
+                userAccount.getPhoneNumber(),
+                userAccount.getFullName(),
+                userAccount.getAvatarUrl(),
+                userAccount.getStatus().name(),
+                userAccount.getLockedAt(),
+                userAccount.getCreatedAt(),
+                userAccount.getUpdatedAt()
+        );
+        return inserted > 0;
+    }
+
+    @Override
     public void delete(UserId id) {
         jpaRepository.deleteById(id.getValue());
     }

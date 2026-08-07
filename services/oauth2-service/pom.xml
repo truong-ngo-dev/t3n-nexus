@@ -94,27 +94,32 @@
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>common-domain</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>common-utils</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>outbox-starter</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>common-web</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>observability-starter</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>rate-limiter-starter</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- Redis -->

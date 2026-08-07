@@ -11,16 +11,18 @@ import java.util.List;
 public class RedisRateLimiter implements RateLimiter {
 
     /**
-     * Sliding window via sorted set.
+     * <p>Sliding window rate limiter implemented via Redis sorted set (ZSET).</p>
      *
-     * Steps (atomic — Lua runs single-threaded in Redis):
-     *   1. ZREMRANGEBYSCORE — evict entries outside the current window
-     *   2. ZCARD            — count remaining entries
-     *   3. If count < limit: ZADD + PEXPIRE → allow
-     *   4. Otherwise        → deny
-     *
-     * Member format "timestamp-rank" ensures uniqueness even when two requests
-     * arrive within the same millisecond (ZADD deduplicates on member, not score).
+     * <p><b>Steps (atomic &mdash; Lua runs single-threaded in Redis):</b></p>
+     * <ol>
+     *   <li><code>ZREMRANGEBYSCORE</code> &mdash; evict entries outside the current window</li>
+     *   <li><code>ZCARD</code> &mdash; count remaining entries</li>
+     *   <li>If <code>count &lt; limit</code>: <code>ZADD</code> + <code>PEXPIRE</code> &rarr; allow</li>
+     *   <li>Otherwise &rarr; deny</li>
+     * </ol>
+
+     * <p>Member format <code>"timestamp-rank"</code> ensures uniqueness even when two requests
+     * arrive within the same millisecond (<code>ZADD</code> deduplicates on member, not score).</p>
      */
     private static final DefaultRedisScript<Long> SCRIPT = new DefaultRedisScript<>("""
             local key          = KEYS[1]

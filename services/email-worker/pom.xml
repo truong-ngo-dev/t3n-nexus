@@ -50,7 +50,7 @@
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>observability-starter</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
         <!--
             idempotency-support: Redis-backed guard — check key before send, set after success.
@@ -59,12 +59,12 @@
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>idempotency-support</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>rate-limiter-starter</artifactId>
-            <version>1.0.0</version>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- Lombok -->

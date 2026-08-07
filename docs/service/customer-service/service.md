@@ -9,12 +9,12 @@
 
 ## Events Consumed
 
-| Event                | Topic                          | Action                              | Phase |
-|----------------------|--------------------------------|-------------------------------------|-------|
-| `CustomerRegistered` | `identity.customer.registered` | Tạo `CustomerProfile`               | 3     |
-| `OrderCompleted`     | `order.order.completed`        | Tạo EARN entry trong loyalty ledger | later |
-| `OrderCancelled`     | `order.order.cancelled`        | Tạo REFUND entry nếu điểm đã dùng   | later |
-| `OrderCreated`       | `order.order.created`          | Append vào order history read model | later |
+| Event                     | Topic                                | Action                               | Phase |
+|---------------------------|---------------------------------------|--------------------------------------|-------|
+| `CustomerAccountCreated`  | `identity.customer-account.created`   | Tạo `CustomerProfile`                | 3     |
+| `OrderCompleted`          | `order.order.completed`               | Tạo EARN entry trong loyalty ledger  | later |
+| `OrderCancelled`          | `order.order.cancelled`               | Tạo REFUND entry nếu điểm đã dùng    | later |
+| `OrderCreated`            | `order.order.created`                 | Append vào order history read model  | later |
 
 ## Events Published
 
@@ -28,8 +28,8 @@
 ## Business Rules
 
 ### CustomerProfile
-- Được tạo **async** sau khi nhận `identity.customer.registered` — buyer không chờ.
-- **Idempotency**: UNIQUE constraint trên `user_id` — consume cùng event 2 lần không tạo 2 profile (`ON CONFLICT DO NOTHING`).
+- Được tạo **async** sau khi nhận `identity.customer-account.created` — buyer không chờ.
+- **Idempotency**: UNIQUE constraint trên `user_id` — consume cùng event 2 lần không tạo 2 profile (`ON CONFLICT DO NOTHING`). DB-only có chủ đích, không Redis — miss ở đây vi phạm business invariant (2 profile/user), nguyên tắc chọn cơ chế xem `3.technical/idempotency-layering.md`.
 - Không có FK sang identity-service DB — DB isolation theo service boundary.
 
 ### Loyalty Points Ledger

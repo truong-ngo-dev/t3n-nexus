@@ -95,6 +95,7 @@ public class UserAccount extends AbstractAggregateRoot<UserId> implements Aggreg
         if (!isPending()) throw UserAccountException.invalidStatusTransition();
         this.status    = UserAccountStatus.ACTIVE;
         this.updatedAt = Instant.now();
+        addDomainEvent(new UserActivatedEvent(getId().getValue()));
     }
 
     public void lock() {

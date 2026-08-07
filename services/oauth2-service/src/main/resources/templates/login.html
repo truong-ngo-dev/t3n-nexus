@@ -17,6 +17,7 @@
             --outline:     #E0E0E0;
             --muted:       #757575;
             --error:       #D32F2F;
+            --info:        #1565C0;
             --r-button:    24px;
             --r-card:      8px;
             --r-input:     4px;
@@ -69,6 +70,29 @@
             border-radius: var(--r-input);
             padding: 12px 14px;
             margin-bottom: 20px;
+        }
+
+        .alert-info {
+            font-size: 14px;
+            color: var(--info);
+            background: #E8F1FC;
+            border: 1px solid #BBDEFB;
+            border-radius: var(--r-input);
+            padding: 12px 14px;
+            margin-bottom: 20px;
+        }
+
+        .alert-info button {
+            font: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--info);
+            background: none;
+            border: none;
+            padding: 0;
+            margin-left: 2px;
+            text-decoration: underline;
+            cursor: pointer;
         }
 
         .field { margin-bottom: 16px; }
@@ -166,6 +190,12 @@
     <div class="alert" th:if="${param.error}">Email hoặc mật khẩu không đúng.</div>
     <div class="alert" th:if="${param.locked}">Tài khoản đã bị khóa. Vui lòng liên hệ hỗ trợ.</div>
 
+    <div class="alert-info" th:if="${param.unverified}">
+        Tài khoản chưa được kích hoạt, vui lòng check email để kích hoạt.
+        Chưa nhận được email?
+        <button type="button" id="resend-verification-btn" th:attr="data-email=${email}">Bấm vào đây để gửi lại</button>
+    </div>
+
     <form th:action="@{/login}" method="post">
         <input type="hidden" name="_csrf" th:if="${_csrf}" th:value="${_csrf.token}"/>
         <input type="hidden" name="device_hash" id="device_hash"/>
@@ -246,6 +276,24 @@
         }
         window.location.href = target;
     });
+
+    // Gọi thẳng identity-service qua api-gateway (same-origin — trang này đang ở
+    // http://<gateway>/auth/login, path root-relative "/web/api/..." tự resolve về cùng gateway
+    // host, không cần CORS/bridge nào). Luôn im lặng quay lại /login dù thành công hay thất bại
+    // (rate limit, email không tồn tại...) — tránh lộ thông tin account.
+    const resendBtn = document.getElementById('resend-verification-btn');
+    if (resendBtn) {
+        resendBtn.addEventListener('click', function () {
+            resendBtn.disabled = true;
+            fetch('/web/api/identity/users/resend-verification', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: resendBtn.dataset.email})
+            }).finally(function () {
+                window.location.href = window.location.pathname;
+            });
+        });
+    }
 </script>
 </body>
 </html>

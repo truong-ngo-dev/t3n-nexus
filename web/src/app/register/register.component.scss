@@ -1,0 +1,233 @@
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.logo {
+  align-self: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #0d0d0d;
+  text-decoration: none;
+  margin-bottom: 32px;
+}
+
+.auth-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #0d0d0d;
+  text-align: center;
+  margin: 0 0 8px;
+}
+
+.auth-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #757575;
+  text-align: center;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fdecea;
+  border: 1px solid #d32f2f;
+  border-radius: 4px;
+  padding: 10px 14px;
+  margin-bottom: 20px;
+
+  mat-icon {
+    color: #d32f2f;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  span {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #d32f2f;
+  }
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+
+  label {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #757575;
+    margin-left: 2px;
+  }
+
+  mat-form-field {
+    width: 100%;
+
+    ::ng-deep {
+      .mat-mdc-text-field-wrapper {
+        background-color: #ffffff !important;
+        padding: 0 16px !important;
+        height: 48px !important;
+      }
+      .mat-mdc-form-field-flex {
+        height: 100% !important;
+        align-items: center !important;
+      }
+      .mdc-notched-outline__notch {
+        display: none;
+      }
+      .mat-mdc-form-field-infix {
+        padding: 0 !important;
+        min-height: unset !important;
+        height: 100% !important;
+        display: flex;
+        align-items: center;
+      }
+      .mat-mdc-form-field-suffix {
+        display: flex;
+        align-items: center;
+        padding-left: 8px;
+
+        .mat-mdc-icon-button {
+          width: 32px !important;
+          height: 32px !important;
+          padding: 4px !important;
+
+          .mat-icon {
+            font-size: 20px !important;
+            width: 20px !important;
+            height: 20px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+        }
+      }
+      input {
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        color: #0d0d0d;
+        font-weight: 500;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+      }
+      .mdc-notched-outline > * {
+        border-color: #e0e0e0 !important;
+      }
+      .mat-mdc-form-field-focus-indicator {
+        display: none;
+      }
+    }
+
+    &.mat-focused ::ng-deep {
+      .mdc-notched-outline > * {
+        border-color: #0d0d0d !important;
+        border-width: 1px !important;
+      }
+    }
+  }
+}
+
+.error-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #d32f2f;
+  margin-top: -4px;
+  display: block;
+}
+
+.submit-btn {
+  border-radius: 24px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 32px;
+  height: 48px;
+  width: 100%;
+  background-color: #0d0d0d;
+  color: #ffffff;
+  margin-top: 8px;
+
+  &:disabled {
+    background-color: #e0e0e0;
+    color: #757575;
+  }
+
+  mat-spinner {
+    margin-right: 8px;
+    ::ng-deep circle { stroke: #ffffff; }
+  }
+}
+
+.auth-switch {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #757575;
+  text-align: center;
+  margin: 20px 0 0;
+
+  a {
+    color: #0d0d0d;
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.success-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+
+  .success-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    color: #0d0d0d;
+    margin-bottom: 16px;
+  }
+
+  .submit-btn {
+    margin-top: 24px;
+  }
+}

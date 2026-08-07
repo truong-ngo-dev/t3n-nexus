@@ -27,7 +27,12 @@ public class LoginActivityRepositoryAdapter implements LoginActivityRepository {
 
     @Override
     public void save(LoginActivity activity) {
-        jpaRepository.insert(
+        tryRecord(activity);
+    }
+
+    @Override
+    public boolean tryRecord(LoginActivity activity) {
+        int rows = jpaRepository.insert(
                 activity.getId().getValueAsString(),
                 activity.getUserId().getValueAsString(),
                 activity.getUsername(),
@@ -40,6 +45,7 @@ public class LoginActivityRepositoryAdapter implements LoginActivityRepository {
                 activity.getProvider().name(),
                 activity.getCreatedAt()
         );
+        return rows > 0;
     }
 
     @Override

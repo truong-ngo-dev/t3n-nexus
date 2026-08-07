@@ -31,13 +31,13 @@
 
     <div class="btn-wrap">
       <a class="btn"
-         th:href="|${baseUrl}/verify?token=${#uris.escapeQueryParam(verificationToken)}|"
+         th:href="|${apiBaseUrl}/verify?token=${#uris.escapeQueryParam(verificationToken)}|"
          href="#">Xác nhận email</a>
     </div>
 
     <p>Link có hiệu lực trong <strong>24 giờ</strong>. Nếu nút không hoạt động, sao chép đường dẫn sau vào trình duyệt:</p>
     <p class="link-fallback"
-       th:text="|${baseUrl}/verify?token=${#uris.escapeQueryParam(verificationToken)}|">
+       th:text="|${apiBaseUrl}/verify?token=${#uris.escapeQueryParam(verificationToken)}|">
       http://localhost:3000/verify?token=...
     </p>
 

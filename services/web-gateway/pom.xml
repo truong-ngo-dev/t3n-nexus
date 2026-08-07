@@ -45,7 +45,7 @@
 		<dependency>
 			<groupId>vn.t3nexus</groupId>
 			<artifactId>reactive-rate-limiter-starter</artifactId>
-			<version>1.0.0</version>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>

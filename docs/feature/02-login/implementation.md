@@ -2,17 +2,18 @@
 
 **Framework reference**: [`spring-security-login-mfa-bff.md`](../../global/3.technical/spring-security-login-mfa-bff.md)  
 **Domain design**: [`design.md`](design.md)  
-**Session components**: [`session-management.md`](session-management.md)
+**Session components**: [`service/oauth2-service/session.md`](../../service/oauth2-service/session.md)
 
 > Chi tiết implement login flow, MFA, và session establishment trong `oauth2-service`.  
-> Framework-level → file reference trên. Logout implementation → [`logout-impl.md`](logout-impl.md).
+> Framework-level → file reference trên. Logout implementation → [`03-logout/logout-impl.md`](../03-logout/implementation).
 
 ---
 
 ## Hook Points
 
 | Hook       | Class                                                | Fire khi                                                                                                            |
-|------------|------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+|------------|--------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| **Hook 0** | `LoginRateLimitFilter`                               | Trước `UsernamePasswordAuthenticationFilter` — chỉ scope đúng `POST /login`, chặn brute-force password             |
 | **Hook 1** | `DeviceAwareAuthenticationSuccessHandler`            | Sau khi `UsernamePasswordAuthenticationFilter` (LOCAL) hoặc `OAuth2LoginAuthenticationFilter` (GOOGLE) thành công   |
 | **Hook 2** | `SessionEstablishingAuthorizationService.save()`     | Mỗi lần Spring AS gọi `OAuth2AuthorizationService.save()` — wraps `JdbcOAuth2AuthorizationService`                  |
 | **Hook 3** | `oidcLogoutHandler` (explicit) / session cleanup job | Logout: gọi explicit sau `session.invalidate()`. Expire: scheduled job (deferred). Không có session event listener. |
@@ -20,9 +21,33 @@
 Hook 2 có 2 phase bên trong, được guard bằng condition riêng:
 
 | Phase         | Condition                                        | Mục đích                                                                                                              |
-|---------------|--------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+|---------------|----------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | **Phase 1.5** | `hasCode && !hasToken && oauthSessionId == null` | Bridge device signals từ browser context (HTTP session) vào `OAuth2Authorization.attributes` trước khi token exchange |
 | **Phase 2**   | `hasToken && email != null`                      | Gọi `EstablishSession` sau khi token được issue                                                                       |
+
+---
+
+## 0. `LoginRateLimitFilter`
+
+**Class**: `infrastructure/security/LoginRateLimitFilter`
+
+`OncePerRequestFilter` đặt trước `UsernamePasswordAuthenticationFilter` trong `defaultSecurityFilterChain` (`SecurityConfiguration`). Chỉ can thiệp đúng `POST /login`:
+
+```
+doFilterInternal(request, response, chain):
+  if method == POST && servletPath == "/login":
+    username = request.getParameter("username")
+    if !rateLimiter.tryAcquire("login_attempt:" + username, 10, Duration.ofMinutes(15)):
+      redirect "/login?locked"
+      return
+  chain.doFilter(request, response)
+```
+
+Chặn **trước** khi request chạm `UsernamePasswordAuthenticationFilter` — vượt limit thì không tốn cả BCrypt compare lẫn DB lookup. Tính cả lần login đúng lẫn sai vào cùng quota (filter không biết kết quả auth, chỉ biết có request POST /login) — chấp nhận được vì 10 lần/15 phút hiếm khi chạm bởi user hợp lệ.
+
+**Vì sao không đặt trong `OAuth2UserDetailsService.loadUserByUsername()`** (đã cân nhắc, bỏ): method đó bị OTT authentication provider gọi lại sau khi verify OTP đúng (xem mục 2) — đặt rate-limit ở đó sẽ tính trùng quota cho 1 lần login MFA, và áp nhầm lên bất kỳ caller nào khác gọi method này vì lý do không phải login. Filter riêng scope chính xác vào `POST /login`, tách biệt hoàn toàn khỏi lookup logic dùng chung.
+
+**Vì sao không dùng `@RateLimit` annotation** (như `RegisterUser`): annotation đó chỉ pointcut vào `CommandHandler.handle()` — không chạm được filter/SPI method của Spring Security. Ném `RateLimitExceededException` map sẵn 429 qua REST exception handler cũng không khớp semantics ở đây (login flow kỳ vọng redirect, không phải JSON response).
 
 ---
 
@@ -61,7 +86,7 @@ loadUser(userRequest)
 **Class**: `infrastructure/security/service/UserCredentialDetails`
 
 | Field           | Giá trị                                    | Mục đích                               |
-|-----------------|--------------------------------------------|----------------------------------------|
+|------------------|----------------------------------------------|-------------------------------------------|
 | `getUsername()` | `userId` (ULID)                            | JWT `sub` claim — principal identifier |
 | `email`         | `UserCredential.email`                     | OTP delivery target, session attribute |
 | `mfaEnabled`    | `UserCredential.mfaEnabled` (denormalized) | `MfaEnforcementFilter` gate            |
@@ -69,6 +94,8 @@ loadUser(userRequest)
 **Construct bởi**: `OAuth2UserDetailsService.loadUserByUsername(email)` — tìm `UserCredential` theo email, map sang `UserCredentialDetails`. Password = `""` cho OAuth user — không được verify trong OTT flow (OTT auth không check password).
 
 **Context sau OTT auth**: Sau khi OTT verify thành công, principal chuyển từ `OidcUser`/`UserCredentialDetails` sang `UserCredentialDetails` mới do `OAuth2UserDetailsService.loadUserByUsername()` được gọi lại với email từ OTT token.
+
+**Không đặt rate-limit trong `loadUserByUsername()`** dù có vẻ tiện (đã cân nhắc rồi bỏ) — method này bị OTT authentication provider gọi lại sau khi verify OTP đúng (dòng trên), nên rate-limit ở đây sẽ tính trùng quota cho 1 lần login MFA (2 lần gọi = 2 quota cho đúng 1 lần login), và áp nhầm lên bất kỳ caller nào khác gọi `loadUserByUsername()` trong tương lai vì lý do không phải login. Rate-limit brute-force password đặt riêng ở `LoginRateLimitFilter` (mục 0 trong Hook Points) — chỉ scope đúng `POST /login`, không đụng gì tới lookup logic ở đây.
 
 ---
 
@@ -91,7 +118,7 @@ Xóa attribute này ngay trong success handler để tránh stale data.
 Phase 1 trong device tracking — capture device signals, lưu vào HTTP session để `SessionEstablishingAuthorizationService` dùng ở Phase 1.5.
 
 | Session attribute      | LOCAL path                                                | GOOGLE path                            |
-|------------------------|-----------------------------------------------------------|----------------------------------------|
+|--------------------------|--------------------------------------------------------------|-------------------------------------------|
 | `auth_email`           | `request.getParameter("username")`                        | `OidcUser.getEmail()`                  |
 | `auth_device_hash`     | `DeviceAwareWebAuthenticationDetails.getDeviceHash()`     | `session["pre_auth_device_hash"]`      |
 | `auth_user_agent`      | `DeviceAwareWebAuthenticationDetails.getUserAgent()`      | `request.getHeader("User-Agent")`      |
@@ -112,12 +139,14 @@ Sau khi set session attributes → `super.onAuthenticationSuccess()` → redirec
 Per-user MFA gate đặt trước `AuthorizationFilter` trong AS filter chain (Order 1).
 
 | Principal type          | Check                                  | Redirect nếu cần MFA                             |
-|-------------------------|----------------------------------------|--------------------------------------------------|
+|----------------------------|-------------------------------------------|--------------------------------------------------------|
 | `UserCredentialDetails` | `userDetails.isMfaEnabled()`           | `true` và không có `FACTOR_OTT` → `/mfa`         |
 | `OidcUser`              | `oidcUser.getClaim("app_mfa_enabled")` | `Boolean.TRUE` và không có `FACTOR_OTT` → `/mfa` |
 | Khác                    | —                                      | pass through                                     |
 
 Trước khi redirect: `requestCache.saveRequest()` → lưu `/oauth2/authorize?...` để restore sau OTT auth.
+
+> **Cơ chế grant `FACTOR_OTT`**: đây là built-in behavior của Spring Security 7, không phải code tự viết. `OneTimeTokenAuthenticationProvider` tự động cộng `FactorGrantedAuthority` (`FACTOR_OTT`) vào `Authentication` ngay khi `consume()` (mục 6) thành công — tích luỹ thêm vào authorities hiện có (không replace `Authentication` cũ), đúng cơ chế "progressive factor" của Spring Security 7 MFA support. `@EnableMultiFactorAuthentication` (còn TODO trong `SecurityConfiguration.java`) chỉ cần nếu muốn Spring tự enforce qua authorization rule — không cần cho việc grant, vì `MfaEnforcementFilter` đã tự enforce thủ công rồi. TODO comment đó nên dọn vì gây hiểu nhầm (đã verify qua docs.spring.io/spring-security/reference/servlet/authentication/mfa.html).
 
 ---
 
@@ -128,12 +157,12 @@ Trước khi redirect: `requestCache.saveRequest()` → lưu `/oauth2/authorize?
 Session-based OTP storage. Ba session keys:
 
 | Key                | Giá trị                                                    |
-|--------------------|------------------------------------------------------------|
+|-----------------------|---------------------------------------------------------------|
 | `mfa_otp`          | 6 chữ số, `SecureRandom.nextInt(1_000_000)`, format `%06d` |
 | `mfa_otp_username` | email của user (OTT username = email)                      |
 | `mfa_otp_expiry`   | `Instant.now().plusSeconds(300).getEpochSecond()`          |
 
-**`consume()`**: Không xóa OTP khi nhập sai — chỉ `invalidate()` khi OTP đúng. Brute-force protection thuộc rate-limiter layer.
+**`consume()`**: Không tự xóa OTP khi nhập sai, nhưng bị chặn bởi rate limit: `rateLimiter.tryAcquire("mfa_otp_verify:" + username, 5, Duration.ofMinutes(5))` — kiểm tra **sau** bước check expiry, **trước** bước so khớp giá trị OTP. Vượt 5 lần thử/5 phút (đúng bằng TTL của 1 OTP) → `invalidate(session)` (buộc phải request OTP mới qua link "Gửi lại OTP") + ném `BadCredentialsException`. Giới hạn 5 lần thay vì để mở tự do — trước đó OTP 6 số (1,000,000 khả năng) không có giới hạn số lần thử nào ngoài filter gateway chung (300/60s), cho phép tới ~1,500 lần đoán/1 cửa sổ OTP.
 
 **`hasActiveToken(email)`**: Guard cho `MfaBridgeController` — trả về `true` nếu session đã có OTP còn hạn và đúng username. Dùng để tránh gửi email OTP trùng khi user mở nhiều tab.
 
@@ -185,7 +214,7 @@ Resolve `oauth_session_id`:
 Copy device signals từ HTTP session vào `OAuth2Authorization.attributes`:
 
 | Attribute              | Nguồn                                  |
-|------------------------|----------------------------------------|
+|--------------------------|-------------------------------------------|
 | `oauth_session_id`     | Resolved hoặc new ULID                 |
 | `auth_idp_session_id`  | `session.getId()` (SPRING_SESSION key) |
 | `auth_email`           | `session["auth_email"]`                |
@@ -235,11 +264,11 @@ Thêm claims vào JWT token:
 web-gateway lưu hai chiều mapping giữa Spring Session ([A]) và `OAuthSession` ([F]) bằng `oss_id` từ JWT:
 
 | Key                             | Value           | TTL       | Mục đích                                            |
-|---------------------------------|-----------------|-----------|-----------------------------------------------------|
+|-----------------------------------|-------------------|-------------|--------------------------------------------------------|
 | `webgw:oauth:{oss_id}`          | `wg-session-id` | Fixed 24h | Tra ngược Spring Session từ `oss_id` khi logout     |
 | `webgw:session:{wg-session-id}` | `oss_id`        | Fixed 24h | Tra ngược `oss_id` từ Spring Session để DEL cặp key |
 
-Mapping được tạo bởi `SessionMappingAuthenticationSuccessHandler` sau khi code exchange thành công tại web-gateway. Cleanup khi logout → [`logout-impl.md`](logout-impl.md).
+Mapping được tạo bởi `SessionMappingAuthenticationSuccessHandler` sau khi code exchange thành công tại web-gateway. Cleanup khi logout → [`03-logout/logout-impl.md`](../03-logout/implementation).
 
 ---
 
@@ -256,7 +285,8 @@ Mapping được tạo bởi `SessionMappingAuthenticationSuccessHandler` sau kh
 
   → MFA: OTT flow qua MfaBridgeController (nếu mfaEnabled = true)
     → OneTimeTokenService.generate(email) → session[mfa_otp] TTL 5 phút
-    → user submit OTT → consume() atomic → SecurityContext { PASSWORD_AUTHORITY, OTT_AUTHORITY }
+    → user submit OTT → consume() atomic → Spring tự grant FACTOR_OTT (xem mục 5)
+    → SecurityContext { FACTOR_PASSWORD (hoặc FACTOR_X509/OIDC tương đương), FACTOR_OTT }
 
 [Session fixation] as-sid-2 → as-sid-3  (sau OTT auth)
 
@@ -356,7 +386,7 @@ oss_id trong JWT giữ nguyên → web-gateway mapping [A1][A2] vẫn valid.
 `EstablishSession.handle()` là điểm phân kỳ trong Phase 2, quyết định action dựa trên state:
 
 | Trạng thái      | Điều kiện                                            | Kết quả                                             |
-|-----------------|------------------------------------------------------|-----------------------------------------------------|
+|-------------------|---------------------------------------------------------|---------------------------------------------------------|
 | **Refresh**     | `findById(ossId)` → found + `oldAuthId == newAuthId` | Early return — no-op hoàn toàn                      |
 | **Silent SSO**  | `findById(ossId)` → found + `oldAuthId != newAuthId` | Xóa old auth + `onTokenRotated()` + upsert          |
 | **Fresh login** | `findById(ossId)` → not found                        | Gọi `IssueSession` → tạo mới + `SessionIssuedEvent` |
@@ -377,21 +407,21 @@ Khi as-sid-1 và as-sid-2 bị xóa do session fixation → không có `OAuthSes
 ## Hook fire matrix
 
 | Hook / Phase                  | Fresh Login |  Refresh  | Silent SSO | Logout | Session Expire |
-|-------------------------------|:-----------:|:---------:|:----------:|:------:|:--------------:|
+|----------------------------------|:-------------:|:-----------:|:------------:|:--------:|:-----------------:|
 | Hook 1 — `AuthSuccessHandler` |      ✅      |     —     |     —      |   —    |       —        |
 | Hook 2 — Phase 1.5            |      ✅      |     —     |     ✅      |   —    |       —        |
 | Hook 2 — Phase 2              |      ✅      | ✅ (no-op) |     ✅      |   —    |       —        |
 | Hook 3 — explicit logout      |      —      |     —     |     —      |   ✅    |       —        |
 | Hook 3 — cleanup job          |      —      |     —     |     —      |   —    |  ✅ (deferred)  |
 
-Kịch bản 4 (Logout) và 5 (Session Expire) → [`logout-impl.md`](logout-impl.md).
+Kịch bản 4 (Logout) và 5 (Session Expire) → [`03-logout/logout-impl.md`](../03-logout/implementation).
 
 ---
 
 ## Session attributes — lifecycle
 
 | Attribute              | Set bởi                                   | Xóa khi                                                   | Mục đích                             |
-|------------------------|-------------------------------------------|-----------------------------------------------------------|--------------------------------------|
+|---------------------------|----------------------------------------------|----------------------------------------------------------------|------------------------------------------|
 | `pre_auth_device_hash` | `DeviceAwareAuthorizationRequestResolver` | `DeviceAwareAuthenticationSuccessHandler` (ngay sau copy) | Carry deviceHash qua Google redirect |
 | `auth_email`           | `DeviceAwareAuthenticationSuccessHandler` | Session expire                                            | OTP delivery, Phase 1.5 bridge       |
 | `auth_device_hash`     | `DeviceAwareAuthenticationSuccessHandler` | Session expire                                            | Device tracking                      |
@@ -408,7 +438,7 @@ Kịch bản 4 (Logout) và 5 (Session Expire) → [`logout-impl.md`](logout-imp
 ## Domain Events published by oauth2-service (login path)
 
 | Event class              | Kafka topic                  | Published khi                                            | Consumer                                            |
-|--------------------------|------------------------------|----------------------------------------------------------|-----------------------------------------------------|
+|------------------------------|---------------------------------|---------------------------------------------------------------|-----------------------------------------------------------|
 | `UserRegisteredEvent`    | `oauth2.user.registered`     | `ResolveSocialUser` — new OAuth account                  | identity-service: tạo `UserAccount` (status=ACTIVE) |
 | `LoginOtpRequestedEvent` | `oauth2.login.otp.requested` | `SendLoginOtp` — OTP generated                           | notification-service: gửi OTP email                 |
 | `SessionIssuedEvent`     | `oauth2.session.issued`      | `EstablishSession` — fresh login (không phải silent SSO) | identity-service: record `DeviceLoginRecorded`      |

@@ -31,8 +31,4 @@ public class UserAccountException extends DomainException {
     public static UserAccountException resendNotAllowed() {
         return new UserAccountException(UserAccountErrorCode.RESEND_NOT_ALLOWED);
     }
-
-    public static UserAccountException rateLimitExceeded() {
-        return new UserAccountException(UserAccountErrorCode.RATE_LIMIT_EXCEEDED);
-    }
 }

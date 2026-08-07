@@ -12,10 +12,12 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriUtils;
 import vn.t3nexus.oauth2.application.user_credential.publish_login_failed.PublishLoginFailed;
 import vn.t3nexus.oauth2.infrastructure.cross_cutting.utils.IpAddressExtractor;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Component
@@ -36,7 +38,7 @@ public class DeviceAwareAuthenticationFailureHandler implements AuthenticationFa
 
         // User không tồn tại — không record, tránh noise từ brute-force trên account lạ
         if (exception instanceof BadCredentialsException && exception.getCause() instanceof UsernameNotFoundException) {
-            response.sendRedirect("/login?error");
+            response.sendRedirect(request.getContextPath() + "/login?error");
             return;
         }
 
@@ -44,16 +46,28 @@ public class DeviceAwareAuthenticationFailureHandler implements AuthenticationFa
 
         publishLoginFailed.publish(username, resolveResult(exception), deviceHash, acceptLanguage, ipAddress, userAgent, "LOCAL");
 
-        if (exception instanceof LockedException || exception instanceof DisabledException) {
-            response.sendRedirect("/login?locked");
+        // LockedException (accountNonLocked=false, bị khóa thật) và DisabledException (enabled=false,
+        // UserCredential.status=PENDING — chưa verify email) là 2 exception TÁCH SẴN bởi Spring
+        // Security (OAuth2UserDetailsService.mapToUserDetails() map đúng 2 field khác nhau) — trước
+        // đây bị gộp chung "?locked" khiến user chưa verify thấy nhầm "tài khoản bị khóa, liên hệ hỗ
+        // trợ" trong khi chỉ cần tự bấm link email. Tách riêng "?unverified" kèm email để trang login
+        // hiện nút gửi lại — nút gọi thẳng identity-service qua gateway bằng JS (login.html), không
+        // qua backend nào của oauth2-service (xem docs/feature/02-login).
+        if (exception instanceof LockedException) {
+            response.sendRedirect(request.getContextPath() + "/login?locked");
+        } else if (exception instanceof DisabledException) {
+            response.sendRedirect(request.getContextPath() + "/login?unverified&email=" + UriUtils.encode(username, StandardCharsets.UTF_8));
         } else {
-            response.sendRedirect("/login?error");
+            response.sendRedirect(request.getContextPath() + "/login?error");
         }
     }
 
     private String resolveResult(AuthenticationException exception) {
-        if (exception instanceof LockedException || exception instanceof DisabledException) {
+        if (exception instanceof LockedException) {
             return "ACCOUNT_LOCKED";
+        }
+        if (exception instanceof DisabledException) {
+            return "EMAIL_NOT_VERIFIED";
         }
         return "WRONG_PASSWORD";
     }

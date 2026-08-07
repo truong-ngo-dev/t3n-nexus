@@ -25,7 +25,7 @@ public interface LoginActivityJpaRepository extends JpaRepository<LoginActivityJ
             )
             ON CONFLICT (session_id) WHERE session_id IS NOT NULL DO NOTHING
             """)
-    void insert(
+    int insert(
             @Param("id")            String id,
             @Param("userId")        String userId,
             @Param("username")      String username,

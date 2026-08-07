@@ -38,4 +38,23 @@ public interface EmailVerificationJpaRepository extends JpaRepository<EmailVerif
             @Param("verifiedAt")     Instant verifiedAt,
             @Param("createdAt")      Instant createdAt
     );
+
+    // Conflict target là user_id (uq_email_verifications_user_id), KHÔNG phải id — id là ULID mới
+    // sinh mỗi lần gọi nên không tự dedupe được; user_id mới là business key cần idempotent ở đây.
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            INSERT INTO email_verifications (id, user_id, email, token, expires_at, status, verified_at, created_at)
+            VALUES (:verificationId, :userId, :email, :token, :expiresAt, :status, :verifiedAt, :createdAt)
+            ON CONFLICT (user_id) DO NOTHING
+            """)
+    int insertIgnoreConflict(
+            @Param("verificationId") String verificationId,
+            @Param("userId")         String userId,
+            @Param("email")          String email,
+            @Param("token")          String token,
+            @Param("expiresAt")      Instant expiresAt,
+            @Param("status")         String status,
+            @Param("verifiedAt")     Instant verifiedAt,
+            @Param("createdAt")      Instant createdAt
+    );
 }

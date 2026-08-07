@@ -37,4 +37,24 @@ public interface UserAccountJpaRepository extends JpaRepository<UserAccountJpaEn
             @Param("createdAt")   Instant createdAt,
             @Param("updatedAt")   Instant updatedAt
     );
+
+    // Conflict target là id (userId, deterministic từ event) — ai đến trước thắng, bản thua bị bỏ
+    // hoàn toàn (không merge) vì đây là path TẠO MỚI, không phải update.
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            INSERT INTO users (id, email, phone_number, full_name, avatar_url, status, locked_at, created_at, updated_at)
+            VALUES (:id, :email, :phoneNumber, :fullName, :avatarUrl, :status, :lockedAt, :createdAt, :updatedAt)
+            ON CONFLICT (id) DO NOTHING
+            """)
+    int insertIgnoreConflict(
+            @Param("id")          String id,
+            @Param("email")       String email,
+            @Param("phoneNumber") String phoneNumber,
+            @Param("fullName")    String fullName,
+            @Param("avatarUrl")   String avatarUrl,
+            @Param("status")      String status,
+            @Param("lockedAt")    Instant lockedAt,
+            @Param("createdAt")   Instant createdAt,
+            @Param("updatedAt")   Instant updatedAt
+    );
 }

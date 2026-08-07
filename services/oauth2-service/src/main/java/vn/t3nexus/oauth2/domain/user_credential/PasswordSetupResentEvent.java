@@ -26,7 +26,7 @@ public class PasswordSetupResentEvent extends AbstractDomainEvent implements Dom
 
     @Override
     public String getRoutingKey() {
-        return "hoahóa";
+        return "oauth2.credential.password-setup-resent";
     }
 
     @Override

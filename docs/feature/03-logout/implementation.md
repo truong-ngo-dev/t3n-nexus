@@ -2,10 +2,10 @@
 
 **Framework reference**: [`spring-security-logout-bff.md`](../../global/3.technical/spring-security-logout-bff.md)  
 **Domain design**: [`design.md`](design.md)  
-**Session components**: [`session-management.md`](session-management.md)
+**Session components**: [`service/oauth2-service/session.md`](../../service/oauth2-service/session.md)
 
 > File này mô tả **project-specific implementation** của từng customization point trong logout flow.  
-> Framework-level → file reference trên. Session lifecycle chung → `session-management.md`.
+> Framework-level → file reference trên. Session lifecycle chung → `service/oauth2-service/session.md`. Login implementation → [`02-login/login-impl.md`](../02-login/implementation).
 
 ---
 
@@ -60,7 +60,7 @@ EndIdpSession.handle(Command):
   return Result(ossIds)
 ```
 
-**Invariant**: 1 IDP session + 1 client → 1 OAuthSession active (xem `session-management.md` mục 3).  
+**Invariant**: 1 IDP session + 1 client → 1 OAuthSession active (xem `service/oauth2-service/session.md` mục 3).  
 Trong thực tế, `sessions` thường có đúng 1 phần tử. Vòng lặp là defensive cho tính đúng đắn.
 
 **Event**: `SessionRevokedEvent` mang `oauthSessionIds` là **list** — 1 event cover toàn bộ sessions của IDP session đó, không phát riêng per-session.
@@ -70,19 +70,36 @@ Trong thực tế, `sessions` thường có đúng 1 phần tử. Vòng lặp l�
 ## 3. `WebGatewayRevocationClient` (oauth2-service)
 
 **Class**: `infrastructure/adapter/http/WebGatewayRevocationClient`  
-**Config**: `app.webgateway.base-url`
+**Config**: `app.webgateway.base-url`, `app.oauth2.internal-base-url`, `app.internal-client.client-id`, `app.internal-client.client-secret`
+
+`POST /webgw/internal/sessions/revoke` yêu cầu JWT service-account (`SCOPE_webgw.internal`) —
+`web-gateway` `SecurityConfiguration.internalFilterChain()` verify qua JWKS
+(`spring.security.oauth2.resourceserver.jwt.jwk-set-uri`), không còn `permitAll()`.
 
 ```text
+// 1. Mint token MỚI mỗi lần gọi — client_credentials grant, KHÔNG cache (tần suất logout thấp,
+//    không đáng đánh đổi thêm state). Xem ClientCredentialsTokenClient (common-web).
+token = clientCredentialsTokenClient.fetchToken("webgw.internal")
+    // POST {app.oauth2.internal-base-url}/oauth2/token
+    // Basic Auth: client "oauth2-service-internal" (client_id/secret, seed ở migration V10)
+
+// 2. Gọi revoke kèm Bearer token
 restClient.post()
     .uri("/webgw/internal/sessions/revoke")
+    .headers(h -> h.setBearerAuth(token))
     .contentType(MediaType.APPLICATION_JSON)
     .body(Map.of("ossId", ossId))
     .retrieve()
     .toBodilessEntity();
 ```
 
-Dùng `RestClient` (blocking) — gọi đồng bộ trong request thread của logout.  
-Exception bị swallow với `log.warn` — failure không làm abort logout flow. Redis TTL 24h là fallback nếu back-channel fail.
+Dùng `RestClient` (blocking) — gọi đồng bộ trong request thread của logout, có set connect
+timeout 3s / read timeout 8s (`SimpleClientHttpRequestFactory`) — bounded, tránh giữ thread logout
+vô thời hạn nếu `web-gateway` treo/chậm.
+
+Exception (bao gồm timeout, mint token fail) bị swallow với `log.warn` — failure không làm abort
+logout flow. Redis TTL 24h là fallback nếu back-channel fail. Không phân biệt xử lý theo loại lỗi —
+mọi failure ở bước này đều rơi vào cùng 1 nhánh "best-effort, đã có TTL fallback".
 
 ---
 
@@ -207,7 +224,7 @@ Không đi qua aggregate lifecycle (`OAuthSession.expire()`) vì đây là bulk 
 
 ## 9. Session cleanup job — chưa implement
 
-**Deferred**: xem [`deferred.md`](deferred.md) mục 6.
+**Deferred**: xem [`deferred.md`](deferred.md) mục 1.
 
 Job cần implement đầy đủ:
 
@@ -232,7 +249,7 @@ Lưu ý: `revoke(ossId)` per-session sau bulk delete là sequential HTTP calls. 
 ## Domain Events
 
 | Event                      | Kafka topic                   | Published khi                                      | Fields                                             |
-|----------------------------|-------------------------------|----------------------------------------------------|----------------------------------------------------|
+|-------------------------------|---------------------------------|----------------------------------------------------|-------------------------------------------------------|
 | `SessionRevokedEvent`      | `oauth2.session.revoked`      | `EndIdpSession` — explicit logout                  | `idpSessionId`, `oauthSessionIds` (list), `userId` |
 | `SessionsBulkExpiredEvent` | `oauth2.session.expired.bulk` | Session cleanup job — orphaned sessions (deferred) | `oauthSessionIds` (list)                           |
 
@@ -243,6 +260,6 @@ Consumer: identity-service — set `login_activities.ended_at` cho các `session
 ## Session attributes — lifecycle trong logout
 
 | Attribute              | Tạo bởi                          | Đọc bởi                          | Xóa khi                                       |
-|------------------------|----------------------------------|----------------------------------|-----------------------------------------------|
+|---------------------------|--------------------------------------|--------------------------------------|-----------------------------------------------------|
 | `oss_id`               | `JwtTokenCustomizer` → JWT claim | `WebGatewayLogoutSuccessHandler` | Không store trong session — đọc từ `OidcUser` |
 | `WEBGW_SESSION` cookie | Spring Session tạo sau login     | Browser gửi theo mọi request     | `WebSession.invalidate()` hoặc cookie expire  |

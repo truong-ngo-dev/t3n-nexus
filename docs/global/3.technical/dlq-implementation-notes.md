@@ -38,6 +38,7 @@ Thất bại vĩnh viễn nếu được auto-retry sẽ tạo vòng lặp `topi
 | customer-service | 3 lần, cách 2 giây | Cùng logic — phát hiện nhanh |
 | search-service | 3 lần, cách 5 giây | Elasticsearch cần thêm thời gian ổn định |
 | notification-service | 3 lần, cách 2 giây | DB fail thường phục hồi nhanh |
+| oauth2-service | 3 lần, cách 2 giây | Chặn login của user vừa verify email — cần phát hiện nhanh, cùng logic customer-service |
 | email-worker Tier1 | 3 lần, cách 2 giây | Email xác minh cần phát hiện lỗi nhanh |
 | email-worker Tier2 | 3 lần, cách 60 giây | SMTP bulk mail thường phục hồi chậm |
 

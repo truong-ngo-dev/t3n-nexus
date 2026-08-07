@@ -1,45 +1,10 @@
-# Deferred — user-auth
+# Deferred — login
 
 Những việc được xác định trong feature này nhưng **chưa impl**, sẽ làm ở phase khác.
 
 ---
 
-## 1. Scheduled job cleanup orphaned OAuthSession (Path C)
-
-**Làm khi nào:** Sau khi logout flow (Path A) và web-gateway TTL cleanup (Path B) đã stable.
-
-**Vấn đề:**  
-Khi IDP session [B] hết TTL, Spring Session JDBC cleanup task xóa record khỏi `SPRING_SESSION`.  
-Không có session event nào được fire (Spring Session JDBC 4.x removed event support).  
-`OAuthSession` [F] và `OAuth2Authorization` [C] tương ứng trở thành orphaned — không được cleanup cho đến khi job chạy.
-
-**Trạng thái hiện tại:**  
-`JdbcOAuthSessionExpiryService.expireOrphaned()` đã implement — tìm orphaned [F] bằng LEFT JOIN SPRING_SESSION, batch delete [F] + [C], trả `SessionsBulkExpiredEvent`.  
-**Chưa có `@Scheduled` caller.**
-
-**Cần implement:**  
-Tạo `ExpiredSessionCleanupJob` trong oauth2-service:
-```
-@Scheduled(...)
-@ConditionalOnProperty("app.job.expired-session-cleanup.enabled")
-cleanupJob():
-  event = oAuthSessionExpiryService.expireOrphaned()
-  if event.oauthSessionIds().isEmpty() → return
-  eventDispatcher.dispatch(event)
-  event.oauthSessionIds().forEach(revocationClient::revoke)
-```
-
-Job mặc định **disabled** — enable khi chốt cron interval.  
-Chi tiết impl → [`logout-impl.md`](logout-impl.md) mục 8–9.
-
-**Files liên quan:**
-- `oauth2-service`: tạo `application/session/cleanup/ExpiredSessionCleanupJob.java`
-
-## 2. Relay dlq (vấn đề chung, giải pháp trong tương lai)
-
----
-
-## 3. Concurrency — EstablishSession Phase 2 idempotency under retry
+## 1. Concurrency — EstablishSession Phase 2 idempotency under retry
 
 **Làm khi nào:** Trước khi đưa lên production nếu BFF có retry middleware (exponential backoff on 5xx).
 
@@ -78,28 +43,9 @@ Hoặc wrap trong try-catch `DataIntegrityViolationException` → verify row đ�
 
 ---
 
-## 4. Performance — production readiness checklist
+## 2. Index — `findActiveByIdpSessionAndClient`
 
 **Làm khi nào:** Trước load test / staging promotion.
-
-### 4.1 Spring Session store — Redis (priority cao nhất)
-
-**Vấn đề:**  
-Nếu oauth2-service dùng `JdbcIndexedSessionRepository` (default khi có `spring-session-jdbc`), mỗi request trong login flow đều hit DB cho session read/write — đây là bottleneck #1 ở high concurrency.
-
-Requests bị ảnh hưởng trong 1 login cycle:
-- `GET /oauth2/authorize` — load session
-- `GET /mfa` — load + write (`mfa_otp`, `mfa_otp_expiry`)
-- `POST /login/ott` — load + write (invalidate OTP)
-- `GET /oauth2/authorize` (lần 2) — load session
-
-**Fix:** Switch sang `RedisIndexedSessionRepository` cho oauth2-service. Session TTL ngắn (~30 phút) — memory footprint nhỏ.
-
-**Files liên quan:**
-- `oauth2-service`: `application.yml` — `spring.session.store-type=redis`
-- `oauth2-service`: dependency `spring-session-data-redis`
-
-### 4.2 Index — `findActiveByIdpSessionAndClient`
 
 **Vấn đề:**  
 `findActiveByIdpSessionAndClient(idpSessionId, registeredClientId)` được gọi tại Phase 1.5 của mọi authorization code issuance. Nếu thiếu index → full scan `oauth_sessions`.
@@ -114,7 +60,11 @@ CREATE INDEX idx_oauth_sessions_idp_client_status
 **Files liên quan:**
 - `oauth2-service`: migration SQL cho `oauth_sessions`
 
-### 4.3 Outbox polling interval — OTP email latency
+---
+
+## 3. Outbox polling interval — OTP email latency
+
+**Làm khi nào:** Trước load test / staging promotion.
 
 **Vấn đề:**  
 `LoginOtpRequestedEvent` đi qua Outbox → polling job → Kafka → notification-service → email provider. Nếu polling interval 5 giây + email provider 2-3 giây, user đợi OTP **7-10 giây** sau khi submit form.
@@ -123,8 +73,18 @@ CREATE INDEX idx_oauth_sessions_idp_client_status
 - Giảm polling interval xuống 1-2 giây cho Outbox processor của oauth2-service
 - Hoặc dùng `@TransactionalEventListener(phase = AFTER_COMMIT)` để trigger publish ngay sau transaction commit thay vì chờ polling cycle
 
-### 4.4 BCrypt — horizontal scale note
+---
+
+## 4. BCrypt — horizontal scale note
+
+**Làm khi nào:** Trước load test / staging promotion.
 
 BCrypt cost 10 ≈ 100ms/thread. Không giảm cost factor. Tại high concurrent LOCAL login, scale horizontal oauth2-service là giải pháp duy nhất. Không có code change cần thiết — đây là infra decision.
 
 **Rate-limiter**: phải là distributed (Redis-based), không dùng in-memory — sẽ không work khi có nhiều instance.
+
+---
+
+## 5. Relay DLQ (vấn đề chung, giải pháp trong tương lai)
+
+**Trạng thái:** Chỉ là placeholder khi tách từ `user-auth/deferred.md` cũ — chưa có nội dung cụ thể lúc viết ban đầu. Đặt tạm ở đây vì liên quan gần nhất tới outbox relay của login OTP (mục 3), nhưng có thể là vấn đề chung hơn phạm vi login — xem `3.technical/dlq-implementation-notes.md` nếu cần bối cảnh DLQ chung của hệ thống trước khi viết cụ thể lại mục này.

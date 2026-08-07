@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
@@ -36,7 +37,10 @@ public class SecurityConfiguration {
 
     /**
      * Chain 1: /webgw/internal/** — internal back-channel endpoints (e.g. session revocation).
-     * TODO: switch to .hasAuthority("SCOPE_webgw.internal") + resource server after testing.
+     * Yêu cầu JWT service-account với scope "webgw.internal" — token do oauth2-service tự mint
+     * qua client_credentials grant (client "oauth2-service-internal", xem
+     * WebGatewayRevocationClient + oauth2-service migration V10), verify qua JWKS
+     * (spring.security.oauth2.resourceserver.jwt.jwk-set-uri ở dưới).
      */
     @Bean
     @Order(1)
@@ -44,7 +48,8 @@ public class SecurityConfiguration {
         return http
                 .securityMatcher(ServerWebExchangeMatchers.pathMatchers("/webgw/internal/**"))
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .authorizeExchange(ex -> ex.anyExchange().permitAll())
+                .authorizeExchange(ex -> ex.anyExchange().hasAuthority("SCOPE_webgw.internal"))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .build();
     }
 
@@ -57,7 +62,12 @@ public class SecurityConfiguration {
         return http
                 .headers(conf -> conf.frameOptions(ServerHttpSecurity.HeaderSpec.FrameOptionsSpec::disable))
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers(HttpMethod.POST, "/api/oauth2/v1/users/register").permitAll()
+                        // Register không còn qua web-gateway — bypass thẳng api-gateway → oauth2-service
+                        // (/auth/register, xem api-gateway RouteConfiguration + ADR-009).
+                        // Verify email / resend-verification: user chưa từng login (account PENDING),
+                        // phải permitAll riêng, không thể rơi vào .authenticated() chung bên dưới.
+                        .pathMatchers(HttpMethod.GET, "/api/identity/users/verify", "/web/api/identity/users/verify").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/identity/users/resend-verification", "/web/api/identity/users/resend-verification").permitAll()
                         .pathMatchers("/api/**").authenticated()
                         .anyExchange().permitAll())
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)

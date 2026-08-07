@@ -1,6 +1,7 @@
 import { InjectionToken } from '@angular/core';
 
 export interface ApiConfig {
+  auth:     string;  // /auth — api-gateway bypass thẳng oauth2-service (register), không qua web-gateway
   webgw:    string;  // /api/webgw
   oauth2:   string;  // /api/oauth2
   identity: string;  // /api/identity

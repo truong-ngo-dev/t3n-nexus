@@ -43,7 +43,7 @@ public class SocialLoginFailureHandler implements AuthenticationFailureHandler {
                 String email = oauthEx.getError().getDescription();
                 log.warn("[LoginFailure/GOOGLE] email={}, result=ACCOUNT_LOCKED, ip={}", email, ipAddress);
                 publishLoginFailed.publish(email, "ACCOUNT_LOCKED", deviceHash, acceptLanguage, ipAddress, userAgent, "GOOGLE");
-                response.sendRedirect("/login?locked");
+                response.sendRedirect(request.getContextPath() + "/login?locked");
                 return;
             }
 
@@ -55,6 +55,6 @@ public class SocialLoginFailureHandler implements AuthenticationFailureHandler {
             log.warn("[LoginFailure/GOOGLE] exception={}, ip={}", exception.getClass().getSimpleName(), ipAddress);
         }
 
-        response.sendRedirect("/login?error");
+        response.sendRedirect(request.getContextPath() + "/login?error");
     }
 }

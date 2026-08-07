@@ -18,6 +18,12 @@ import java.util.List;
  * UserDetailsService cho Spring Security form login.
  * Principal name = userId → sub claim trong JWT sẽ = userId.
  *
+ * Lookup thuần — KHÔNG đặt rate-limit ở đây dù có vẻ tiện: method này bị gọi lại bởi cả OTT
+ * authentication provider (sau khi verify OTP đúng, xem login-impl.md mục 2), nên rate-limit
+ * ở đây sẽ tính trùng quota cho 1 lần login MFA và vô tình áp lên bất kỳ caller nào khác gọi
+ * method này trong tương lai. Rate-limit brute-force password đặt riêng ở LoginRateLimitFilter
+ * (chỉ chặn đúng POST /login), xem infrastructure/security/LoginRateLimitFilter.java.
+ *
  * TODO [business]: adapt mapToUserDetails() theo model UserCredential của t3n-nexus.
  */
 @Slf4j

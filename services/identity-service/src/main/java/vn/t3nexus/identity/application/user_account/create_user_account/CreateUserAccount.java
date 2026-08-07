@@ -53,16 +53,34 @@ public class CreateUserAccount implements CommandHandler<CreateUserAccount.Comma
     private void handleCustomer(Command command, UserId userId) {
         if ("CREDENTIAL".equals(command.registrationMethod())) {
             UserAccount userAccount = UserAccount.registerCustomerPendingVerification(userId, command.email(), command.fullName());
-            EmailVerification emailVerification = EmailVerification.issue(
-                    EmailVerificationId.of(ulidGenerator.generate()), userId, command.email(), command.fullName());
-            userAccountRepository.save(userAccount);
-            emailVerificationRepository.save(emailVerification);
-            eventDispatcher.dispatchAll(userAccount.getDomainEvents());
-            eventDispatcher.dispatchAll(emailVerification.getDomainEvents());
+            EmailVerification emailVerification = EmailVerification.issue(EmailVerificationId.of(ulidGenerator.generate()), userId, command.email(), command.fullName());
+
+            // createIfAbsent (ai đến trước thắng — ON CONFLICT DO NOTHING, không merge) thay vì
+            // save() (upsert): chỉ dispatch domain event khi đây thật sự là lần tạo đầu tiên. Nếu
+            // 2 lần xử lý cùng userId race nhau (rebalance/DLQ replay khi bản gốc chưa xong), lần
+            // thua createIfAbsent trả false → không publish lại CustomerAccountCreatedEvent /
+            // VerificationEmailRequested → tránh gửi trùng email xác minh.
+            if (userAccountRepository.createIfAbsent(userAccount)) {
+                eventDispatcher.dispatchAll(userAccount.getDomainEvents());
+            } else {
+                log.info("[CreateUserAccount] UserAccount already exists, skip dispatch. userId={}", command.userId());
+            }
+
+            if (emailVerificationRepository.createIfAbsent(emailVerification)) {
+                eventDispatcher.dispatchAll(emailVerification.getDomainEvents());
+            } else {
+                log.info("[CreateUserAccount] EmailVerification already exists, skip dispatch. userId={}", command.userId());
+            }
         } else {
             UserAccount userAccount = UserAccount.registerCustomerActivated(userId, command.email(), command.fullName(), command.setupToken());
-            userAccountRepository.save(userAccount);
-            eventDispatcher.dispatchAll(userAccount.getDomainEvents());
+
+            // Cùng lý do — registerCustomerActivated() raise 2 event (CustomerAccountCreatedEvent +
+            // PasswordSetupEmailRequested), gate cả 2 bằng đúng 1 điều kiện insert thật.
+            if (userAccountRepository.createIfAbsent(userAccount)) {
+                eventDispatcher.dispatchAll(userAccount.getDomainEvents());
+            } else {
+                log.info("[CreateUserAccount] UserAccount already exists, skip dispatch. userId={}", command.userId());
+            }
         }
         log.info("[CreateUserAccount] UserAccount created (CUSTOMER, method={}): userId={}, traceId={}",
                 command.registrationMethod(), command.userId(), MDC.get("traceId"));

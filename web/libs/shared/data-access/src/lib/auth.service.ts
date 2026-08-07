@@ -9,6 +9,20 @@ interface SessionResponse {
   role:   Role;
 }
 
+export interface RegisterRequest {
+  email:    string;
+  password: string;
+  fullName: string;
+}
+
+interface RegisterResponse {
+  userId: string;
+}
+
+interface ApiResponse<T> {
+  data: T;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http   = inject(HttpClient);
@@ -40,6 +54,15 @@ export class AuthService {
   // BFF redirect thẳng 302 → oauth2-service login form
   login(): void {
     window.location.href = `${this.config.webgw}/login`;
+  }
+
+  // Bypass web-gateway — gọi thẳng api-gateway /auth/register → oauth2-service (ADR-009).
+  // role luôn CUSTOMER: đây là form đăng ký tự-phục-vụ cho buyer, seller/admin không self-register.
+  register(req: RegisterRequest): Observable<RegisterResponse> {
+    return this.http.post<ApiResponse<RegisterResponse>>(`${this.config.auth}/register`, {
+      ...req,
+      role: 'CUSTOMER',
+    }).pipe(map(res => res.data));
   }
 
   // BFF invalidates session, returns 202 + Location header → SPA navigates to OIDC end_session

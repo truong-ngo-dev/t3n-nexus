@@ -1,28 +1,14 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
 import { AuthService } from '@t3n/shared/data-access';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  template: `
-    <div class="login-screen">
-      <button (click)="login()">Login</button>
-    </div>
-  `,
-  styles: [`
-    .login-screen {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-    button {
-      padding: 12px 32px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-  `],
+  imports: [RouterLink, MatButtonModule],
+  templateUrl: './login.component.html',
+  styleUrl: './login.component.scss',
 })
 export class LoginComponent implements OnInit {
   private readonly auth   = inject(AuthService);

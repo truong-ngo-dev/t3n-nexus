@@ -32,6 +32,21 @@ public class EmailVerificationRepositoryAdapter implements EmailVerificationRepo
     }
 
     @Override
+    public boolean createIfAbsent(EmailVerification verification) {
+        int inserted = jpaRepository.insertIgnoreConflict(
+                verification.getId().getValue(),
+                verification.getUserId().getValue(),
+                verification.getEmail(),
+                verification.getToken(),
+                verification.getExpiresAt(),
+                verification.getStatus().name(),
+                verification.getVerifiedAt(),
+                verification.getCreatedAt()
+        );
+        return inserted > 0;
+    }
+
+    @Override
     public Optional<EmailVerification> findById(EmailVerificationId id) {
         return jpaRepository.findByVerificationId(id.getValue())
                 .map(mapper::toDomain);

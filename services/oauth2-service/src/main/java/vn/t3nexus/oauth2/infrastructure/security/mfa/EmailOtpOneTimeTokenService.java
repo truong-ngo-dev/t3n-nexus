@@ -1,6 +1,7 @@
 package vn.t3nexus.oauth2.infrastructure.security.mfa;
 
 import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -12,12 +13,15 @@ import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import vn.t3nexus.lib.ratelimiter.RateLimiter;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class EmailOtpOneTimeTokenService implements OneTimeTokenService {
 
     private static final String OTP_KEY      = "mfa_otp";
@@ -25,7 +29,13 @@ public class EmailOtpOneTimeTokenService implements OneTimeTokenService {
     private static final String EXPIRY_KEY   = "mfa_otp_expiry";
     private static final int    VALID_SECS   = 300;
 
+    // Brute-force guard — OTP 6 số (1e6 khả năng) không tự xoá khi nhập sai (comment cũ ở consume()),
+    // nên cần chặn số lần thử trong đúng 1 cửa sổ OTP (5 phút TTL ở trên).
+    private static final int      VERIFY_LIMIT  = 5;
+    private static final Duration VERIFY_WINDOW = Duration.ofMinutes(5);
+
     private final SecureRandom rng = new SecureRandom();
+    private final RateLimiter  rateLimiter;
 
     @Override
     public @NotNull OneTimeToken generate(GenerateOneTimeTokenRequest request) {
@@ -42,8 +52,8 @@ public class EmailOtpOneTimeTokenService implements OneTimeTokenService {
     }
 
     /**
-     * OTP stays valid across wrong attempts — only cleared on success or expiry.
-     * Brute-force protection is handled at the rate-limiter layer.
+     * OTP stays valid across wrong attempts within the rate-limit budget — cleared on success,
+     * expiry, or after VERIFY_LIMIT failed attempts within VERIFY_WINDOW (see tryAcquire below).
      */
     @Override
     public OneTimeToken consume(@NotNull OneTimeTokenAuthenticationToken authToken) {
@@ -60,6 +70,11 @@ public class EmailOtpOneTimeTokenService implements OneTimeTokenService {
         if (Instant.now().getEpochSecond() > expiry) {
             invalidate(session);
             throw new BadCredentialsException("OTP has expired");
+        }
+        if (!rateLimiter.tryAcquire("mfa_otp_verify:" + username, VERIFY_LIMIT, VERIFY_WINDOW)) {
+            invalidate(session);
+            log.warn("[OTT] Verify rate limit exceeded for user={}", username);
+            throw new BadCredentialsException("Too many attempts — request a new OTP");
         }
         if (!stored.equals(authToken.getTokenValue())) {
             throw new BadCredentialsException("Invalid OTP");

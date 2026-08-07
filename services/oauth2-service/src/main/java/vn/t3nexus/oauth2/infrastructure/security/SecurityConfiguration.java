@@ -13,13 +13,13 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-// TODO [mfa]: import org.springframework.security.???. EnableMultiFactorAuthentication — verify package khi build lần đầu
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
@@ -37,6 +37,7 @@ import vn.t3nexus.oauth2.infrastructure.security.mfa.EmailOtpOneTimeTokenService
 import vn.t3nexus.oauth2.infrastructure.security.model.DeviceAwareWebAuthenticationDetails;
 import vn.t3nexus.oauth2.infrastructure.security.oauth2.DeviceAwareAuthorizationRequestResolver;
 import vn.t3nexus.oauth2.infrastructure.security.service.SocialLoginOidcUserService;
+import vn.t3nexus.lib.ratelimiter.RateLimiter;
 
 import java.util.Arrays;
 import java.util.List;
@@ -44,7 +45,7 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-// TODO [mfa]: @EnableMultiFactorAuthentication(authorities = {}) — cần để Spring thêm FACTOR_OTT sau OTT auth
+// @EnableMultiFactorAuthentication(authorities = {}) — không sử dụng do bị giới hạn cứng factor tham gia vào chain
 @RequiredArgsConstructor
 public class SecurityConfiguration {
 
@@ -54,6 +55,7 @@ public class SecurityConfiguration {
     private final OttAuthenticationFailureHandler  ottAuthenticationFailureHandler;
     private final SocialLoginOidcUserService       socialLoginOidcUserService;
     private final ClientRegistrationRepository     clientRegistrationRepository;
+    private final RateLimiter                      rateLimiter;
 
     @Value("${app.cors.allowed-origins:http://localhost:4200}")
     private String allowedOrigins;
@@ -102,12 +104,14 @@ public class SecurityConfiguration {
                                 PathPatternRequestMatcher.withDefaults().matcher("/login"),
                                 PathPatternRequestMatcher.withDefaults().matcher("/login/**"),
                                 PathPatternRequestMatcher.withDefaults().matcher("/password/setup"),
-                                PathPatternRequestMatcher.withDefaults().matcher("/password/setup/success")
+                                PathPatternRequestMatcher.withDefaults().matcher("/password/setup/success"),
+                                PathPatternRequestMatcher.withDefaults().matcher("/register")
                         )).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
                         new LoginUrlAuthenticationEntryPoint("/login"),
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
+                .addFilterBefore(new LoginRateLimitFilter(rateLimiter), UsernamePasswordAuthenticationFilter.class)
                 .formLogin(conf -> conf
                         .loginPage("/login")
                         .permitAll()

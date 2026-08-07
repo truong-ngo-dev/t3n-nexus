@@ -56,10 +56,10 @@ Giới hạn 3 lần/giờ per email. Chỉ áp dụng khi `status=PENDING`.
 
 ## Events Consumed
 
-| Topic | Event | Handler |
-|---|---|---|
-| `oauth2.user.registered` | `UserRegistered` | `CreateUserAccount` — tạo `UserAccount` + `EmailVerification`, publish `VerificationEmailRequested` |
-| `oauth2.device.login-recorded` | `DeviceLoginRecorded` | Upsert `Device`, append `LoginActivity` |
+| Topic | Event | Handler | Idempotency |
+|---|---|---|---|
+| `oauth2.user.registered` | `UserRegistered` | `CreateUserAccount` — tạo `UserAccount` + `EmailVerification`, publish `VerificationEmailRequested` | — |
+| `oauth2.session.issued` | `SessionIssuedEvent` | `RecordLoginSession` (qua `SessionIssuedConsumer`) — upsert `Device`, insert `LoginActivity` | `LoginActivity`: `ON CONFLICT (session_id) DO NOTHING` (partial unique index, session_id = oauthSessionId). `Device.lastHistoryId` chỉ update khi insert `LoginActivity` thật sự xảy ra (`tryRecord()` trả `true`) — tránh dangling reference khi Kafka redeliver event và insert bị skip do duplicate |
 
 ---
 

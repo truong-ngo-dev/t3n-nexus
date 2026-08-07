@@ -12,6 +12,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.ExponentialBackOff;
 import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
@@ -55,11 +56,17 @@ public class MessagingConfig {
         factory.setConsumerFactory(consumerFactory);
         factory.setConcurrency(tier2Concurrency);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
-        // Bulk: slow retries — 60s × 3, avoid hammering external SMTP on transient failures, then DLQ
-        DefaultErrorHandler tier2ErrorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(60_000L, 3));
+        // Bulk: exponential backoff — 30s initial, ×2, capped 5min/attempt, 20min total elapsed, then DLQ.
+        // Sized for realistic transient-failure recovery (SES throttle/network blips self-resolve in
+        // seconds-to-minutes), NOT for the ~4h queue-drain time under flash-sale backlog — that's a
+        // consumer-lag phenomenon (rate limiter blocking in Tier2EmailConsumer), unrelated to retry-on-error.
+        ExponentialBackOff tier2BackOff = new ExponentialBackOff(30_000L, 2.0);
+        tier2BackOff.setMaxInterval(300_000L);       // 5 min cap per retry
+        tier2BackOff.setMaxElapsedTime(1_200_000L);  // 20 min total before DLQ
+        DefaultErrorHandler tier2ErrorHandler = new DefaultErrorHandler(recoverer, tier2BackOff);
         tier2ErrorHandler.setAckAfterHandle(true);
         tier2ErrorHandler.setRetryListeners((record, ex, deliveryAttempt) ->
-                log.error("[Kafka][tier2] consumer error, attempt={}/3, topic={}, offset={}, partition={}",
+                log.error("[Kafka][tier2] consumer error, attempt={}, topic={}, offset={}, partition={}",
                         deliveryAttempt, record.topic(), record.offset(), record.partition(), ex));
         factory.setCommonErrorHandler(tier2ErrorHandler);
         return factory;

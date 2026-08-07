@@ -41,6 +41,6 @@ public class OttAuthenticationFailureHandler implements AuthenticationFailureHan
             }
         }
 
-        response.sendRedirect("/mfa/verify?error");
+        response.sendRedirect(request.getContextPath() + "/mfa/verify?error");
     }
 }

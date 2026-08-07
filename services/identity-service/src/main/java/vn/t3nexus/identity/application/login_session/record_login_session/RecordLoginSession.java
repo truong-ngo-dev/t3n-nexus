@@ -50,6 +50,10 @@ public class RecordLoginSession implements CommandHandler<RecordLoginSession.Com
 
         Device device = resolveDevice(userId, fingerprint, command.ipAddress());
 
+        // Insert LoginActivity TRƯỚC — ON CONFLICT (session_id) DO NOTHING tự dedup nếu
+        // Kafka redeliver cùng SessionIssuedEvent. Chỉ trỏ Device.lastHistoryId vào activityId
+        // này nếu row thật sự được insert — trỏ vào activityId bị skip sẽ tạo dangling reference
+        // (Device.lastHistoryId point tới 1 LoginActivity không tồn tại trong DB).
         LoginActivityId activityId = LoginActivityId.of(ulidGenerator.generate());
         LoginActivity activity = LoginActivity.recordSuccess(
                 activityId,
@@ -62,13 +66,18 @@ public class RecordLoginSession implements CommandHandler<RecordLoginSession.Com
                 command.userAgent(),
                 LoginActivity.LoginProvider.valueOf(command.provider())
         );
-        loginActivityRepository.save(activity);
+        boolean inserted = loginActivityRepository.tryRecord(activity);
 
-        device.recordLoginHistory(activityId.getValueAsString());
+        if (inserted) {
+            device.recordLoginHistory(activityId.getValueAsString());
+        } else {
+            log.debug("[RecordLoginSession] duplicate SessionIssuedEvent, oauthSessionId={} — " +
+                    "LoginActivity đã tồn tại, skip cập nhật lastHistoryId", command.oauthSessionId());
+        }
         deviceRepository.save(device);
 
-        log.info("[RecordLoginSession] userId={}, deviceId={}, oauthSessionId={}",
-                command.userId(), device.getId().getValueAsString(), command.oauthSessionId());
+        log.info("[RecordLoginSession] userId={}, deviceId={}, oauthSessionId={}, historyRecorded={}",
+                command.userId(), device.getId().getValueAsString(), command.oauthSessionId(), inserted);
 
         return null;
     }

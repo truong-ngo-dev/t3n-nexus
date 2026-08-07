@@ -5,6 +5,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -23,6 +24,7 @@ import java.io.IOException;
  * Normal flow: DeviceAwareAuthenticationSuccessHandler redirects to /mfa after password auth.
  * This filter catches any bypasses.
  */
+@Slf4j
 public class MfaEnforcementFilter extends OncePerRequestFilter {
 
     private static final String FACTOR_OTT = "FACTOR_OTT";
@@ -36,6 +38,12 @@ public class MfaEnforcementFilter extends OncePerRequestFilter {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         if (needsMfa(auth)) {
+            // Bình thường không tới đây — DeviceAwareAuthenticationSuccessHandler đã redirect /mfa
+            // ngay sau password auth. Tới được đây nghĩa là request bypass qua đường khác (session
+            // resume giữa chừng...) — đáng log vì đây chính là case "an toàn nhờ safety net" mà
+            // trước đây không cách nào biết đã từng xảy ra qua log.
+            log.info("[MfaEnforcementFilter] safety-net triggered: path={}, principal={}",
+                    request.getRequestURI(), auth.getName());
             requestCache.saveRequest(request, response);
             response.sendRedirect(request.getContextPath() + "/mfa");
             return;

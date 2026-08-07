@@ -127,21 +127,23 @@ inapp-worker: PUBLISH "user:A:inapp" → Instance 1 nhận (2 sessions)
 | Event                                      | Email   | In-App | Lý do                                                 |
 |--------------------------------------------|---------|--------|-------------------------------------------------------|
 | `LoginOtpRequested`                        | ✅ T1    | ❌      | User đang bị chặn giữa login flow, OTP TTL 300s       |
-| `CustomerRegistered`                       | ✅ T1    | ❌      | User chưa có session, cần persistent link             |
-| `UserVerificationResent`                   | ✅ T1    | ❌      | Như trên                                              |
-| `OrderConfirmed`                           | ✅ T1    | ✅      | Critical — audit trail (email) + realtime UX (in-app) |
-| `OrderCancelled`                           | ✅ T1    | ✅      | Critical — user cần biết ngay                         |
-| `RefundProcessed`                          | ✅ T1    | ✅      | Financial — audit trail quan trọng                    |
-| `ShipmentPickedUp / InTransit / Delivered` | ✅ T1    | ✅      | Time-sensitive operational                            |
-| `ShipmentFailed`                           | ✅ T1    | ✅      | Cần action từ user/seller                             |
-| `ReturnRequested / Approved / Rejected`    | ✅ T1    | ✅      | Cần action, có deadline                               |
+| `VerificationEmailRequested`               | ✅ T1    | ❌      | User chưa có session, cần persistent link             |
+| `VerificationEmailReissued`                | ✅ T1    | ❌      | Như trên                                              |
+| `OrderConfirmed` ⚠️                        | ✅ T1    | ✅      | Critical — audit trail (email) + realtime UX (in-app) |
+| `OrderCancelled` ⚠️                        | ✅ T1    | ✅      | Critical — user cần biết ngay                         |
+| `RefundProcessed` ⚠️                       | ✅ T1    | ✅      | Financial — audit trail quan trọng                    |
+| `ShipmentPickedUp / InTransit / Delivered` ⚠️ | ✅ T1 | ✅      | Time-sensitive operational                            |
+| `ShipmentFailed` ⚠️                        | ✅ T1    | ✅      | Cần action từ user/seller                             |
+| `ReturnRequested / Approved / Rejected` ⚠️ | ✅ T1    | ✅      | Cần action, có deadline                               |
 | `SellerApproved / Rejected`                | ✅ T1    | ✅      | Account lifecycle — critical                          |
-| `SellerPayoutCompleted`                    | ✅ T1    | ✅      | Financial                                             |
+| `SellerPayoutCompleted` ⚠️                 | ✅ T1    | ✅      | Financial                                             |
 | `LoyaltyPointsEarned`                      | ✅ T2    | ✅      | Engagement — delay vài phút ok                        |
 | `LoyaltyPointsExpired`                     | ✅ T2    | ✅      | Warning — không urgent                                |
 | `StockReplenished / StockDepleted`         | ✅ T2    | ❌      | Seller notification — email đủ                        |
 | `OrderCompleted`                           | ✅ T2    | ✅      | Invite review — không urgent                          |
 | `NewMessageReceived` (offline)             | ✅ T2    | ❌      | User offline — in-app vô nghĩa                        |
+
+> **⚠️ Open question — chưa quyết, cần xử lý trước khi implement các event đánh dấu trên (tất cả `later` phase):** các event này tỉ lệ thuận với **order volume**, khác về bản chất với 3 event Tier1 đang chạy thật (`LoginOtpRequested`/`VerificationEmailRequested`/`VerificationEmailReissued` — bị chặn bởi rate limit cá nhân per-IP/per-email, xem `3.technical/rate-limiting-layers.md`). `OrderConfirmed` không thể và không nên bị rate-limit theo kiểu đó — mọi đơn hàng thành công đều xứng đáng có email. Nhưng ở đúng kịch bản NFR flash sale (peak checkout ~8,000 req/s *sau rate limiting*, 15-30 phút), aggregate volume của nhóm event này có thể vượt xa trần SES 14 msg/s — trong khi Tier1 hiện tại (`FixedBackOff` 2s×3, fail-fast, không rate limiter, alert DLQ ngay lập tức) được thiết kế cho volume thấp/bounded, không có cơ chế nào chịu được burst này. Hệ quả nếu implement thẳng vào Tier1 pool hiện có: burst `OrderConfirmed` share cùng topic/consumer-group/SES-quota với OTP/verification → tái diễn đúng priority inversion mà kiến trúc Tier1/Tier2 sinh ra để giải quyết, chỉ là lồng bên trong Tier1. `SellerApproved/Rejected` không bị đánh dấu vì scale theo tốc độ onboarding seller (thấp, không theo order volume). Cần quyết trước khi build: tách riêng dispatch topic/consumer group cho nhóm "high-volume nhưng vẫn expected", hay thêm rate limiter riêng cho Tier1 (đánh đổi với latency fail-fast), hay hướng khác.
 
 ---
 
@@ -193,11 +195,13 @@ Khi scale Tier 2 lên nhiều instance: `rate-limiter-starter` (Redis sliding wi
 
 ### Tại sao failure handling phải khác nhau
 
-|                    | Tier 1                                    | Tier 2                               |
-|--------------------|-------------------------------------------|--------------------------------------|
-| Retry policy       | Aggressive — 3 lần, backoff 1s / 5s / 30s | Gentle — backoff 1m / 5m / 30m       |
-| Sau max retry      | DLQ → alert ngay                          | DLQ → alert khi lớn bất thường       |
-| Consumer lag alert | > 30s → page                              | > 4h ngoài flash sale window → alert |
+|                    | Tier 1                                | Tier 2                                                              |
+|--------------------|-----------------------------------------|-----------------------------------------------------------------------|
+| Retry policy       | Aggressive — `FixedBackOff` 2s × 3 lần  | Gentle — `ExponentialBackOff` 30s khởi đầu ×2, cap 5min/lần, tổng 20min |
+| Sau max retry      | DLQ → alert ngay                        | DLQ → alert khi lớn bất thường                                        |
+| Consumer lag alert | > 30s → page                            | > 4h ngoài flash sale window → alert                                  |
+
+Lưu ý: 20 phút (retry-until-DLQ của Tier 2) và 4 giờ (ngưỡng alert consumer lag) là **hai đại lượng khác nhau, không nên gộp**. 20 phút sized theo thời gian phục hồi thực tế của lỗi transient (SES throttle, network blip — tự hồi phục trong giây-tới-phút). 4 giờ là consumer lag do chính rate limiter chặn ở 14 msg/s khi backlog lớn (flash sale) — hiện tượng hàng đợi, không đi qua retry/DLQ, tự giải quyết bằng tốc độ consume chứ không phải bằng kéo dài backoff.
 
 Nếu chung consumer group: ngưỡng alert đủ nhạy cho Tier 1 sẽ false alarm liên tục từ Tier 2; ngưỡng chấp nhận lag của Tier 2 sẽ bỏ sót incident thật của Tier 1.
 
@@ -396,11 +400,15 @@ Hai lý do kỹ thuật cụ thể, không phải convention:
 
 ## Events Consumed
 
-| Event                          | Topic                               | Tier | Channel        | Phase   |
-|--------------------------------|-------------------------------------|------|----------------|---------|
-| `LoginOtpRequested`            | `oauth2.login-otp.requested`        | T1   | Email          | current |
-| `CustomerRegistered`           | `identity.customer.registered`      | T1   | Email          | 4       |
-| `UserVerificationResent`       | `identity.user.verification-resent` | T1   | Email          | 4       |
+| Event                         | Topic                                      | Tier | Channel        | Phase   |
+|--------------------------------|----------------------------------------------|------|----------------|---------|
+| `LoginOtpRequestedEvent`       | `oauth2.login-otp.requested`                  | T1   | Email          | current |
+| `DeviceOtpRequested`           | `identity.device-trust-otp.requested`         | T1   | Email          | current |
+| `PasswordSetupEmailRequested`  | `identity.password-setup.requested`           | T1   | Email          | current |
+| `PasswordSetupResentEvent`     | `oauth2.credential.password-setup-resent`     | T1   | Email          | current |
+| `VerificationEmailRequested`   | `identity.email-verification.requested`       | T1   | Email          | current |
+| `VerificationReissuedEvent`    | `identity.email-verification.reissued`        | T1   | Email          | current |
+| `EmailVerifiedEvent`           | `identity.email-verification.verified`        | T1   | Email          | current |
 | `OrderConfirmed`               | `order.order.confirmed`             | T1   | Email + In-App | later   |
 | `OrderCancelled`               | `order.order.cancelled`             | T1   | Email + In-App | later   |
 | `RefundProcessed`              | `payment.refund.processed`          | T1   | Email + In-App | later   |
@@ -430,15 +438,15 @@ Hai lý do kỹ thuật cụ thể, không phải convention:
 
 ### Idempotency
 
-Hai lớp bảo vệ ở hai tầng khác nhau:
+Nguyên tắc chọn DB constraint vs Redis guard: xem `3.technical/idempotency-layering.md`. Hai lớp áp dụng ở đây:
 
-**Lớp 1 — DB UNIQUE constraint** (tại notification-service):  
-`UNIQUE (event_id, channel)` trên `notification_log` — INSERT trùng bị DB reject. Không tạo duplicate log entry, không sinh duplicate CDC event.  
-`idempotency-support` lib (Redis) check trước INSERT để tránh DB roundtrip không cần thiết khi event đến nhiều lần.
+**Tại notification-service (Router) — DB UNIQUE constraint, correctness-critical:**  
+`UNIQUE (event_id, channel)` trên `notification_log` — INSERT trùng bị DB reject (`ON CONFLICT DO NOTHING`). Không tạo duplicate log entry, không sinh duplicate CDC event. Đây là guard bắt buộc vì miss ở đây lan hệ quả xuống toàn bộ downstream (double dispatch).  
+*Chưa có* Redis pre-check trước INSERT — hiện chưa cần vì volume duplicate-delivery chưa chạm ngưỡng (xem điều kiện thêm Lớp 1 ở `idempotency-layering.md`). Không phải gap, là quyết định có chủ đích.
 
-**Lớp 2 — Redis key tại worker** (tại email-worker / inapp-worker):  
+**Tại email-worker (và inapp-worker khi impl) — Redis key, không sống còn:**  
 Kafka at-least-once có thể deliver cùng CDC event nhiều lần. Worker check Redis key `"{channel}:{notification_log_id}"` trước khi deliver — nếu key tồn tại → skip. Set key sau khi deliver thành công, TTL 72h.  
-Worker không write vào `notification_log` — hoàn toàn decoupled khỏi DB của notification-service.
+Đây là guard duy nhất (không có DB nào ở worker để đẩy xuống — pure Kafka consumer) — chấp nhận được vì miss chỉ gây gửi trùng 1 notification, không sai dữ liệu.
 
 ### Failure Handling
 
@@ -454,21 +462,17 @@ Delivery fail sau max retry → message vào **Dead Letter Queue** → alert. Kh
 
 ## Email Templates
 
-Templates Thymeleaf tại `src/main/resources/templates/email/` trong email-worker. Mỗi loại email = 1 file `.html`.
+Templates Thymeleaf tại `src/main/resources/templates/email/` trong email-worker. Mỗi loại email = 1 file `.html`, chọn theo `NotificationType` (`EmailNotificationType.getTemplatePath()`).
 
-| Template file       | `notificationType`   | Subject                  | Dùng cho event                                 |
-|---------------------|----------------------|--------------------------|------------------------------------------------|
-| `verification.html` | `VERIFICATION_EMAIL` | "Xác nhận email của bạn" | `CustomerRegistered`, `UserVerificationResent` |
+| Template file                 | `notificationType`     | Subject                                     | Dùng cho event                                          |
+|--------------------------------|-------------------------|----------------------------------------------|-----------------------------------------------------------|
+| `verification.html`            | `VERIFICATION_EMAIL`    | "Xác nhận email của bạn"                     | `VerificationEmailRequested`, `VerificationReissuedEvent` |
+| `login-otp.html`               | `LOGIN_OTP`              | "Mã OTP đăng nhập của bạn"                   | `LoginOtpRequestedEvent`                                   |
+| `device-trust-otp.html`        | `DEVICE_TRUST_OTP`       | "Xác nhận tin tưởng thiết bị"                | `DeviceOtpRequested`                                       |
+| `account-activated.html`       | `ACCOUNT_ACTIVATED`      | "Tài khoản của bạn đã được kích hoạt"        | `EmailVerifiedEvent`                                       |
+| `oauth-account-created.html`   | `OAUTH_ACCOUNT_CREATED`  | "Thiết lập mật khẩu cho tài khoản của bạn"   | `PasswordSetupEmailRequested`, `PasswordSetupResentEvent`  |
 
-**Template `verification.html` — biến inject từ `payload.templateVars`:**
-
-| Biến               | Nguồn                                                     |
-|--------------------|-----------------------------------------------------------|
-| `fullName`         | `templateVars.fullName` (nullable — fallback: "bạn")      |
-| `verificationLink` | `{baseUrl}/verify?token={templateVars.verificationToken}` |
-| `expiryHours`      | hardcode 24                                               |
-
-`baseUrl` đọc từ `app.base-url` trong `application.yml`.
+**Biến inject vào Thymeleaf context** (`EmailSender.buildMessage()`): `baseUrl` (từ `app.base-url`) luôn có sẵn, cộng toàn bộ key trong `payload.templateVars` được inject thẳng làm context variable — không có bước Java tính sẵn link, template tự ghép (VD `verification.html` dùng `th:href="|${baseUrl}/verify?token=${#uris.escapeQueryParam(verificationToken)}|"`). TTL 24h hiển thị trong `verification.html` là hardcode trong file `.html`, không đọc từ config.
 
 ---
 

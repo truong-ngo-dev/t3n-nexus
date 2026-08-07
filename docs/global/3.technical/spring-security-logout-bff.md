@@ -5,7 +5,7 @@
 **Spring Boot**: 4.0.x | **Spring Security**: 7.0.3 | **Spring Authorization Server**: 7.0.5
 
 > Tài liệu này ở mức **framework** — không chứa business logic.  
-> Domain-specific flow → `../../feature/user-auth/logout-impl.md`.
+> Domain-specific flow → `../../feature/03-logout/logout-impl.md`.
 
 ---
 

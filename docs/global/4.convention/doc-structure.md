@@ -95,10 +95,12 @@ Chỉ tách khi API surface của lib đủ lớn (auto-config phức tạp, nhi
 
 ```
 feature/
-└── {feature-name}/
+└── {NN}-{feature-name}/
     ├── design.md          # Business flow, actors, business rules, sequence diagram NHÚNG trực tiếp
     └── implementation.md  # Master plan: phase table, checklist, verify criteria, Session Log
 ```
+
+Tên folder có prefix `{NN}-` (2 chữ số, zero-padded — cùng style `adr/{NNN}-{slug}.md`) đánh số **theo thứ tự xây dựng thật**, không phải thứ tự ưu tiên nghiệp vụ — feature build trước có số nhỏ hơn. Dùng số tiếp theo còn trống; không renumber feature cũ khi thêm feature mới xen giữa.
 
 **Không còn `sequence.puml` như 1 file riêng.** Sequence diagram nhúng thẳng vào `design.md` bằng fenced block:
 
