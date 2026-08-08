@@ -5,23 +5,26 @@
 
 ---
 
-> ⚠️ **Phát hiện khi migrate doc (2026-08-04):** checklist Phase 4–7 dưới đây còn nguyên trạng "chưa tick" từ bản gốc, nhưng code thật trong `services/catalog-service/src/main/java/vn/t3nexus/catalog/domain/{product,variant}/` đã có đầy đủ class (`Product`, `Variant`, tất cả domain event, error code...) kể cả `.class` đã compile. Tài liệu phase 4-7 **không phản ánh đúng hiện trạng thật** — chưa xác minh được tick tới đâu là chính xác (application/presentation layer, test coverage) vì không nằm trong scope đợt dọn doc này. Cần 1 session riêng đối chiếu code thật với checklist trước khi tin vào Status bên dưới.
+> ✅ **Đối chiếu code thật xong (2026-08-08):** Phase 4–7 đã DONE thật — verify trực tiếp: `ProductController`/`VariantController` tồn tại đầy đủ endpoint, 17 file trong `application/product/`, 9 file trong `application/variant/`, `CacheConfig.java` khớp 100% với `cache.md` (TTL, L1/L2 whitelist). Model `Product.status` (3 giá trị) + `adminBlocked` (cờ độc lập) — đúng theo `service.md` hiện tại, không phải model 4-trạng-thái gộp cũ ghi trong checklist Phase 4 gốc bên dưới.
+>
+> Đồng thời phát hiện + xử lý: (1) **catalog-service chưa có route nào ở `api-gateway`/`web-gateway`** — đã bổ sung route qua `web-gateway` + `SecurityFilterChain` permitAll cho 5 GET public endpoint (trước đó thiếu hoàn toàn, mọi request kể cả Guest sẽ 401 do Spring Boot default `anyRequest().authenticated()`); (2) `GetProductImageUploadUrl` thiếu rate-limit — đã thêm `@RateLimit`; (3) ownership check (Product/Variant write endpoint dùng `X-Seller-Id` header không đáng tin cậy) — **cố ý chưa fix**, xem `deferred.md` #1 (chờ Seller có auth thật).
 
 ---
 
 ## Phase Overview
 
-| Phase | Tên                    | Nội dung                                                              | Status (theo doc gốc, CHƯA xác minh lại 4-7) |
+| Phase | Tên                    | Nội dung                                                              | Status |
 |-------|------------------------|-------------------------------------------------------------------------|------|
 | 0     | Bootstrap              | Module setup, Flyway DDL, base config                                 | DONE |
 | 1     | Brand                  | Full stack — domain → infra → app → presentation                      | DONE |
 | 2     | AttributeTemplate      | Full stack — bao gồm AttributeOption + soft-delete guard              | DONE |
 | 3     | Category               | Full stack — closure table, attribute assignment merge                | DONE |
-| 4     | Product Domain + Infra | Aggregate + persistence (Variant, Image, VO) — phức tạp nhất          | TODO (nghi ngờ — xem cảnh báo trên) |
-| 5     | Product Write Side     | Command handlers + presentation (create, update, publish, image)      | TODO (nghi ngờ) |
-| 6     | Product Read + Cache   | Query handlers, Caffeine L1 + Redis L2, pub/sub invalidation          | TODO (nghi ngờ) |
-| 7     | Variant                | Full stack — Variant commands, price change, deactivate               | TODO (nghi ngờ) |
+| 4     | Product Domain + Infra | Aggregate + persistence (Variant, Image, VO) — phức tạp nhất          | DONE (verify 2026-08-08) |
+| 5     | Product Write Side     | Command handlers + presentation (create, update, publish, image)      | DONE (verify 2026-08-08) |
+| 6     | Product Read + Cache   | Query handlers, Caffeine L1 + Redis L2, pub/sub invalidation          | DONE (verify 2026-08-08) |
+| 7     | Variant                | Full stack — Variant commands, price change, deactivate               | DONE (verify 2026-08-08) |
 | 8     | Events + Outbox        | Outbox wiring, Kafka topics, all domain event → EventEnvelope mapping | DONE |
+| 9     | Gateway Routing + NFR  | web-gateway route, SecurityFilterChain, rate-limit image-upload-url   | DONE (2026-08-08) |
 
 **Dependency order:** Phase 0 → 1 → 2 → 3 → 4 → 5, 6, 7 (parallel) → 8
 
@@ -58,32 +61,44 @@ Full stack + `AttributeOption` (soft-delete only, domain service guard `validate
 
 Full stack, closure table cho tree query, `CategoryAttributeAssignment` quản lý riêng (không cascade từ `Category` — composite PK + `orphanRemoval` phức tạp), replace toàn bộ khi update.
 
-## Phase 4 — Product Domain + Infrastructure `TODO theo doc / code đã tồn tại — xem cảnh báo đầu file`
+## Phase 4 — Product Domain + Infrastructure `DONE` (verify 2026-08-08)
 
-Checklist gốc (chưa xác minh lại theo code thật):
+- [x] Domain VO: `ProductId`, `VariantId`, `WarrantyInfo`, `VariantCombination` — model thật theo `service.md`: `status` (DRAFT/PUBLISHED/UNPUBLISHED, 3 giá trị) + `adminBlocked` (cờ độc lập), **không phải** 4-trạng-thái gộp `ProductStatus` ghi ở checklist gốc trước đây
+- [x] `Product` AR: `create`, `update`, `addVariant`, `publish`/`unpublish`, `block`/`unblock`, `addImage`/`removeImage`
+- [x] `Variant` entity: `create`, `update`, `activate`/`deactivate`, `changePrice`
+- [x] Infra: `ProductJpaEntity`/`VariantJpaEntity` + mapper + persistence adapter
 
-- [ ] Domain VO: `ProductId`, `VariantId`, `ProductStatus` (DRAFT/PUBLISHED/UNPUBLISHED/BLOCKED — **lưu ý**: `service.md` hiện tại mô tả model mới hơn, 2 trục `status`(3 giá trị)/`adminBlocked` độc lập, khác 4-trạng-thái gộp ở đây — code thật theo model nào cần verify), `WarrantyInfo`, `VariantCombination` (hash order-insensitive)
-- [ ] `Product` AR: `create`, `update`, `addVariant` (guard combination unique), `publish`/`unpublish`/`block`/`unblock`, `addImage`/`removeImage`
-- [ ] `Variant` entity: `create`, `update`, `activate`/`deactivate`, `changePrice`
-- [ ] Infra: `ProductJpaEntity`/`VariantJpaEntity` + mapper + persistence adapter
+**Verify:** chưa chạy lại test suite trong session này (ngoài scope) — chỉ xác nhận class/method tồn tại đúng chữ ký qua đọc code trực tiếp.
 
-**Verify (chưa chạy lại):** unit test guard publish-without-active-variant, duplicate-combination, blocked-cannot-publish; integration test save/load round-trip.
+## Phase 5 — Product Write Side `DONE` (verify 2026-08-08)
 
-## Phase 5 — Product Write Side `TODO theo doc / xem cảnh báo đầu file`
+`ProductController` (`/api/seller/products/**`, `/api/admin/products/**`, `/api/products/{id}` public) đầy đủ endpoint: CreateProduct, UpdateProduct, PublishProduct, UnpublishProduct, BlockProduct, UnblockProduct, GetProductImageUploadUrl (presigned URL, TTL 300s), ConfirmProductImageUpload, RemoveProductImage. 17 file trong `application/product/`.
 
-Checklist gốc: `CreateProduct`/`UpdateProduct`/`PublishProduct`/`UnpublishProduct`, image upload flow (`StoragePort` + `MinioStorageAdapter` + presigned URL), `BlockProduct`/`UnblockProduct`, `SellerProductController`/`AdminProductController`.
+⚠️ `sellerId` lấy từ `@RequestHeader("X-Seller-Id")` (create/list) hoặc không kiểm tra ownership gì cả (update/publish/image) — biết trước, xem `deferred.md` #1.
 
-## Phase 6 — Product Read + Cache `TODO theo doc / xem cảnh báo đầu file`
+## Phase 6 — Product Read + Cache `DONE` (verify 2026-08-08)
 
-Checklist gốc: `ProductQueryAdapter` (bypass aggregate, native JPQL), `GetPublicProductDetail`/`GetPublicProductVariants` (2-tier cache), `ListSellerProducts`/`GetSellerProductDetail` (không cache), 7 event handler evict cache tương ứng.
+`CacheConfig.java` khớp 100% với `cache.md`: Caffeine L1 (category:tree 30p/1 entry, product 2p/10K entries, product-variants 2p/10K entries) + Redis L2 (TTL đúng bảng Cache Inventory), pub/sub invalidation qua `CacheInvalidationPublisher`/`LocalCacheInvalidator`. Không phát hiện lệch giữa doc và code ở phase này.
 
-## Phase 7 — Variant `TODO theo doc / xem cảnh báo đầu file`
+## Phase 7 — Variant `DONE` (verify 2026-08-08)
 
-Checklist gốc: `AddVariant` (validate combination thuộc category attributes `isVariantDefining=true`), `UpdateVariant` (combination immutable), `ActivateVariant`/`DeactivateVariant`, variant-level image upload.
+`VariantController` (`/api/seller/products/{productId}/variants/**`, `/api/products/{productId}/variants` public) đầy đủ: AddVariant, UpdateVariant, ActivateVariant, DeactivateVariant, GetProductVariants. 9 file trong `application/variant/`. Cùng gap ownership như Phase 5 — không nhận `sellerId`/không verify caller sở hữu product.
 
 ## Phase 8 — Events + Outbox `DONE` (2026-06-15)
 
 8 domain event wired qua Outbox (`OutboxEventHandlers`, 8 `EventHandler` bean). `V2__fix_variant_schema.sql` fix schema thật thiếu `sku_code`/`stock`, rename `variant_image`→`sku_image` — phát hiện lệch giữa design gốc và nhu cầu thật lúc code Variant.
+
+## Phase 9 — Gateway Routing + NFR `DONE` (2026-08-08)
+
+Trước phase này, catalog-service **không route được từ browser** — `api-gateway` chỉ có `/web/**`, `/mobile/**`, `/auth/**`; `web-gateway` chỉ route oauth2/identity/customer-service. Đã bổ sung:
+
+- [x] `web-gateway/RouteConfiguration.java` — route `catalog-service` (`/api/catalog/**`, `/web/api/catalog/**`), theo đúng pattern rewritePath của 3 route có sẵn
+- [x] `web-gateway/SecurityConfiguration.java` — permitAll cho 5 GET public endpoint (category tree, category attributes, brand list, product detail, product variants) — không permitAll thì mọi request kể cả Guest bị chặn ở `.pathMatchers("/api/**").authenticated()` trước khi kịp tới catalog-service
+- [x] `catalog-service/SecurityConfig.java` — **mới, trước đây không có `SecurityFilterChain` nào** (cùng gap đã gặp ở `identity-service`) — Spring Boot default `anyRequest().authenticated()` sẽ chặn 401 toàn bộ GET public nếu không có bean này, kể cả sau khi route đã đúng ở web-gateway
+- [x] `webgateway.routes.catalog-service.uri=http://localhost:8005` — property mới
+- [x] `GetProductImageUploadUrl` — thêm `@RateLimit(key = productId, limit=20, windowSeconds=3600)` — chặn spam issue presigned URL/tạo rác object-key MinIO
+- [x] `rate-limiter-starter` — thêm dependency vào `catalog-service/pom.xml` (chưa có trước đây)
+- [ ] Ownership check (Product/Variant write) — **cố ý deferred**, xem `deferred.md` #1
 
 ---
 
@@ -94,4 +109,5 @@ _(chỉ giữ quyết định/deviation bất ngờ — routine "làm xong đún
 - **2026-06-13 (Phase 0):** `outbox_events` dùng schema bản mới nhất (routing_key + trace/span columns) ngay từ đầu — tránh phải alter migration sau này. Package đặt `vn.t3nexus.catalog` theo convention project, khác package cũ ghi trong doc thiết kế ban đầu.
 - **2026-06-15 (Phase 3):** `CategoryAttributeAssignment` quản lý tách biệt khỏi `Category` (không cascade) vì composite PK gây phức tạp với `orphanRemoval`. `CategoryUpdatedEvent.eventId` dùng `UUID.randomUUID()` trực tiếp vì domain layer không inject `ULIDGenerator` (đây là Spring bean).
 - **2026-06-15 (Phase 8):** Phát hiện schema `variant` thật thiếu `sku_code`/`stock` so với thiết kế Phase 0, và `variant_image` cần đổi tên `sku_image` — xử lý bằng `V2__fix_variant_schema.sql` thay vì sửa lại V1.
+- **2026-08-08 (Phase 4-7 verify + Phase 9):** Đối chiếu checklist Phase 4-7 với code thật — toàn bộ đã DONE, chỉ checklist chưa cập nhật từ trước. Phát hiện catalog-service chưa từng có route gateway lẫn `SecurityFilterChain` — bổ sung cả 2. Ownership check cho Product/Variant write endpoint cố ý deferred vì Seller chưa có auth thật (`X-Seller-Id` header là placeholder tạm).
 - **2026-08-04 (dọn doc):** Phát hiện checklist Phase 4–7 không khớp code thật (xem cảnh báo đầu file) — nén 9 file `progress/phase-*.md` (857 dòng) về file này, xoá thư mục `progress/`.

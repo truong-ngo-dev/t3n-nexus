@@ -1,6 +1,6 @@
 # Flash Sale — Inventory Design
 
-> **2026-08-03**: `ReserveInventory.handle()` (flow reserve đơn thường) đã bỏ hẳn Redis limited-offer slot check (`tryDecrementSlot`) khỏi flow của nó — xem `payment-checkout/implementation.md` Phase 4. Đây là hành động đúng hướng với doc này: flash sale **không nên** nối lại inline vào `ReserveInventory` dưới bất kỳ hình thức nào (kể cả denormalize flag lên `Stock`) — phải đi qua pipeline riêng hoàn toàn như mô tả dưới đây. `SlotService`/`RedisSlotAdapter`/`LimitedOffer` domain vẫn còn nguyên trong code, chưa bị xoá, chỉ đang không được gọi tới.
+> **2026-08-03**: `ReserveInventory.handle()` (flow reserve đơn thường) đã bỏ hẳn Redis limited-offer slot check (`tryDecrementSlot`) khỏi flow của nó — xem `place-order/implementation.md` Phase 4 (lúc đó feature này còn tên `payment-checkout`, đã gộp vào `place-order` 2026-08-08). Đây là hành động đúng hướng với doc này: flash sale **không nên** nối lại inline vào `ReserveInventory` dưới bất kỳ hình thức nào (kể cả denormalize flag lên `Stock`) — phải đi qua pipeline riêng hoàn toàn như mô tả dưới đây. `SlotService`/`RedisSlotAdapter`/`LimitedOffer` domain vẫn còn nguyên trong code, chưa bị xoá, chỉ đang không được gọi tới.
 
 ## Tổng quan
 

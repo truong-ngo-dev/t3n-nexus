@@ -26,14 +26,11 @@ public class EmailSender {
     @Value("${app.mail.from}")
     private String mailFrom;
 
-    // 2 base URL riêng biệt — KHÔNG gộp chung, vì mỗi template trỏ tới 1 đích khác nhau
-    // (frontendBaseUrl → Angular SPA, apiBaseUrl → backend API qua api-gateway). Xem comment
-    // trong application.properties.
-    @Value("${app.frontend-base-url}")
+    // Mọi link trong email đều trỏ vào Angular SPA (không trỏ thẳng backend API nữa — trước đây
+    // verification.html trỏ apiBaseUrl trả JSON trần, giờ đổi sang /verify-email FE route tự gọi
+    // API và hiện màn hình kết quả, xem docs/feature/01-customer-registration).
+    @Value("${app.frontend.url}")
     private String frontendBaseUrl;
-
-    @Value("${app.api-base-url}")
-    private String apiBaseUrl;
 
     public void send(EmailDispatchEvent event) {
         try {
@@ -59,7 +56,6 @@ public class EmailSender {
 
         Context ctx = new Context();
         ctx.setVariable("frontendBaseUrl", frontendBaseUrl);
-        ctx.setVariable("apiBaseUrl", apiBaseUrl);
         if (emailPayload.attributes() != null) {
             Object templateVars = emailPayload.attributes().get("templateVars");
             if (templateVars instanceof Map<?, ?> vars) {

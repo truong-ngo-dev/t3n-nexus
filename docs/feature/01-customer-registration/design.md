@@ -42,7 +42,9 @@ Buyer → POST /auth/register {email, password, fullName}   [api-gateway → oau
     → gửi verification email
 
 -- Buyer click link trong email --
-  → GET /api/identity/users/verify?token={token}
+  → Link trỏ vào Angular SPA: GET /verify-email?token={token} (VerifyEmailComponent)
+    (KHÔNG trỏ thẳng API — trước đây trả JSON trần, giờ FE tự gọi API và hiện màn hình kết quả)
+  → FE gọi GET /api/identity/users/verify?token={token}
   → identity-service: UserAccount.status = ACTIVE
   → publish identity.user.activated
 
@@ -116,7 +118,14 @@ deactivate NOTIF
 
 == Email Verification — Happy Path ==
 
-Buyer -> WG : GET /api/identity/users/verify?token={verificationToken}
+note right of Buyer
+  Link trong email trỏ vào Angular SPA (/verify-email?token=...),
+  KHÔNG trỏ thẳng API — VerifyEmailComponent tự gọi API bên dưới
+  và hiện màn hình kết quả (trước đây trả JSON trần cho browser)
+end note
+
+Buyer -> AG : GET /web/api/identity/users/verify?token={verificationToken}
+AG -> WG : forward /api/identity/users/verify
 activate WG
 WG -> ID : forward request
 activate ID
@@ -124,8 +133,9 @@ ID -> ID : validate token\n(tồn tại, chưa expired, status=PENDING)\nUserAcc
 ID -> K : identity.user.activated\n{userId}\n[via Outbox]
 ID --> WG : 200 OK
 deactivate ID
-WG --> Buyer : 200 OK
+WG --> AG : 200 OK
 deactivate WG
+AG --> Buyer : 200 OK
 
 == Async — identity.user.activated ==
 

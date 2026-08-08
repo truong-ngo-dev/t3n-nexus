@@ -1,0 +1,34 @@
+<div class="auth-page">
+  <div class="auth-card">
+
+    <a routerLink="/login" class="logo">T3N NEXUS</a>
+
+    @switch (state()) {
+      @case ('loading') {
+        <div class="status-state">
+          <mat-spinner diameter="32" />
+          <p class="auth-subtitle">Đang xác thực email...</p>
+        </div>
+      }
+      @case ('success') {
+        <div class="status-state">
+          <mat-icon class="status-icon success">check_circle</mat-icon>
+          <h1 class="auth-title">Xác thực email thành công</h1>
+          <p class="auth-subtitle">
+            Tài khoản của bạn đã được kích hoạt. Bạn có thể đăng nhập ngay bây giờ.
+          </p>
+          <button mat-flat-button class="submit-btn" (click)="goToLogin()">Về trang đăng nhập</button>
+        </div>
+      }
+      @case ('error') {
+        <div class="status-state">
+          <mat-icon class="status-icon error">error_outline</mat-icon>
+          <h1 class="auth-title">Xác thực thất bại</h1>
+          <p class="auth-subtitle">{{ errorMessage() }}</p>
+          <button mat-flat-button class="submit-btn" (click)="goToLogin()">Về trang đăng nhập</button>
+        </div>
+      }
+    }
+
+  </div>
+</div>

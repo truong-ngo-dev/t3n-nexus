@@ -4,9 +4,9 @@
 
 ## Context
 
-`Order` aggregate được build ban đầu (session 2026-07-07/08, xem `docs/service/order-service/implementation.md` Phase 0) bằng Event Sourcing — `event-sourcing-starter` lib, `event_store` table, `EventSourcedAggregateRoot`. Quyết định này được ghi rải rác ở nhiều doc global (`3. service-mapping.md`, `1. bounded-contexts.md`, `1.requirement/requirement.md`, `testing-plan.md`, `3.technical/tech-stack.md`) nhưng chưa từng có ADR riêng.
+`Order` aggregate được build ban đầu (session 2026-07-07/08, xem `docs/feature/place-order/implementation.md` mục "Lịch sử — Event Sourcing") bằng Event Sourcing — `event-sourcing-starter` lib, `event_store` table, `EventSourcedAggregateRoot`. Quyết định này được ghi rải rác ở nhiều doc global (`3. service-mapping.md`, `1. bounded-contexts.md`, `1.requirement/requirement.md`, `testing-plan.md`, `3.technical/tech-stack.md`) nhưng chưa từng có ADR riêng.
 
-Khi implement `CREATED`-state timeout cho feature `payment-checkout` (session 2026-08-03, xem `docs/feature/payment-checkout/implementation.md`), phát hiện vấn đề thật: cần 1 scheduled job query "mọi order có `status='CREATED'` và quá hạn" — Event Sourcing thuần không hỗ trợ query theo field hiện tại kiểu này, chỉ query được theo `aggregate_id`. Giải quyết đòi hỏi bolt-on thêm 1 bảng projection riêng chỉ để phục vụ 1 nhu cầu vận hành tầm thường.
+Khi implement `CREATED`-state timeout cho feature "đặt hàng" (session 2026-08-03, xem `docs/feature/place-order/implementation.md` Phase 5 — lúc đó feature này tách thành `payment-checkout`, đã gộp lại `place-order` 2026-08-08), phát hiện vấn đề thật: cần 1 scheduled job query "mọi order có `status='CREATED'` và quá hạn" — Event Sourcing thuần không hỗ trợ query theo field hiện tại kiểu này, chỉ query được theo `aggregate_id`. Giải quyết đòi hỏi bolt-on thêm 1 bảng projection riêng chỉ để phục vụ 1 nhu cầu vận hành tầm thường.
 
 Việc này khiến phải đánh giá lại: `Order` có thật sự cần Event Sourcing không? Theo 4 tiêu chí đáng để trả chi phí ES:
 

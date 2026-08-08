@@ -68,6 +68,16 @@ public class SecurityConfiguration {
                         // phải permitAll riêng, không thể rơi vào .authenticated() chung bên dưới.
                         .pathMatchers(HttpMethod.GET, "/api/identity/users/verify", "/web/api/identity/users/verify").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/identity/users/resend-verification", "/web/api/identity/users/resend-verification").permitAll()
+                        // catalog-service — Guest/Customer browse không cần login (category tree, brand
+                        // list, product/variant detail). Publish/write endpoint (/api/catalog/seller/**,
+                        // /api/catalog/admin/**) vẫn rơi vào .authenticated() chung bên dưới vì không match
+                        // các pattern hẹp này.
+                        .pathMatchers(HttpMethod.GET,
+                                "/api/catalog/categories", "/web/api/catalog/categories",
+                                "/api/catalog/categories/*/attributes", "/web/api/catalog/categories/*/attributes",
+                                "/api/catalog/brands", "/web/api/catalog/brands",
+                                "/api/catalog/products/*", "/web/api/catalog/products/*",
+                                "/api/catalog/products/*/variants", "/web/api/catalog/products/*/variants").permitAll()
                         .pathMatchers("/api/**").authenticated()
                         .anyExchange().permitAll())
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)

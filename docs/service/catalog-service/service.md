@@ -216,7 +216,9 @@ Không consume event từ BC nào. catalog-service là **upstream thuần túy**
 
 ### Sync Calls
 
-Không có outbound sync call. Inbound từ `web-gateway` qua REST.
+Không có outbound sync call. Inbound: `api-gateway` (`/web/**`, routing thuần — ADR-012) → `web-gateway` (route `/api/catalog/**`, `tokenRelay` + `saveSession`) → `catalog-service` qua REST.
+
+`catalog-service` có `SecurityFilterChain` riêng permitAll 5 GET public (category tree, category attributes, brand list, product detail, product variants) — cần thiết vì Guest/Customer browse không có JWT. `web-gateway` cũng permitAll đúng 5 path này ở layer riêng, nếu không request Guest bị chặn 401 trước khi tới được `catalog-service`.
 
 ---
 

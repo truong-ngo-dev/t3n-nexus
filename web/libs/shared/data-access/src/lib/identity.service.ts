@@ -33,6 +33,14 @@ export class IdentityService {
   private readonly config      = inject(API_CONFIG);
   private readonly fingerprint = inject(DeviceFingerprintService);
 
+  // permitAll ở web-gateway (user chưa login khi bấm link trong email) — xem
+  // web-gateway SecurityConfiguration + docs/feature/01-customer-registration.
+  verifyEmail(token: string): Observable<{ userId: string }> {
+    return this.http.get<ApiResponse<{ userId: string }>>(`${this.config.identity}/users/verify`, {
+      params: { token },
+    }).pipe(map(res => res.data));
+  }
+
   getMe(): Observable<UserProfile> {
     return this.http.get<ApiResponse<UserProfile>>(`${this.config.identity}/v1/me`).pipe(
       map(res => res.data)

@@ -120,6 +120,11 @@
             <artifactId>observability-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>rate-limiter-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- Lombok -->
         <dependency>
