@@ -1,6 +1,7 @@
 package vn.t3nexus.webgateway.presentation;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.session.ReactiveSessionRepository;
@@ -17,6 +18,7 @@ import vn.t3nexus.webgateway.infrastructure.configuration.security.SessionMappin
  * (e.g., account locked, remote logout). Protected by service-account JWT — see
  * SecurityConfiguration internalFilterChain (SCOPE_webgw.internal required).
  */
+@Slf4j
 @RestController
 @RequestMapping("/webgw/internal/sessions")
 @RequiredArgsConstructor
@@ -33,8 +35,16 @@ public class  SessionRevokeController {
                 .flatMap(springSessionId -> {
                     String sessionKey = SessionMappingAuthenticationSuccessHandler.WEBGW_SESSION_KEY_PREFIX + springSessionId;
                     return sessionRepository.deleteById(springSessionId)
-                            .then(redisTemplate.delete(oauthKey, sessionKey));
+                            .then(redisTemplate.delete(oauthKey, sessionKey))
+                            .doOnSuccess(deletedCount -> log.info(
+                                    "[SessionRevoke] cleared mapping: ossId={}, springSessionId={}",
+                                    request.ossId(), springSessionId));
                 })
+                // Mapping đã không còn (revoke lặp lại, hoặc TTL/cleanup khác đã dọn trước) — vẫn
+                // idempotent trả 200, nhưng trước đây hoàn toàn im lặng, không phân biệt được qua
+                // log với case xoá thành công thật sự ở trên.
+                .switchIfEmpty(Mono.fromRunnable(() -> log.info(
+                        "[SessionRevoke] no mapping found (already gone or never existed): ossId={}", request.ossId())))
                 .then(Mono.just(ResponseEntity.<Void>ok().build()));
     }
 

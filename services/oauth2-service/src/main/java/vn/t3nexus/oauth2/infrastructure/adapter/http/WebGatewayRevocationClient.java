@@ -54,9 +54,18 @@ public class WebGatewayRevocationClient {
     }
 
     public void revoke(String ossId) {
+        // Tách riêng try/catch cho mint-token vs gọi-revoke — 2 lỗi này nguyên nhân khác hẳn nhau
+        // (sai client credential vs web-gateway down/token bị reject) nhưng trước đây gộp chung 1
+        // log, không phân biệt được lỗi nằm ở bước nào khi debug.
+        String token;
         try {
-            String token = tokenClient.fetchToken(INTERNAL_SCOPE);
+            token = tokenClient.fetchToken(INTERNAL_SCOPE);
+        } catch (Exception e) {
+            log.warn("[WebGatewayRevocation] failed to mint internal token for ossId={}: {}", ossId, e.getMessage());
+            return;
+        }
 
+        try {
             revokeClient.post()
                     .uri("/webgw/internal/sessions/revoke")
                     .headers(h -> h.setBearerAuth(token))
@@ -64,12 +73,12 @@ public class WebGatewayRevocationClient {
                     .body(Map.of("ossId", ossId))
                     .retrieve()
                     .toBodilessEntity();
-            log.debug("[WebGatewayRevocation] revoked ossId={}", ossId);
+            log.info("[WebGatewayRevocation] revoked ossId={}", ossId);
         } catch (Exception e) {
             // Best-effort — logout đã hoàn tất phía user (IDP session + OAuthSession đã xoá ở bước
-            // trước rồi), thất bại ở đây (timeout, mint token fail, web-gateway down...) không abort
+            // trước rồi), thất bại ở đây (timeout, web-gateway down, token bị reject...) không abort
             // flow. Redis mapping [A1]/[A2] orphan tối đa tới TTL 24h — xem design.md Failure Scenarios.
-            log.warn("[WebGatewayRevocation] failed for ossId={}: {}", ossId, e.getMessage());
+            log.info("[WebGatewayRevocation] revoke call failed for ossId={}: {}", ossId, e.getMessage());
         }
     }
 }

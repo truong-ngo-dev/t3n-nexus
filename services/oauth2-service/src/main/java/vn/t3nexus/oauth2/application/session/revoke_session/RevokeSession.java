@@ -1,8 +1,11 @@
 package vn.t3nexus.oauth2.application.session.revoke_session;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.session.Session;
+import org.springframework.session.SessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.lib.common.application.EventDispatcher;
@@ -18,14 +21,16 @@ import vn.t3nexus.oauth2.infrastructure.adapter.http.WebGatewayRevocationClient;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RevokeSession implements CommandHandler<RevokeSession.Command, Void> {
 
-    private final OAuthSessionRepository     oAuthSessionRepository;
-    private final OAuth2AuthorizationService oauth2AuthorizationService;
-    private final EventDispatcher            eventDispatcher;
-    private final WebGatewayRevocationClient webGatewayRevocationClient;
+    private final OAuthSessionRepository        oAuthSessionRepository;
+    private final OAuth2AuthorizationService    oauth2AuthorizationService;
+    private final EventDispatcher               eventDispatcher;
+    private final WebGatewayRevocationClient    webGatewayRevocationClient;
+    private final SessionRepository<? extends Session> sessionRepository;
 
     @Override
     @Transactional
@@ -50,6 +55,15 @@ public class RevokeSession implements CommandHandler<RevokeSession.Command, Void
 
         OAuth2Authorization authorization = oauth2AuthorizationService.findById(authorizationId);
         if (authorization != null) oauth2AuthorizationService.remove(authorization);
+
+        // Khác với oidcLogoutHandler (dùng SecurityContextLogoutHandler trên chính request đang
+        // chạy) — ở đây revoke session của 1 request KHÁC (VD user tự đăng xuất thiết bị khác từ
+        // "Quản lý thiết bị"), không có HttpServletRequest nào đại diện cho nó để dùng
+        // SecurityContextLogoutHandler. Phải xoá thẳng Spring Session theo idpSessionId — thiếu
+        // bước này thì IDP session vẫn sống, browser đó silent-SSO lại ngay lần request kế tiếp,
+        // revoke coi như vô tác dụng.
+        sessionRepository.deleteById(idpSessionId);
+        log.info("[RevokeSession] terminated: ossId={}, idpSessionId={}, userId={}", ossId, idpSessionId, userId);
 
         eventDispatcher.dispatch(new SessionRevokedEvent(idpSessionId, List.of(ossId), userId));
 

@@ -19,10 +19,16 @@ public class MinioConfig {
 
     @Bean
     public MinioClient minioClient() {
-        return MinioClient.builder()
+        MinioClient client = MinioClient.builder()
                 .endpoint(minioProperties.getEndpoint())
                 .credentials(minioProperties.getAccessKey(), minioProperties.getSecretKey())
                 .build();
+        // Default SDK timeout thực chất không giới hạn — nếu MinIO treo/chậm, request upload/delete
+        // avatar giữ thread vô thời hạn (cùng loại rủi ro đã gặp ở WebGatewayRevocationClient,
+        // 03-logout). Write timeout nới hơn connect/read vì avatar tối đa 5MB, cần đủ thời gian
+        // truyền, đặc biệt trên máy dev chậm.
+        client.setTimeout(3_000, 10_000, 8_000);
+        return client;
     }
 
     @Bean

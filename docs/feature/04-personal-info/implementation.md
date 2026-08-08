@@ -1,7 +1,7 @@
 # Implementation: Personal Info
 
 **Design**: [`design.md`](design.md)
-**Status**: TODO
+**Status**: Done
 
 ---
 
@@ -9,10 +9,10 @@
 
 | Phase | Tên                                    | Service / Layer    | Status |
 |-------|----------------------------------------|--------------------|--------|
-| 1     | DB Migration                           | identity-service   | TODO   |
-| 2     | REST API — GET & PUT profile           | identity-service   | TODO   |
-| 3     | REST API — Avatar upload (MinIO)       | identity-service   | TODO   |
-| 4     | Frontend                               | Angular (shared)   | TODO   |
+| 1     | DB Migration                           | identity-service   | Done   |
+| 2     | REST API — GET & PUT profile           | identity-service   | Done   |
+| 3     | REST API — Avatar upload (MinIO)       | identity-service   | Done   |
+| 4     | Frontend                               | Angular (shared)   | Done   |
 
 ---
 
@@ -90,6 +90,7 @@ curl -X POST http://localhost:{port}/api/v1/me/avatar \
 - [ ] Thêm dependency `io.minio:minio` vào identity-service
 - [ ] `MinioConfig` — `MinioClient` bean, bucket name `user-avatars` từ `application.yml`
 - [ ] `@PostConstruct` trong `MinioConfig`: tạo bucket nếu chưa tồn tại
+- [ ] Set connect/read timeout tường minh khi build `MinioClient` (không dùng default không giới hạn — xem NFR Assessment trong `design.md`)
 
 **Storage service**
 - [ ] `AvatarStorageService.upload(userId, inputStream, contentType, size)` → trả `avatarUrl`
@@ -100,6 +101,7 @@ curl -X POST http://localhost:{port}/api/v1/me/avatar \
 - [ ] Validate size ≤ 5MB — throw `MaxUploadSizeExceededException` nếu vượt
 
 **Domain / Service**
+- [ ] `@RateLimit` (rate-limiter-starter) trên `updateAvatar()` — VD 5 lần/giờ per userId (xem NFR Assessment trong `design.md`)
 - [ ] `UserAccountService.updateAvatar(userId, MultipartFile)`:
   1. Load `UserAccount`, lấy `avatarUrl` cũ
   2. Upload file mới → nhận `newUrl`

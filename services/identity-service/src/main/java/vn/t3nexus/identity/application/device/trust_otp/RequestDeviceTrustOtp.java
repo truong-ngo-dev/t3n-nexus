@@ -14,36 +14,29 @@ import vn.t3nexus.identity.domain.user_account.UserAccountRepository;
 import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.vo.UserId;
-import vn.t3nexus.lib.ratelimiter.RateLimiter;
+import vn.t3nexus.lib.ratelimiter.RateLimit;
 import vn.t3nexus.lib.utils.lang.Assert;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.util.HexFormat;
 
 @Service
 @RequiredArgsConstructor
 public class RequestDeviceTrustOtp implements CommandHandler<RequestDeviceTrustOtp.Command, Void> {
 
-    private static final int      RATE_LIMIT  = 3;
-    private static final Duration RATE_WINDOW = Duration.ofMinutes(5);
-
     private final DeviceRepository      deviceRepository;
     private final UserAccountRepository userAccountRepository;
     private final DeviceTrustOtpStore   otpStore;
     private final EventDispatcher       eventDispatcher;
-    private final RateLimiter           rateLimiter;
 
     @Override
     @Transactional
+    @RateLimit(key = "'trust_device_otp_rate:' + #command.userId()", limit = 3, windowSeconds = 300,
+            message = "Too many OTP requests, please try again later")
     public Void handle(Command command) {
-        if (!rateLimiter.tryAcquire("trust_device_otp_rate:" + command.userId(), RATE_LIMIT, RATE_WINDOW)) {
-            throw DeviceException.rateLimitExceeded();
-        }
-
         Device device = deviceRepository.findById(DeviceId.of(command.deviceId()))
                 .orElseThrow(DeviceException::notFound);
 
