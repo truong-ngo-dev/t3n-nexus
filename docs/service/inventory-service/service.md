@@ -189,8 +189,8 @@ Trước mỗi event: `INSERT INTO processed_event(event_id) VALUES(?) ON CONFLI
 
 | Feature                                                | Role                           | Handles                         | Publishes                                         |
 |--------------------------------------------------------|--------------------------------|---------------------------------|---------------------------------------------------|
-| [place-order](../../feature/place-order/design.md) | Participant — reservation step | `OrderCreated`                  | `InventoryReserved`, `InventoryReservationFailed` |
-| [place-order](../../feature/place-order/design.md) | Participant — compensate step  | `OrderCancelled`                | `InventoryReleased`                               |
+| [place-order](../../feature/07-place-order/design.md) | Participant — reservation step | `OrderCreated`                  | `InventoryReserved`, `InventoryReservationFailed` |
+| [place-order](../../feature/07-place-order/design.md) | Participant — compensate step  | `OrderCancelled`                | `InventoryReleased`                               |
 | [flashsale.md](flashsale.md) | Enforcer — slot guard          | `OrderCreated` *(limited path)* | `InventoryReserved`, `InventoryReservationFailed` |
 
 ---

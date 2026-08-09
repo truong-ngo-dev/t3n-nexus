@@ -249,7 +249,7 @@ Thay vào đó dùng đúng 2 lớp đều DB, không có "khoá" nào có thể
 - [ ] `service/inapp-worker/service.md` — tạo mới
 - [ ] `global/2.architecture/event-catalog.md` — chốt field `cancelledBy` (thêm vào code hoặc bỏ khỏi catalog); xác nhận `paymentMethod` trong `OrderCreated` khớp code
 - [x] `design.md` — đoạn "Payment Timeout Mechanism — Lớp 3" đã sửa đúng cơ chế reconciler (`CancelOrder.handle()`, không phải raw SQL CAS) trong lần gộp 2026-08-08
-- [ ] `design.md` §Sequence Diagram — thêm block `plantuml` vẽ COD happy path + `OUT_OF_STOCK` + `INVENTORY_TIMEOUT`, theo đúng thứ tự Phase 0-9 vừa làm
+- [x] `design.md` §Sequence Diagram — thêm 3 block `plantuml` (COD happy path, `OUT_OF_STOCK`, `INVENTORY_TIMEOUT`) — đánh dấu rõ phần notification-service/inapp-worker (Phase 6-7) chưa build trong diagram
 - [ ] Đổi `design.md` **Status**: `Draft` → `Implemented (COD)` khi xong hết, ghi chú Prepaid vẫn Draft
 
 ---

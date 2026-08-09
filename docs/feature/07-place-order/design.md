@@ -17,7 +17,7 @@ Buyer chọn phương thức thanh toán (COD hoặc ví điện tử prepaid) l
 ## Actors
 
 | Actor                                   | Role                                                                                            |
-|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+|-----------------------------------------|-------------------------------------------------------------------------------------------------|
 | Buyer                                   | Chọn phương thức thanh toán + địa chỉ, bấm xác nhận, (nếu prepaid) nhập thông tin trên trang ví |
 | E-wallet (MoMo/ZaloPay/VNPay — sandbox) | Bên thứ 3 xử lý thanh toán, redirect buyer về + gọi webhook xác nhận kết quả                    |
 
@@ -33,16 +33,16 @@ Buyer chọn phương thức thanh toán (COD hoặc ví điện tử prepaid) l
 
 ## Services tham gia
 
-| Service                | Role                                                                                                                                                                       |
-|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `order-service`        | Saga coordinator — nhận request, giữ `Order.paymentMethod`, điều phối theo COD/PREPAID                                                                                     |
-| `inventory-service`    | Saga participant — reserve/release tồn kho (đã build, không đổi gì thêm cho phần payment)                                                                                  |
-| `payment-service`      | Saga participant — gọi API ví, nhận webhook, publish kết quả thanh toán *(nhánh Prepaid — chưa build, xem Status)*                                                         |
-| `fulfillment-service`  | Saga participant — assign shipper sau khi `OrderConfirmed` *(chưa build)*                                                                                                   |
-| `notification-service` | Router — nhận `OrderConfirmed`/`OrderCancelled`, ghi `notification_log` (channel=IN_APP, và EMAIL)                                                                          |
-| `inapp-worker`         | Consume CDC topic `notification.inapp.dispatch`, `Redis PUBLISH user:{userId}:inapp` — xem `notification-service.md`                                                       |
-| `websocket-gateway`    | Connection manager thuần — Redis subscribe `user:{userId}:inapp` → push xuống kênh WS `/inapp` (ticket-auth, đã build sẵn)                                                  |
-| `api-gateway`/`web-gateway` | Route `POST /orders`, `GET /orders/{id}` qua `web-gateway`; webhook (Prepaid) cần route riêng ở `api-gateway` — xem Business Rules                                    |
+| Service                     | Role                                                                                                                               |
+|-----------------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `order-service`             | Saga coordinator — nhận request, giữ `Order.paymentMethod`, điều phối theo COD/PREPAID                                             |
+| `inventory-service`         | Saga participant — reserve/release tồn kho (đã build, không đổi gì thêm cho phần payment)                                          |
+| `payment-service`           | Saga participant — gọi API ví, nhận webhook, publish kết quả thanh toán *(nhánh Prepaid — chưa build, xem Status)*                 |
+| `fulfillment-service`       | Saga participant — assign shipper sau khi `OrderConfirmed` *(chưa build)*                                                          |
+| `notification-service`      | Router — nhận `OrderConfirmed`/`OrderCancelled`, ghi `notification_log` (channel=IN_APP, và EMAIL)                                 |
+| `inapp-worker`              | Consume CDC topic `notification.inapp.dispatch`, `Redis PUBLISH user:{userId}:inapp` — xem `notification-service.md`               |
+| `websocket-gateway`         | Connection manager thuần — Redis subscribe `user:{userId}:inapp` → push xuống kênh WS `/inapp` (ticket-auth, đã build sẵn)         |
+| `api-gateway`/`web-gateway` | Route `POST /orders`, `GET /orders/{id}` qua `web-gateway`; webhook (Prepaid) cần route riêng ở `api-gateway` — xem Business Rules |
 
 ---
 
@@ -99,9 +99,9 @@ Sau `OrderConfirmed` (cả 2 nhánh) — `fulfillment-service` nhận event, ass
 ## Failure Scenarios
 
 | Điểm thất bại                                                                                                                                                                                                                                | Compensating action                                                                                                                                                                                                                                                            | Kết quả cuối                    | FE hiện gì                                                                                              |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------|-----------------------------------------------------------------------------------------------------------|
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|---------------------------------------------------------------------------------------------------------|
 | Tồn kho hết ngay sau khi tạo Order (cả COD lẫn Prepaid)                                                                                                                                                                                      | `InventoryReservationFailed` → `Order CANCELLED` (reason=`OUT_OF_STOCK`)                                                                                                                                                                                                       | `CANCELLED`                     | "Sản phẩm đã hết hàng" — không redirect, gợi ý sản phẩm khác                                            |
-| `inventory-service` không phản hồi trong thời hạn (mất message, service down dài hạn) — cả COD lẫn Prepaid                                                                                                                                    | `CREATED`-timeout (Redis ZSET + Postgres backstop, 3 phút) → `Order CANCELLED` (reason=`INVENTORY_TIMEOUT`)                                                                                                                                                                    | `CANCELLED`                     | "Hết thời gian xử lý"                                                                                    |
+| `inventory-service` không phản hồi trong thời hạn (mất message, service down dài hạn) — cả COD lẫn Prepaid                                                                                                                                   | `CREATED`-timeout (Redis ZSET + Postgres backstop, 3 phút) → `Order CANCELLED` (reason=`INVENTORY_TIMEOUT`)                                                                                                                                                                    | `CANCELLED`                     | "Hết thời gian xử lý"                                                                                   |
 | payment-service gọi API ví thất bại (timeout/ví sập/sai config) — **tồn kho đã reserve rồi**                                                                                                                                                 | `PaymentInitiationFailed` (event mới) → `order-service` nhận → `Order CANCELLED` (reason=`PAYMENT_INIT_FAILED`) → `OrderCancelled` → `inventory-service` release (dùng lại `OrderCancelledConsumer` đã có, không cần sửa gì bên inventory)                                     | `CANCELLED`                     | "Không kết nối được ví, thử lại"                                                                        |
 | Ví từ chối giao dịch thật (buyer đã ở trang ví)                                                                                                                                                                                              | `PaymentFailed` → `Order CANCELLED` (reason=`PAYMENT_REJECTED`) → `OrderCancelled` → inventory release                                                                                                                                                                         | `CANCELLED`                     | "Thanh toán thất bại" — trang returnUrl hiện, không phải trang checkout                                 |
 | Đơn ở `AWAITING_PAYMENT` quá `paymentDeadline` (15 phút) mà không có `PaymentSucceeded`/`PaymentFailed` nào tới — buyer bỏ ngang, không mở `payUrl`, hoặc ví không bao giờ gọi webhook (hành vi bình thường của phần lớn ví, không phải lỗi) | Fast-path (Redis) hoặc backstop (DB sweep) phát hiện quá hạn → CAS `Order CANCELLED` (reason=`PAYMENT_TIMEOUT`) → `OrderCancelled` → inventory release. Chi tiết cơ chế: xem [Payment Timeout Mechanism](#payment-timeout-mechanism--auto-cancel-sau-15-phút-không-thanh-toán) | `CANCELLED`                     | "Hết thời gian thanh toán, đơn đã bị huỷ" — không dựa vào return URL vì buyer có thể chưa từng redirect |
@@ -160,19 +160,19 @@ Gọi đúng `CancelOrder.handle(new CancelOrder.Command(orderId, PAYMENT_TIMEOU
 
 ## Events
 
-| Event                       | Producer            | Consumers                                 | Payload sơ bộ                                                     |
-|------------------------------|---------------------|--------------------------------------------|---------------------------------------------------------------------|
-| `OrderCreated`               | `order-service`     | `inventory-service`                        | `{ orderId, items[], paymentMethod, shippingAddress }`               |
-| `InventoryReserved`          | `inventory-service` | `order-service`                            | `{ orderId, items[] }`                                                |
-| `InventoryReservationFailed` | `inventory-service` | `order-service`                            | `{ orderId, reason }`                                                  |
-| `PaymentRequested`           | `order-service`     | `payment-service`                          | `{ orderId, amount, walletProvider }` *(Prepaid — chưa build)*        |
-| `PaymentUrlIssued`           | `payment-service`   | `order-service` (relay qua WebSocket), FE  | `{ orderId, payUrl }` *(Prepaid — chưa build)*                         |
-| `PaymentInitiationFailed`    | `payment-service`   | `order-service`                            | `{ orderId, reason }` *(Prepaid — chưa build)*                         |
-| `PaymentSucceeded`           | `payment-service`   | `order-service`                            | `{ orderId }` *(Prepaid — chưa build)*                                 |
-| `PaymentFailed`              | `payment-service`   | `order-service`                            | `{ orderId, reason }` *(Prepaid — chưa build)*                          |
-| `OrderConfirmed`             | `order-service`     | `fulfillment-service`, `notification-service` | `{ orderId, sellerId, shippingAddress }`                            |
-| `OrderCancelled`             | `order-service`     | `inventory-service`, `notification-service` | `{ orderId, reason, cancelledBy }`                                    |
-| `ShipmentAssigned`           | `fulfillment-service` | `notification-service`                   | `{ orderId, shipperId, estimatedPickup }` *(chưa build)*               |
+| Event                        | Producer              | Consumers                                     | Payload sơ bộ                                                  |
+|------------------------------|-----------------------|-----------------------------------------------|----------------------------------------------------------------|
+| `OrderCreated`               | `order-service`       | `inventory-service`                           | `{ orderId, items[], paymentMethod, shippingAddress }`         |
+| `InventoryReserved`          | `inventory-service`   | `order-service`                               | `{ orderId, items[] }`                                         |
+| `InventoryReservationFailed` | `inventory-service`   | `order-service`                               | `{ orderId, reason }`                                          |
+| `PaymentRequested`           | `order-service`       | `payment-service`                             | `{ orderId, amount, walletProvider }` *(Prepaid — chưa build)* |
+| `PaymentUrlIssued`           | `payment-service`     | `order-service` (relay qua WebSocket), FE     | `{ orderId, payUrl }` *(Prepaid — chưa build)*                 |
+| `PaymentInitiationFailed`    | `payment-service`     | `order-service`                               | `{ orderId, reason }` *(Prepaid — chưa build)*                 |
+| `PaymentSucceeded`           | `payment-service`     | `order-service`                               | `{ orderId }` *(Prepaid — chưa build)*                         |
+| `PaymentFailed`              | `payment-service`     | `order-service`                               | `{ orderId, reason }` *(Prepaid — chưa build)*                 |
+| `OrderConfirmed`             | `order-service`       | `fulfillment-service`, `notification-service` | `{ orderId, sellerId, shippingAddress }`                       |
+| `OrderCancelled`             | `order-service`       | `inventory-service`, `notification-service`   | `{ orderId, reason, cancelledBy }`                             |
+| `ShipmentAssigned`           | `fulfillment-service` | `notification-service`                        | `{ orderId, shipperId, estimatedPickup }` *(chưa build)*       |
 
 `OrderCreated`/`OrderConfirmed`/`OrderCancelled`/`InventoryReserved`/`InventoryReservationFailed` đã có trong `event-catalog.md`. `PaymentRequested`/`PaymentUrlIssued`/`PaymentInitiationFailed`/`PaymentSucceeded`/`PaymentFailed` cần thêm vào `event-catalog.md` khi bắt đầu implement nhánh Prepaid.
 
@@ -182,7 +182,188 @@ Catalog đã liệt kê `notification-service` là consumer của `OrderConfirme
 
 ## Sequence Diagram
 
-Chưa vẽ. Khi vẽ, cần 1 diagram cho nhánh COD (Happy Path + `OUT_OF_STOCK` + `INVENTORY_TIMEOUT`, đã implement — xem `implementation.md` Phase 0-5) và 1 diagram riêng cho nhánh Prepaid (chưa implement) khi bắt đầu. Nhúng trực tiếp bằng fenced ```plantuml``` block, không tạo file `.puml` rời.
+Nhánh COD (đã implement — `implementation.md` Phase 0-5), 3 diagram theo 3 nhánh chính. Nhánh Prepaid chưa vẽ — thêm khi bắt đầu implement.
+
+### Happy Path (COD)
+
+```plantuml
+@startuml sequence-place-order-cod-happy
+title Place Order — COD Happy Path
+
+skinparam sequenceArrowThickness 1.5
+skinparam responseMessageBelowArrow true
+skinparam ParticipantPadding 20
+
+actor       "Buyer"                as U
+participant "api-gateway"          as AG
+participant "web-gateway\n(BFF)"     as BFF
+participant "order-service"        as OS
+participant "inventory-service"    as INV
+queue       "Kafka"                 as K
+participant "notification-service" as NOTIF
+participant "websocket-gateway"    as WSG
+
+U -> WSG : connect wss://.../inapp?ticket=...\n(ticket lấy qua web-gateway TRƯỚC khi bấm "Xác nhận")
+activate WSG
+
+U -> AG : POST /web/api/order/v1/orders\n{items, paymentMethod: COD, address}\n(session cookie)
+activate AG
+AG -> BFF : forward /api/order/v1/orders
+activate BFF
+BFF -> OS : POST /api/v1/orders\n(Bearer token)
+activate OS
+OS -> OS : create Order(CREATED, paymentMethod=COD)
+OS -> K : OrderCreated\n{orderId, items[], paymentMethod, shippingAddress}
+OS --> BFF : 201 { orderId, status: CREATED }
+deactivate OS
+BFF --> AG : 201
+deactivate BFF
+AG --> U : 201 — FE hiện "Đang xử lý đơn hàng..."
+deactivate AG
+
+K -> INV : OrderCreated
+activate INV
+INV -> INV : reserve stock
+INV -> K : InventoryReserved\n{orderId, items[]}
+deactivate INV
+
+K -> OS : InventoryReserved
+activate OS
+OS -> OS : canProcess() == true\npaymentMethod == COD → bỏ qua payment
+OS -> OS : Order → CONFIRMED
+OS -> K : OrderConfirmed\n{orderId, sellerId, shippingAddress}
+deactivate OS
+
+K -> NOTIF : OrderConfirmed
+activate NOTIF
+NOTIF -> NOTIF : ghi notification_log\n(EMAIL + IN_APP) — Phase 6, chưa build
+NOTIF -> WSG : relay qua CDC → Kafka → inapp-worker\n(chi tiết: notification-service.md) — Phase 7, chưa build
+deactivate NOTIF
+WSG -> U : push "OrderConfirmed" qua /inapp
+deactivate WSG
+U -> U : lọc theo orderId → hiện "Đặt hàng thành công"
+
+note over OS, INV
+  Mọi event publish đều qua Outbox Pattern (ADR-005)
+  Kafka partition key = orderId
+  Idempotency: Order.canProcess() (tuần tự) +
+  ObjectOptimisticLockingFailureException (đồng thời) — không Redis lock
+end note
+
+@enduml
+```
+
+### Compensating: `OUT_OF_STOCK`
+
+```plantuml
+@startuml sequence-place-order-out-of-stock
+title Place Order — Compensating: OUT_OF_STOCK
+
+skinparam sequenceArrowThickness 1.5
+skinparam responseMessageBelowArrow true
+skinparam ParticipantPadding 20
+
+participant "order-service"        as OS
+participant "inventory-service"    as INV
+participant "notification-service" as NOTIF
+participant "websocket-gateway"    as WSG
+actor       "Buyer"                as U
+queue       "Kafka"                 as K
+
+K -> INV : OrderCreated
+activate INV
+INV -> INV : reserve stock → hết hàng
+INV -> K : InventoryReservationFailed\n{orderId, reason}
+deactivate INV
+
+K -> OS : InventoryReservationFailed
+activate OS
+OS -> OS : CancelOrder.handle(reason=OUT_OF_STOCK)
+OS -> OS : Order → CANCELLED
+OS -> K : OrderCancelled\n{orderId, reason=OUT_OF_STOCK}
+deactivate OS
+
+K -> NOTIF : OrderCancelled
+activate NOTIF
+NOTIF -> WSG : relay (chi tiết: notification-service.md) — chưa build
+deactivate NOTIF
+WSG -> U : push "OrderCancelled" qua /inapp
+U -> U : hiện "Sản phẩm đã hết hàng" — không redirect,\ngợi ý sản phẩm khác
+
+note over OS
+  inventory-service không tạo Reservation nào —
+  không cần release, khác nhánh PAYMENT_* (Prepaid, chưa build)
+end note
+
+@enduml
+```
+
+### Compensating: `INVENTORY_TIMEOUT` (3 phút, không phản hồi)
+
+```plantuml
+@startuml sequence-place-order-inventory-timeout
+title Place Order — Compensating: INVENTORY_TIMEOUT
+
+skinparam sequenceArrowThickness 1.5
+skinparam responseMessageBelowArrow true
+skinparam ParticipantPadding 20
+
+participant "order-service"     as OS
+participant "Redis\n(ZSET)"     as R
+database    "orders\n(PostgreSQL)" as DB
+participant "inventory-service" as INV
+queue       "Kafka"             as K
+
+== Tạo Order ==
+OS -> DB : INSERT orders (status=CREATED,\ninventory_reply_deadline = now()+3p)
+OS -> R  : ZADD delayed:order-inventory-timeout\n<deadlineEpoch> <orderId>
+
+== Lớp 1 — Fast path (Redis, đa số case) ==
+loop mỗi vài giây
+  OS -> R : ZRANGEBYSCORE ... 0 now (atomic pop, Lua)
+end
+R --> OS : orderId quá hạn
+OS -> DB : re-check status hiện tại
+alt vẫn CREATED
+  OS -> OS : CancelOrder.handle(reason=INVENTORY_TIMEOUT)
+  OS -> DB : UPDATE orders SET status=CANCELLED\n(qua domain layer + outbox, KHÔNG raw SQL CAS)
+  OS -> K  : OrderCancelled{orderId, reason=INVENTORY_TIMEOUT}
+else đã CONFIRMED/CANCELLED (race với path khác)
+  OS -> OS : no-op
+end
+
+== Lớp 2 — Backstop (Postgres, lưới an toàn) ==
+loop mỗi 2-5 phút
+  OS -> DB : SELECT id FROM orders\nWHERE status='CREATED' AND inventory_reply_deadline < now()
+end
+DB --> OS : rows quá hạn (nếu Lớp 1 miss)
+OS -> OS : cancel như trên (idempotent, cùng CancelOrder.handle())
+
+== Late reply — inventory-service phản hồi muộn sau khi đã cancel ==
+K -> INV : OrderCreated (message gốc vẫn còn trong Kafka)
+activate INV
+INV -> INV : vẫn tạo Reservation thật\n(chưa biết Order đã bị huỷ)
+INV -> K : InventoryReserved (muộn)
+deactivate INV
+
+K -> OS : InventoryReserved
+activate OS
+OS -> OS : canProcess() == false (Order đã CANCELLED)
+OS -> K : re-publish OrderCancelled (eventId mới)
+deactivate OS
+
+K -> INV : OrderCancelled (lần 2, eventId mới)
+activate INV
+INV -> INV : ReleaseReservation — release đúng,\nkhông còn Reservation mồ côi
+deactivate INV
+
+note over OS
+  Late-reply re-publish: chưa implement đầy đủ
+  (xem implementation.md Phase 5 "Quan trọng — quay lại sửa Phase 3")
+end note
+
+@enduml
+```
 
 ---
 
