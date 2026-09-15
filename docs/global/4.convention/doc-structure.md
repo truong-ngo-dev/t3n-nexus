@@ -291,6 +291,16 @@ _{Nếu 1 failure branch đủ phức tạp để đáng vẽ riêng, thêm 1 bl
 ## Business Rules
 
 - _{Rule cần enforce trong flow này}_
+
+## NFR Assessment
+
+_{Bắt buộc — đối chiếu với target trong `global/1.requirement/requirement.md`/NFR memory (latency SLA, RPS baseline) áp dụng riêng cho feature này, không lặp lại số liệu toàn hệ thống nếu không liên quan trực tiếp. Không viết chung chung "cần đảm bảo hiệu năng tốt" — mỗi dòng phải trỏ tới 1 endpoint/cơ chế cụ thể trong chính flow vừa mô tả ở trên, và nói rõ đã xác nhận trên code hay chỉ là rủi ro thiết kế chưa verify.}_
+
+| Rủi ro | Vì sao | Đề xuất |
+|---|---|---|
+| _{Endpoint/cơ chế nào trong flow trên}_ | _{Lý do — state-changing? I/O bên thứ 3? thiếu rate-limit/idempotency? Đã xác nhận trên code hay chỉ nghi ngờ?}_ | _{Cách xử lý cụ thể, hoặc "chấp nhận được, chỉ note lại" nếu đúng là không đáng sửa}_ |
+
+_{Nếu rà soát không phát hiện gap nào ở 1 phần cụ thể của flow, ghi rõ 1 dòng xác nhận thay vì bỏ trống — phân biệt "đã kiểm tra, ổn" với "chưa kiểm tra".}_
 ```
 
 ---

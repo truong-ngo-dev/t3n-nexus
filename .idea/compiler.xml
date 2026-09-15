@@ -7,9 +7,19 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+      </profile>
+      <profile name="Annotation profile for services" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar" />
+        </processorPath>
         <module name="web-gateway" />
-        <module name="observability-starter" />
+        <module name="scheduler-service" />
         <module name="customer-service" />
+        <module name="observability-starter" />
         <module name="catalog-service" />
         <module name="common-utils" />
         <module name="event-sourcing-starter" />
@@ -21,8 +31,8 @@
         <module name="common-domain" />
         <module name="api-gateway" />
         <module name="websocket-gateway" />
-        <module name="common-web" />
         <module name="email-worker" />
+        <module name="common-web" />
         <module name="rate-limiter-starter" />
         <module name="order-service" />
         <module name="outbox-starter" />
@@ -57,6 +67,7 @@
       <module name="outbox-starter" options="-parameters" />
       <module name="rate-limiter-starter" options="-parameters" />
       <module name="reactive-rate-limiter-starter" options="-parameters" />
+      <module name="scheduler-service" options="-parameters" />
       <module name="web-gateway" options="-parameters" />
       <module name="websocket-gateway" options="-parameters" />
     </option>

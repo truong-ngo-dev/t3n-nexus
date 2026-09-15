@@ -38,6 +38,33 @@ Chỉ áp dụng khi doc thực sự nhiều đoạn/nhiều ý — 1-2 câu ng�
 mục "Classes and Interfaces") thì không cần `<p>`, viết prose thường là đủ, thêm tag HTML vào sẽ chỉ
 gây rườm rà không cần thiết.
 
+### `<ul>`/`<li>` cho danh sách cơ chế/lý do song song
+
+Khi 1 ý cần liệt kê ≥2 thứ **cùng cấp, độc lập nhau** (VD 2 cơ chế idempotency khác nhau, nhiều điều
+kiện phải đúng cùng lúc) — tách thành `<ul><li>` thay vì nhồi vào 1 câu dài nối bằng "và"/dấu phẩy.
+List dễ scan hơn prose khi số lượng ý ≥2 và mỗi ý có thể đứng độc lập (đọc rời từng dòng vẫn hiểu được),
+khác với 1 câu văn có mạch lý luận nối tiếp (case đó vẫn nên viết prose thường trong `<p>`).
+
+```java
+/**
+ * <p>Saga reply — decode payload rồi delegate toàn bộ quyết định nghiệp vụ cho
+ * {@link HandleInventoryReserved}. Consumer chỉ giữ phần thuộc infra: decode message + catch
+ * {@link OptimisticLockingFailureException} để chặn không cho lọt vào retry/DLQ của Kafka.</p>
+ *
+ * <p>Idempotency: DB-based, <b>không</b> dùng Redis:</p>
+ * <ul>
+ *   <li><code>ConfirmOrder</code> tự no-op nếu order không còn ở <code>CREATED</code>
+ *       (xem <code>Order.canProcess()</code>)</li>
+ *   <li>{@link OptimisticLockingFailureException} (từ <code>@Version</code> trên bảng
+ *       <code>orders</code>) bắt race concurrent update thật</li>
+ * </ul>
+ * <p>Không có "khoá" nào có thể rò rỉ nếu consumer crash giữa chừng, khác với Redis TTL key.</p>
+ */
+```
+
+Không dùng `<ul>` khi chỉ có 1 ý, hoặc khi các ý phụ thuộc/nối tiếp nhau theo trình tự (case đó dùng
+prose có liên từ, `<ul>` sẽ làm mất mạch lý luận giữa các bước).
+
 ---
 
 ## Classes and Interfaces

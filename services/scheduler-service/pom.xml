@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>vn.t3nexus</groupId>
+        <artifactId>services</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>scheduler-service</artifactId>
+    <packaging>jar</packaging>
+    <name>scheduler-service</name>
+    <description>Scheduler — trigger job định kỳ/delayed cho các domain khác (loyalty expiry, cart cleanup, seller payout, outbox cleanup); chỉ quyết định "khi nào", publish tín hiệu qua Outbox+CDC</description>
+
+    <dependencies>
+        <!--
+            Web — actuator (Prometheus scrape, xem implementation.md Phase 4.5) VÀ từ đây REST API quản
+            trị thật cho Admin (Create/List/Detail/Start/Stop/Edit, xem service.md §Commands, đảo ngược
+            quyết định "không REST public" lúc bootstrap). spring-boot-starter-actuator tự nó không mang
+            embedded servlet container — cần webmvc để expose cả /actuator/prometheus lẫn /api/admin/**.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Persistence — ScheduleStore (nguồn sự thật), xem data.md -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- Redis — DueItemFinder (ZSET, index tăng tốc tuỳ chọn), KHÔNG phải nguồn sự thật, xem data.md -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!--
+            KHÔNG có spring-boot-starter-kafka: scheduler-service không consume topic nào (service.md
+            §Consumes) và không publish trực tiếp qua Spring Kafka — publish đi qua Outbox + Debezium CDC,
+            hoàn toàn ngoài JVM process (xem outbox-starter bên dưới). Thêm lại nếu Phase 5+ (đăng ký job động
+            qua Kafka) được triển khai.
+        -->
+
+        <!-- ULID — id sinh qua ULIDGenerator (common-domain), khớp convention thật toàn hệ -->
+        <dependency>
+            <groupId>com.github.f4b6a3</groupId>
+            <artifactId>ulid-creator</artifactId>
+            <version>5.2.3</version>
+        </dependency>
+
+        <!-- Internal libs -->
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>common-domain</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>common-events</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>common-utils</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- ApiResponse + GlobalExceptionHandler cho REST API admin -->
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>common-web</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>outbox-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>observability-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

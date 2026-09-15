@@ -9,19 +9,23 @@ import tools.jackson.databind.ObjectMapper;
 import vn.t3nexus.lib.events.EventEnvelopeDecoder;
 import vn.t3nexus.lib.events.EventEnvelopeMdcPropagator;
 import vn.t3nexus.lib.events.OutboxEventData;
-import vn.t3nexus.order.application.order.ConfirmOrder;
-import vn.t3nexus.order.domain.order.Order;
-import vn.t3nexus.order.domain.order.OrderException;
-import vn.t3nexus.order.domain.order.OrderId;
-import vn.t3nexus.order.domain.order.OrderRepository;
-import vn.t3nexus.order.domain.order.PaymentMethod;
+import vn.t3nexus.order.application.order.ConfirmOrderOnCodCreated;
 
 /**
- * Saga reply — COD bỏ qua bước payment, đi thẳng CONFIRMED khi tồn kho đã reserve.
- * Idempotency: DB-based, không dùng Redis — {@code ConfirmOrder} tự no-op nếu order không còn
- * ở CREATED (xem {@code Order.canProcess()}), và {@code OptimisticLockingFailureException} (từ
- * {@code @Version} trên bảng {@code orders}) bắt race concurrent update thật — không có "khoá" nào
- * có thể rò rỉ nếu consumer crash giữa chừng, khác với Redis TTL key.
+ * <p>Saga reply — decode payload rồi delegate toàn bộ quyết định nghiệp vụ (rẽ nhánh COD/PREPAID,
+ * confirm order) cho {@link ConfirmOrderOnCodCreated}. Consumer chỉ giữ phần thuộc infra: decode
+ * message + catch {@link OptimisticLockingFailureException} để chặn không cho lọt vào retry/DLQ của
+ * Kafka &mdash; đây là quyết định "im lặng ack khi có race" thuộc về cách xử lý message, <b>không</b>
+ * phải business rule, nên vẫn hợp lý giữ ở layer này.</p>
+ *
+ * <p>Idempotency: DB-based, <b>không</b> dùng Redis:</p>
+ * <ul>
+ *   <li>{@link ConfirmOrderOnCodCreated} tự no-op nếu order không còn ở <code>CREATED</code>
+ *       (xem <code>Order.canProcess()</code>)</li>
+ *   <li>{@link OptimisticLockingFailureException} (từ <code>@Version</code> trên bảng
+ *       <code>orders</code>) bắt race concurrent update thật</li>
+ * </ul>
+ * <p>Không có "khoá" nào có thể rò rỉ nếu consumer crash giữa chừng, khác với Redis TTL key.</p>
  */
 @Slf4j
 @Component
@@ -30,8 +34,7 @@ public class InventoryReservedConsumer {
 
     private final ObjectMapper objectMapper;
     private final EventEnvelopeDecoder decoder;
-    private final OrderRepository orderRepository;
-    private final ConfirmOrder confirmOrder;
+    private final ConfirmOrderOnCodCreated confirmOrderOnCodCreated;
 
     @KafkaListener(
             topics  = "${app.kafka.topic.inventory-reserved}",
@@ -43,16 +46,7 @@ public class InventoryReservedConsumer {
         Payload payload = decoder.decode(event, Payload.class);
 
         try {
-            Order order = orderRepository.findById(OrderId.of(payload.orderId()))
-                    .orElseThrow(OrderException::notFound);
-
-            if (order.getPaymentMethod() != PaymentMethod.COD) {
-                log.info("[InventoryReservedConsumer] paymentMethod={} (not COD), skip — handled by payment flow, orderId={}",
-                        order.getPaymentMethod(), payload.orderId());
-                return;
-            }
-
-            confirmOrder.handle(new ConfirmOrder.Command(payload.orderId()));
+            confirmOrderOnCodCreated.handle(new ConfirmOrderOnCodCreated.Command(payload.orderId()));
         } catch (OptimisticLockingFailureException e) {
             log.info("[InventoryReservedConsumer] concurrent update conflict, skip, orderId={}", payload.orderId());
         } finally {

@@ -646,6 +646,78 @@ Domain Service được inject vào Application Handler, không inject vào Aggr
 
 ---
 
+## Double Dispatch — truyền port/Domain Service làm tham số vào Aggregate/VO method
+
+Câu hỏi hay gây nhầm lẫn với mục trên: *"Domain Service không inject vào Aggregate Root"* có nghĩa là **không bao giờ** được truyền 1 service vào aggregate hay không? **Không** — có 2 kiểu "truyền" hoàn toàn khác nhau, chỉ 1 kiểu là anti-pattern.
+
+### Phân biệt — field/constructor injection (sai) vs method-parameter (Double Dispatch, đúng)
+
+```java
+// ❌ Field/constructor injection — service sống suốt vòng đời object
+public class ScheduledJob extends AbstractAggregateRoot<ScheduledJobId> {
+    private final CronCalculator cronCalculator; // ❌ SAI
+    public ScheduledJob(..., CronCalculator cronCalculator) { this.cronCalculator = cronCalculator; }
+}
+// Vỡ ngay khi JPA/repository reconstitute từ DB — không có DI context ở đó,
+// entity không còn là POCO dựng được ở bất kỳ đâu (test, mapper, factory...)
+
+// ✅ Method-parameter — service chỉ tồn tại đúng trong 1 lời gọi, không lưu lại
+public class ScheduledJob extends AbstractAggregateRoot<ScheduledJobId> {
+    public void fire(Instant now, CronCalculator cronCalculator) { // ✅ ĐÚNG — tham số, không phải field
+        Optional<Instant> next = schedule.nextFireTime(now, cronCalculator);
+        // ... aggregate tự quyết định dùng kết quả ra sao
+    }
+}
+```
+
+Kiểu thứ 2 có tên riêng trong DDD: **Double Dispatch** — pattern được cộng đồng DDD công nhận (Vaughn Vernon và nhiều nguồn khác), dùng chính xác để **tránh** cả 2 lựa chọn tệ hơn: (1) field-inject như trên, hoặc (2) bắt Application Handler tự gọi service trước rồi ghép nhiều bước rời rạc lên aggregate (dễ để aggregate rơi vào trạng thái "nửa vời" giữa các bước).
+
+### Tiêu chí quyết định — double dispatch (truyền port vào) hay pre-compute rồi truyền value (như `CollaboratorService`)?
+
+**Câu hỏi quyết định: kết quả tính toán có trở thành 1 field thật sự được persist của aggregate không?**
+
+```
+Có, kết quả là field được lưu lại (VD nextFireAt của ScheduledJob)
+→ Double dispatch — truyền thẳng port vào method, để aggregate tự tính + tự quyết định dùng kết quả
+
+Không, kết quả chỉ là dữ liệu tạm dùng để dựng aggregate, không phải field của nó
+→ Pre-compute ở Application Handler/Factory (kiểu CollaboratorService/AssigneeService), truyền value vào
+```
+
+**Tiêu chí trên chưa đủ — cần thêm 1 điều kiện nữa, hay bị bỏ sót**: double dispatch chỉ đúng khi tính toán đó **cần dữ liệu từ chính field khác của aggregate** (VD `CronCalculator` cần `this.schedule` — cron/zone tự thân aggregate đang giữ). Nếu port **không cần bất kỳ field nào của aggregate** để tính — dù kết quả vẫn persist thành field — thì vẫn nên pre-compute, không double dispatch.
+
+**Trường hợp ranh giới: sinh ID (`ULIDGenerator`)** — `id` chắc chắn persist thành field của aggregate (thoả tiêu chí đầu), nhưng `ulidGenerator.generate()` **không cần đọc bất kỳ field nào** của aggregate để sinh ra giá trị — theo đúng tiêu chí ở trên thì nên pre-compute, không double dispatch. Đa số service trong hệ thống (`order-service`, `identity-service`, `customer-service`...) đi theo hướng này:
+
+```java
+// Convention mặc định (đa số service) — Handler tự generate rồi truyền value
+// application/order/CreateOrder.java
+private final ULIDGenerator ulidGenerator;
+public Result handle(Command command) {
+    OrderId id = OrderId.of(ulidGenerator.generate());   // pre-compute — không cần field nào của Order
+    Order order = Order.create(id, ...);                  // nhận value, không nhận ULIDGenerator
+}
+```
+
+**Nhưng đây không phải rule cứng** — sinh ID không có tác dụng phụ, không phụ thuộc thứ tự gọi, nên double dispatch cho ID vẫn đúng đắn về mặt kỹ thuật (không rơi vào 2 lý do "tệ hơn" mà double dispatch cố tránh — không có bước nào để aggregate "nửa vời" giữa chừng). `scheduler-service` chọn double dispatch cho `ULIDGenerator` (khác đa số) — lý do chính: nhất quán cách gọi trong `ScheduledJobFireService`, vốn đã double-dispatch `CronCalculator` — giữ 1 kiểu gọi cho cả 2 port cùng inject trong 1 Domain Service thay vì trộn 2 kiểu:
+
+```java
+// scheduler-service — cả 2 port cùng double dispatch, nhất quán trong ScheduledJobFireService
+public ScheduledJobInstance fire(ScheduledJob scheduledJob, Instant now) {
+    scheduledJob.fire(now, cronCalculator);                              // double dispatch — bắt buộc (đọc this.schedule)
+    return ScheduledJobInstance.dispatch(ulidGenerator, ...);            // double dispatch — chọn thêm, cho nhất quán
+}
+```
+
+Tóm lại: **2 điều kiện (persist thành field + cần field khác của aggregate) là điều kiện ĐỦ để double dispatch, không phải điều kiện CẦN** — thiếu điều kiện 2 (như sinh ID) thì pre-compute vẫn là lựa chọn *mặc định hợp lý hơn* (khớp precedent đa số), nhưng double dispatch vẫn *chấp nhận được* nếu có lý do nhất quán cụ thể trong ngữ cảnh đó. Không nên default sang double dispatch khi không có lý do gì — chỉ khi đã có sẵn 1 port khác cùng double dispatch trong cùng class.
+
+Ví dụ khác nhau ngay trong cùng hệ thống:
+- `CollaboratorService`/`AssigneeService` — Handler resolve **trước**, chỉ truyền `Assignee` (value) vào `ticket.assign(assignee)`. Đúng vì: có I/O thật (gọi BC khác), và giá trị trả về (`Assignee`) đã đủ, không cần aggregate tự gọi lại.
+- `CronCalculator` (`scheduler-service`) — truyền thẳng port vào `ScheduledJob.fire(now, cronCalculator)`. Đúng vì: port thuần (deterministic, không I/O, không cross-BC — xem thêm tiêu chí "Strategy vs Collaborator" ở javadoc `CronCalculator`), và kết quả (`nextFireAt`) là field thật sự lưu trong aggregate — để Handler tự tính rồi "bơm" giá trị vào sẽ tách rời phần tính toán khỏi phần diễn giải kết quả (VD "rỗng nghĩa là lỗi hay là hoàn thành" — business rule thật, phải nằm trong aggregate, không phải trong Handler).
+
+**Lưu ý cả 2 kiểu đều dùng `interface` port trong `domain/`, implementation ở `infrastructure/adapter/service/`** — khác biệt duy nhất là *khi nào* gọi (trước khi vào aggregate, hay bên trong method của aggregate), không phải có port hay không.
+
+---
+
 ## Application Handler convention
 
 Handler là điểm điều phối duy nhất của một use case — không chứa business rule, không biết HTTP hay messaging.

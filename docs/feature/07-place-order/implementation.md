@@ -1,6 +1,6 @@
 # Implementation Plan: Place Order
 
-**Design**: [`design.md`](design.md) | **Sequence**: chưa vẽ — khi implement, thêm block ```plantuml``` trực tiếp vào `design.md`, không tạo file `.puml` riêng
+**Design**: [`design.md`](design.md) | **Deferred**: [`deferred.md`](deferred.md) | **Sequence**: chưa vẽ — khi implement, thêm block ```plantuml``` trực tiếp vào `design.md`, không tạo file `.puml` riêng
 
 **Scope hiện tại**: nhánh **COD** đã xong (Happy Path + failure `OUT_OF_STOCK` + `INVENTORY_TIMEOUT`). Nhánh **Prepaid** (`payment-service`, `AWAITING_PAYMENT`, payment timeout mechanism — đã thiết kế đầy đủ ở `design.md`) tiếp tục ở **Phase 10+ ngay trong file này** khi bắt đầu — không tách file riêng (bài học từ chính file này: từng tách `place-order`/`payment-checkout` thành 2 file cho 1 UC, gây lệch nội dung liên tục, đã gộp lại 2026-08-08).
 
@@ -39,14 +39,14 @@ Thêm 1 dữ kiện: `order-service` là **consumer duy nhất** của `event-so
 
 ## Docs cần tạo / cập nhật
 
-| Tài liệu                                              | Hành động                          | Nội dung                                                                                                          |
-|---------------------------------------------------------|------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `infra/README.md`                                     | Cập nhật                           | Thêm connector `order-outbox-connector` vào bảng "Topics được tạo bởi các connectors"                             |
-| `service/order-service/service.md`                    | Tạo mới (chưa tồn tại)             | Domain model `Order` (CRUD, không phải ES), Commands, Events, Integration Contract                                |
-| `service/notification-service/service.md`             | Cập nhật nếu tồn tại, tạo nếu chưa | Thêm handler `OrderConfirmedHandler`/`OrderCancelledHandler`                                                      |
-| `service/inapp-worker/service.md`                     | Tạo mới                            | Service hoàn toàn mới                                                                                             |
-| `service/notification-service/service.md`             | Cập nhật                           | Events Consumed: đổi `OrderConfirmed`/`OrderCancelled` từ "later" → "current"                                     |
-| `global/2.architecture/5. event-catalog.md`           | Kiểm tra + sửa nếu cần             | `OrderCancelled.reason` — catalog có `cancelledBy`, code hiện không có; thêm `OrderInventoryTimeoutCheck` nếu cần |
+| Tài liệu                                    | Hành động                          | Nội dung                                                                                                          |
+|---------------------------------------------|------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `infra/README.md`                           | Cập nhật                           | Thêm connector `order-outbox-connector` vào bảng "Topics được tạo bởi các connectors"                             |
+| `service/order-service/service.md`          | Tạo mới (chưa tồn tại)             | Domain model `Order` (CRUD, không phải ES), Commands, Events, Integration Contract                                |
+| `service/notification-service/service.md`   | Cập nhật nếu tồn tại, tạo nếu chưa | Thêm handler `OrderConfirmedHandler`/`OrderCancelledHandler`                                                      |
+| `service/inapp-worker/service.md`           | Tạo mới                            | Service hoàn toàn mới                                                                                             |
+| `service/notification-service/service.md`   | Cập nhật                           | Events Consumed: đổi `OrderConfirmed`/`OrderCancelled` từ "later" → "current"                                     |
+| `global/2.architecture/5. event-catalog.md` | Kiểm tra + sửa nếu cần             | `OrderCancelled.reason` — catalog có `cancelledBy`, code hiện không có; thêm `OrderInventoryTimeoutCheck` nếu cần |
 
 ---
 
@@ -85,6 +85,7 @@ _Implement theo dependency chain — producer trước consumer. Blast radius m�
 - [x] `ShippingAddress` VO — `domain/order/`
 - [x] `Order`: thêm field `paymentMethod`, `shippingAddress`; cập nhật `create()` factory nhận thêm 2 tham số (validate `shippingAddress != null` → `ORDER_MISSING_SHIPPING_ADDRESS`); cập nhật `apply(OrderCreatedEvent)` để set field mới
 - [x] `OrderCreatedEvent.Payload`: thêm `paymentMethod`, `shippingAddress` — khớp `OrderCreatedConsumer.Payload` bên `inventory-service` đã kỳ vọng field `paymentMethod` và khớp `event-catalog.md` dòng 69
+- [x] **Bug nghiêm trọng phát hiện 2026-08-10 (đối chiếu diagram với code, đã sửa)**: `OrderCreatedEvent.getPayload()` không gửi `orderId` trong payload (chỉ có ở `envelope.aggregateId`, giống lỗi đã gặp + sửa ở `OrderCancelledEvent` Phase 2, nhưng bỏ sót event này) → `OrderCreatedConsumer.Payload.orderId()` (inventory-service) luôn nhận `null` → `Reservation.order_id` = NULL (mất tác dụng `UNIQUE(order_id)`, mọi race double-reserve không còn bị chặn) → `InventoryReservedEvent` publish lại với `orderId=null` → `order-service.InventoryReservedConsumer` tìm `Order` bằng `null` → `OrderException.notFound()` mỗi lần. **Không có order COD nào từng confirm được qua flow thật** dù Phase 1-3 đã tick DONE — `mvn compile` không bắt được vì đây là lỗi shape JSON runtime, không phải lỗi biên dịch. Đã sửa: `getPayload()` gọi `getAggregateId()`, thêm `orderId` vào `Payload` record.
 - [x] `OrderCancelledEvent.Payload`: `reason` đổi type String → `OrderCancelReason`
 - [x] `CreateOrder.Command`/`Result`: thêm `paymentMethod`, `address`; `Result` thêm `status`
 - [x] `CancelOrder.Command`: `reason` đổi type sang `OrderCancelReason`
@@ -134,7 +135,11 @@ Thay vào đó dùng đúng 2 lớp đều DB, không có "khoá" nào có thể
 - [x] `MessagingConfig` (`infrastructure/crosscutting/config/`) — `EventEnvelopeDecoder` bean + `ConcurrentKafkaListenerContainerFactory` với `DeadLetterPublishingRecoverer` (retry 3 lần, backoff 2s) — theo đúng mẫu `inventory-service/MessagingConfig`
 - [x] `Order.canProcess()` — bỏ tham số không dùng
 - [x] `ConfirmOrder.handle()`/`CancelOrder.handle()` — thêm `if (!order.canProcess()) return new Result();` trước khi mutate
-- [x] `InventoryReservedConsumer` (`infrastructure/adapter/messaging/inventory/`) — load `Order`, rẽ nhánh `paymentMethod == COD` → `ConfirmOrder.handle()`; `PREPAID` → log skip (không xử lý ở phase này)
+- [x] `InventoryReservedConsumer` (`infrastructure/adapter/messaging/inventory/`) — chỉ decode payload + delegate, không tự `findById`/rẽ nhánh (fix 2026-08-10, xem ghi chú dưới)
+- [x] `HandleInventoryReserved` (application layer, mới) — load `Order`, rẽ nhánh `paymentMethod == COD` (guard `canProcess()` + `confirm()` + save inline) hay `PREPAID` (log skip, không xử lý ở phase này)
+- [x] **Refactor 2026-08-10**: logic rẽ nhánh COD/PREPAID trước đây nằm thẳng trong `InventoryReservedConsumer` (infra layer tự `orderRepository.findById()` + tự quyết định) — vi phạm convention "consumer chỉ decode + delegate, business rule thuộc application layer". Chuyển vào `HandleInventoryReserved` mới, consumer giờ chỉ giữ phần thuộc infra: decode + catch `OptimisticLockingFailureException`. Cơ chế concurrency (canProcess() + @Version) không đổi.
+- [x] **Bỏ `ConfirmOrder` làm class riêng (cùng ngày)** — ban đầu tách `HandleInventoryReserved` gọi `ConfirmOrder.handle()` (load lần 2), nhưng phần logic "confirm" chỉ 3 dòng (guard + mutate + save) với đúng 1 caller — tách class cho từng đó logic là indirection không cần thiết + tốn 1 lần `findById` thừa. Gộp thẳng vào `HandleInventoryReserved`, 1 lần load duy nhất. Khi Prepaid implement (`PaymentSucceededConsumer` cũng cần confirm) mà logic trùng lặp thật, extract lại lúc đó — YAGNI cho tới khi có caller thứ 2 thật.
+- [x] **`OrderConfirmedEvent`/`OrderCancelledEvent` thiếu `customerId`/`sellerId`/`shippingAddress` (phát hiện 2026-08-10, đối chiếu diagram với code)** — cả 2 event trước đây chỉ có `{orderId}`/`{orderId, reason}`. `fulfillment-service` (chưa build) cần `sellerId` + `shippingAddress` để assign shipper; `notification-service` (chưa build) cần báo cả buyer lẫn seller ("gửi thông báo buyer + seller" — `design.md`) nên cần `customerId` **và** `sellerId`, không chỉ 1 trong 2. `Order` aggregate đã có sẵn field này, chỉ cần truyền qua lúc raise event — đã sửa `Order.confirm()`/`Order.cancel()` + 2 event's `Payload` record. `design.md` Events table + diagram Happy Path cập nhật theo.
 - [x] `InventoryReservationFailedConsumer` — gọi `CancelOrder.handle(reason=OUT_OF_STOCK)`
 - [x] Catch `OptimisticLockingFailureException` (đổi từ `EventStoreConflictException` sau khi Phase 2 xong) ở cả 2 consumer — payload decode chuyển ra ngoài `try` để `orderId` vẫn log được trong catch block
 - [ ] **Cập nhật sau Phase 5**: thêm logic re-publish `OrderCancelled` khi `canProcess()==false` và order đang `CANCELLED` (late-reply handling — xem ghi chú Phase 5)
@@ -182,7 +187,7 @@ Thay vào đó dùng đúng 2 lớp đều DB, không có "khoá" nào có thể
 
 ### Phase 6 — `notification-service`: handler cho `OrderConfirmed` / `OrderCancelled`
 
-**Chặn bởi**: Phase 3 (cần event thật để test, có thể mock trong lúc chờ).
+**Chặn bởi**: Phase 3 (cần event thật để test, có thể mock trong lúc chờ). Phần notify **seller** trong phase này bị chặn thêm bởi `seller-service` chưa tồn tại — xem [`deferred.md`](deferred.md) #1 trước khi implement.
 
 - [ ] `OrderConfirmedPayload` (record) — theo mẫu `LoginOtpRequestedPayload`
 - [ ] `OrderConfirmedHandler implements NotificationEventHandler<OrderConfirmedPayload>` — `application/handler/`:

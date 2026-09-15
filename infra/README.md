@@ -53,6 +53,20 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
 curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-order-outbox.json
 ```
 
+### Đăng ký scheduler-outbox-connector
+
+Đọc WAL của `scheduler_db.public.outbox_events`, route theo `routing_key` → topic tương ứng
+(`ScheduledJobFiredEvent.getRoutingKey()` = `scheduler.job.fired`, khớp regex route toàn chuỗi nên
+`topic.prefix` không prepend vào tên topic cuối — giống hệt cơ chế của `order-outbox-connector`).
+
+```bash
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-scheduler-outbox.json
+```
+
+> **Lưu ý**: hiện `ScheduledJobFiredHandler` (`scheduler-service`) mới chỉ `log.info`, CHƯA ghi vào
+> `outbox_events` (xem `implementation.md` Phase 4 TODO) — đăng ký connector này trước là chuẩn bị hạ
+> tầng, chưa có event nào chảy qua cho tới khi handler đó đổi sang `outboxEventStore.store(event)`.
+
 ---
 
 ## Kiểm tra trạng thái
@@ -65,6 +79,7 @@ curl http://localhost:8083/connectors
 curl http://localhost:8083/connectors/identity-outbox-connector/status
 curl http://localhost:8083/connectors/notification-connector/status
 curl http://localhost:8083/connectors/order-outbox-connector/status
+curl http://localhost:8083/connectors/scheduler-outbox-connector/status
 ```
 
 Kết quả mong đợi — connector và task đều `RUNNING`:
@@ -120,6 +135,11 @@ docker compose exec postgres-notification \
 docker compose exec postgres-order \
   psql -U t3nexus -d order_db \
   -c "SELECT pg_drop_replication_slot('debezium');"
+
+# Drop replication slot sau khi xóa scheduler connector
+docker compose exec postgres-scheduler \
+  psql -U t3nexus -d scheduler_db \
+  -c "SELECT pg_drop_replication_slot('debezium');"
 ```
 
 ---
@@ -136,6 +156,7 @@ docker compose exec postgres-order \
 | `order.order.created`                  | order-outbox-connector    | inventory-service                      |
 | `order.order.confirmed`                | order-outbox-connector    | notification-service                   |
 | `order.order.cancelled`                | order-outbox-connector    | inventory-service, notification-service |
+| `scheduler.job.fired`                  | scheduler-outbox-connector | customer-service, cart-service, payment-service *(theo `taskType`, chưa implement phía consumer — xem `service.md` scheduler)* |
 
 ---
 

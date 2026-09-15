@@ -1,0 +1,402 @@
+openapi: 3.0.3
+info:
+  title: scheduler-service API
+  version: "0.1"
+  description: |
+    Quản trị job định kỳ/delayed (loyalty expiry, cart cleanup, seller payout, outbox cleanup).
+    Toàn bộ endpoint Admin-only, không có nhánh public — khác `catalog-service`.
+
+    **Auth:**
+    - `/api/admin/**` — yêu cầu bearer token hợp lệ (bất kỳ subject nào JWT còn hạn; xem
+      `SecurityConfig`, `anyRequest().authenticated()`) — chưa phân role riêng ADMIN, xem Open questions.
+
+    **Không có endpoint** cho `fire`/poll — đó là nội bộ (`IndexPoller`/`IndexReconciler`,
+    `@Scheduled`), không expose qua HTTP.
+
+servers:
+  - url: http://localhost:8009
+    description: Local dev
+
+tags:
+  - name: ScheduledJob (Admin)
+    description: Create/List/Detail/Edit/Start/Stop job — quản trị lịch trigger
+
+components:
+  schemas:
+
+    ScheduleType:
+      type: string
+      enum: [ONE_OFF, RECURRING]
+
+    ScheduledJobStatus:
+      type: string
+      enum: [PENDING, RUNNING, COMPLETED]
+      description: |
+        PENDING = chưa activate hoặc đã stop(); RUNNING = đang được Poll; COMPLETED = one-off đã fire
+        xong (vẫn edit() lại được để chạy tiếp). Không có "hủy vĩnh viễn" — pattern K8s CronJob suspend.
+
+    MisfireInstruction:
+      type: string
+      enum: [FIRE_NOW, DO_NOTHING]
+      description: Chỉ có hiệu lực với RECURRING; ONE_OFF quá hạn luôn hành xử như FIRE_NOW.
+
+    ScheduledJobResponse:
+      type: object
+      required: [id, jobName, taskType, scheduleType, status, misfireInstruction, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: ULID
+          example: "01HX4KZ7B3QNMR2VFPJ6W8Y9T"
+        jobName:
+          type: string
+          description: Nhãn hiển thị Admin tự đặt — sửa được, dùng để search (khác taskType, immutable)
+          example: "Loyalty point expiry - daily 2am"
+        taskType:
+          type: string
+          description: Opaque với scheduler — consumer tự định nghĩa
+          example: "LOYALTY_POINT_EXPIRY"
+        scheduleType:
+          $ref: '#/components/schemas/ScheduleType'
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Chỉ có giá trị khi scheduleType=ONE_OFF
+        cronExpression:
+          type: string
+          nullable: true
+          description: Chỉ có giá trị khi scheduleType=RECURRING (Spring 6-field cron)
+          example: "0 0 2 * * *"
+        timezone:
+          type: string
+          nullable: true
+          description: IANA timezone id, chỉ có giá trị khi scheduleType=RECURRING
+          example: "Asia/Ho_Chi_Minh"
+        payload:
+          type: object
+          nullable: true
+          description: JSONB opaque — schema do consumer sở hữu
+        status:
+          $ref: '#/components/schemas/ScheduledJobStatus'
+        nextFireAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: null khi PENDING/COMPLETED
+        misfireInstruction:
+          $ref: '#/components/schemas/MisfireInstruction'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ScheduledJobPagedResponse:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledJobResponse'
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+        size:
+          type: integer
+
+    CreateScheduledJobRequest:
+      type: object
+      required: [jobName, taskType, scheduleType]
+      description: |
+        Tổ hợp field bắt buộc theo scheduleType do domain validate (không lặp lại bằng Bean Validation):
+        ONE_OFF cần `dueAt`; RECURRING cần `cronExpression` + `timezone`. Job tạo xong ở PENDING —
+        chưa có nextFireAt, cần gọi `start` riêng để activate.
+      properties:
+        jobName:
+          type: string
+          description: Nhãn hiển thị — không mang ý nghĩa định tuyến, chỉ để Admin tìm/nhận diện job
+          example: "Loyalty point expiry - daily 2am"
+        taskType:
+          type: string
+          example: "LOYALTY_POINT_EXPIRY"
+        scheduleType:
+          $ref: '#/components/schemas/ScheduleType'
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+        cronExpression:
+          type: string
+          nullable: true
+          example: "0 0 2 * * *"
+        timezone:
+          type: string
+          nullable: true
+          example: "Asia/Ho_Chi_Minh"
+        payload:
+          type: object
+          nullable: true
+        misfireInstruction:
+          $ref: '#/components/schemas/MisfireInstruction'
+          nullable: true
+          description: Mặc định FIRE_NOW nếu không truyền
+
+    EditScheduledJobRequest:
+      type: object
+      required: [jobName, scheduleType]
+      description: |
+        Không có taskType — không sửa được. Chỉ hợp lệ khi status != RUNNING (422 nếu đang RUNNING).
+        Luôn đưa job về PENDING, nextFireAt=null — không tự activate, cần gọi start lại. jobName sửa
+        được thoải mái — chỉ là nhãn hiển thị.
+      properties:
+        jobName:
+          type: string
+          example: "Loyalty point expiry - daily 2am"
+        scheduleType:
+          $ref: '#/components/schemas/ScheduleType'
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+        cronExpression:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        payload:
+          type: object
+          nullable: true
+        misfireInstruction:
+          $ref: '#/components/schemas/MisfireInstruction'
+          nullable: true
+
+  responses:
+    400:
+      description: Validation failed (Bean Validation — @NotBlank...)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: { type: boolean, example: false }
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: "VALIDATION_ERROR" }
+                  message: { type: string }
+    404:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: { type: boolean, example: false }
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: "SCHEDULED_JOB_NOT_FOUND" }
+                  message: { type: string }
+    422:
+      description: |
+        Business rule violation — state transition sai (SCHEDULED_JOB_INVALID_TRANSITION khi edit/start
+        job đang RUNNING), schedule không hợp lệ (SCHEDULE_MISSING_*/SCHEDULE_INVALID_*), hoặc activate
+        1 job không còn tương lai nào để chạy (SCHEDULED_JOB_ALREADY_DUE).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: { type: boolean, example: false }
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: "SCHEDULED_JOB_INVALID_TRANSITION" }
+                  message: { type: string }
+
+paths:
+
+  /api/admin/scheduled-jobs:
+    post:
+      tags: [ScheduledJob (Admin)]
+      summary: Tạo job mới (PENDING — chưa activate)
+      operationId: createScheduledJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScheduledJobRequest'
+      responses:
+        "201":
+          description: Created — trả về ULID của job mới
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: string, description: ULID }
+        "400":
+          $ref: '#/components/responses/400'
+        "422":
+          $ref: '#/components/responses/422'
+    get:
+      tags: [ScheduledJob (Admin)]
+      summary: List job, phân trang + filter, sort createdAt giảm dần
+      description: |
+        3 filter tuỳ chọn, AND-combined nếu truyền nhiều hơn 1. `jobName` là **search substring**
+        (case-insensitive, `LIKE '%...%'`) trên nhãn Admin tự đặt — dùng cái này để tìm job, không dùng
+        `taskType`. `status`/`taskType` là **exact match** kỹ thuật; giá trị không khớp không lỗi — chỉ
+        trả về 0 kết quả (đi qua `ScheduledJobQueryPort`, tách khỏi `ScheduledJobRepository` — xem
+        `implementation.md` Phase 5).
+      operationId: listScheduledJobs
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: jobName
+          in: query
+          required: false
+          schema: { type: string }
+          description: Search substring, case-insensitive
+          example: "loyalty"
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/ScheduledJobStatus' }
+        - name: taskType
+          in: query
+          required: false
+          schema: { type: string }
+          example: "LOYALTY_POINT_EXPIRY"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/ScheduledJobPagedResponse'
+
+  /api/admin/scheduled-jobs/{id}:
+    get:
+      tags: [ScheduledJob (Admin)]
+      summary: Detail 1 job
+      operationId: getScheduledJob
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: ScheduledJob ULID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/ScheduledJobResponse'
+        "404":
+          $ref: '#/components/responses/404'
+    put:
+      tags: [ScheduledJob (Admin)]
+      summary: Sửa schedule/payload/misfireInstruction
+      description: Chỉ hợp lệ khi status != RUNNING. Luôn đưa job về PENDING sau khi sửa.
+      operationId: editScheduledJob
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditScheduledJobRequest'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { nullable: true, example: null }
+        "400":
+          $ref: '#/components/responses/400'
+        "404":
+          $ref: '#/components/responses/404'
+        "422":
+          $ref: '#/components/responses/422'
+          # SCHEDULED_JOB_INVALID_TRANSITION nếu đang RUNNING
+
+  /api/admin/scheduled-jobs/{id}/start:
+    post:
+      tags: [ScheduledJob (Admin)]
+      summary: Activate — PENDING/COMPLETED → RUNNING
+      description: |
+        KHÔNG idempotent — throw 422 nếu đã RUNNING (request có chủ đích, không âm thầm no-op), hoặc
+        nếu schedule không còn tương lai nào để chạy (SCHEDULED_JOB_ALREADY_DUE).
+      operationId: startScheduledJob
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { nullable: true, example: null }
+        "404":
+          $ref: '#/components/responses/404'
+        "422":
+          $ref: '#/components/responses/422'
+
+  /api/admin/scheduled-jobs/{id}/stop:
+    post:
+      tags: [ScheduledJob (Admin)]
+      summary: Tạm dừng — RUNNING → PENDING
+      description: Idempotent — no-op nếu đã PENDING/COMPLETED, không throw.
+      operationId: stopScheduledJob
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { nullable: true, example: null }
+        "404":
+          $ref: '#/components/responses/404'

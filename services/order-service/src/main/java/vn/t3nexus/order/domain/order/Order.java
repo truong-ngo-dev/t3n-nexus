@@ -62,7 +62,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
         if (status != OrderStatus.CREATED) throw OrderException.invalidTransition(status, "confirm");
         this.status = OrderStatus.CONFIRMED;
         this.updatedAt = Instant.now();
-        addDomainEvent(new OrderConfirmedEvent(getId().getValue()));
+        addDomainEvent(new OrderConfirmedEvent(getId().getValue(), customerId, sellerId, shippingAddress));
     }
 
     public void cancel(OrderCancelReason reason) {
@@ -71,7 +71,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
         this.status = OrderStatus.CANCELLED;
         this.cancelReason = reason;
         this.updatedAt = Instant.now();
-        addDomainEvent(new OrderCancelledEvent(getId().getValue(), reason));
+        addDomainEvent(new OrderCancelledEvent(getId().getValue(), customerId, reason));
     }
 
     /**

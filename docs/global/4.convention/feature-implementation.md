@@ -46,6 +46,7 @@ Không gộp 2 service vào 1 phase. Khi bị blocked cần khoanh vùng nhanh. 
 ## Phase N — <tên>
 
 **Status:** `TODO` | `IN_PROGRESS` | `DONE` | `BLOCKED`
+**Executor:** `Agent` | `User` | `Draft-then-rewrite`
 
 - [ ] task 1
 - [ ] task 2
@@ -54,6 +55,17 @@ Không gộp 2 service vào 1 phase. Khi bị blocked cần khoanh vùng nhanh. 
 ```
 
 Nhiều phase = nhiều section `## Phase N` liên tiếp trong cùng `implementation.md`. Không tạo file mới cho phase mới.
+
+### `Executor` — ai viết core logic của phase này
+
+Mặc định `Agent` — áp dụng cho đa số phase (CRUD, REST endpoint chuẩn, DDD layer theo `ddd-structure.md`, wiring, config, boilerplate, test scaffold). Đây không phải chỗ học được gì mới, agent làm nhanh hơn mà không mất gì.
+
+Đánh dấu khác mặc định khi phase chứa **core logic của 1 module mới/phức tạp thật sự** (thuật toán tự thiết kế, cơ chế coordination/phối hợp nhiều thành phần — ví dụ: Poll/Claim/Trigger loop của `scheduler-service`, thuật toán chống oversell của flash-sale) — nơi tự tay implement mới lộ ra race condition/edge case/cảm giác debug thật mà chỉ đọc design docs không có được:
+
+- `User` — user tự viết core logic; agent chỉ lo phần rìa (config, wiring, boilerplate, test scaffold) trong cùng phase, không đụng vào phần lõi.
+- `Draft-then-rewrite` — agent generate 1 bản draft đầy đủ, user đọc kỹ 1 lần rồi tự code lại từ đầu không nhìn code agent, sau đó diff lại để lộ ra chỗ hiểu sai/bỏ sót.
+
+Agent tự đánh dấu `Agent` khi tạo phase mới nếu không rõ; nếu nghi ngờ phase thuộc nhóm core logic của module mới/phức tạp, hỏi lại user trước khi code thay vì tự quyết.
 
 ---
 

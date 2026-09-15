@@ -28,7 +28,9 @@ public class OrderCreatedEvent extends AbstractDomainEvent {
     public String getRoutingKey() { return "order.order.created"; }
 
     @Override
-    public Object getPayload() { return new Payload(customerId, sellerId, items, paymentMethod, shippingAddress); }
+    public Object getPayload() {
+        return new Payload(getAggregateId(), customerId, sellerId, items, paymentMethod, shippingAddress);
+    }
 
     public String customerId() { return customerId; }
     public String sellerId() { return sellerId; }
@@ -36,6 +38,6 @@ public class OrderCreatedEvent extends AbstractDomainEvent {
     public PaymentMethod paymentMethod() { return paymentMethod; }
     public ShippingAddress shippingAddress() { return shippingAddress; }
 
-    public record Payload(String customerId, String sellerId, List<OrderLineItem> items,
+    public record Payload(String orderId, String customerId, String sellerId, List<OrderLineItem> items,
                           PaymentMethod paymentMethod, ShippingAddress shippingAddress) {}
 }

@@ -99,17 +99,17 @@ Domain methods:
 
 Event-driven (Kafka consumers):
 
-| Trigger                       | Handler                       | Publishes                                           |
-|-------------------------------|-------------------------------|-----------------------------------------------------|
-| `order.order.created`         | `OrderCreatedConsumer`        | `InventoryReserved` \| `InventoryReservationFailed` |
-| `order.order.cancelled`       | `OrderCancelledConsumer`      | `InventoryReleased`                                 |
-| `catalog.variant.created`     | `VariantCreatedConsumer`      | —  *(init Stock, sellerActive/productPublished mirror theo payload)* |
-| `catalog.variant.activated`   | `VariantActivatedConsumer`    | —                                                    |
-| `catalog.variant.deactivated` | `VariantDeactivatedConsumer`  | —                                                    |
-| `catalog.product.published`   | `ProductPublishedConsumer`    | — *(set `productPublished=true` cho toàn bộ SKU của product)* |
-| `catalog.product.unpublished` | `ProductUnpublishedConsumer`  | — *(set `productPublished=false` cho toàn bộ SKU của product)* |
-| `catalog.product.blocked`     | `ProductBlockedConsumer`      | —                                                    |
-| `catalog.product.unblocked`   | `ProductUnblockedConsumer`    | —                                                    |
+| Trigger                       | Handler                      | Publishes                                                            |
+|-------------------------------|------------------------------|----------------------------------------------------------------------|
+| `order.order.created`         | `OrderCreatedConsumer`       | `InventoryReserved` \| `InventoryReservationFailed`                  |
+| `order.order.cancelled`       | `OrderCancelledConsumer`     | `InventoryReleased`                                                  |
+| `catalog.variant.created`     | `VariantCreatedConsumer`     | —  *(init Stock, sellerActive/productPublished mirror theo payload)* |
+| `catalog.variant.activated`   | `VariantActivatedConsumer`   | —                                                                    |
+| `catalog.variant.deactivated` | `VariantDeactivatedConsumer` | —                                                                    |
+| `catalog.product.published`   | `ProductPublishedConsumer`   | — *(set `productPublished=true` cho toàn bộ SKU của product)*        |
+| `catalog.product.unpublished` | `ProductUnpublishedConsumer` | — *(set `productPublished=false` cho toàn bộ SKU của product)*       |
+| `catalog.product.blocked`     | `ProductBlockedConsumer`     | —                                                                    |
+| `catalog.product.unblocked`   | `ProductUnblockedConsumer`   | —                                                                    |
 
 ### Domain Events
 
@@ -187,11 +187,11 @@ Trước mỗi event: `INSERT INTO processed_event(event_id) VALUES(?) ON CONFLI
 
 ## Use Cases — tham gia
 
-| Feature                                                | Role                           | Handles                         | Publishes                                         |
-|--------------------------------------------------------|--------------------------------|---------------------------------|---------------------------------------------------|
+| Feature                                               | Role                           | Handles                         | Publishes                                         |
+|-------------------------------------------------------|--------------------------------|---------------------------------|---------------------------------------------------|
 | [place-order](../../feature/07-place-order/design.md) | Participant — reservation step | `OrderCreated`                  | `InventoryReserved`, `InventoryReservationFailed` |
 | [place-order](../../feature/07-place-order/design.md) | Participant — compensate step  | `OrderCancelled`                | `InventoryReleased`                               |
-| [flashsale.md](flashsale.md) | Enforcer — slot guard          | `OrderCreated` *(limited path)* | `InventoryReserved`, `InventoryReservationFailed` |
+| [flashsale.md](flashsale.md)                          | Enforcer — slot guard          | `OrderCreated` *(limited path)* | `InventoryReserved`, `InventoryReservationFailed` |
 
 ---
 

@@ -20,7 +20,7 @@ INSERT INTO oauth2_registered_client (
     'web-gateway-client-id',
     'web-gateway',
     CURRENT_TIMESTAMP,
-    '{noop}secret',
+    '$2a$10$QKUHcP4AdKjs5yx/r3C8ie.d7p9XGsUBws8mdTCife1UEaOUQzaH6',
     NULL,
     'Web Gateway',
     'client_secret_basic',
