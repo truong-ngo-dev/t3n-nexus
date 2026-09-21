@@ -5,14 +5,12 @@
 -- ------------------------------------------------------------
 -- customer_profiles
 -- ------------------------------------------------------------
+-- id = UserAccount.id (identity-service) — quan hệ identifying 1-1, dùng thẳng userId làm PK,
+-- không sinh ULID riêng + không cần cột user_id/unique constraint/index riêng (PK đã đủ).
 CREATE TABLE customer_profiles (
     id          VARCHAR(26)     NOT NULL,
-    user_id     VARCHAR(26)     NOT NULL,
     created_at  TIMESTAMPTZ     NOT NULL,
     updated_at  TIMESTAMPTZ     NOT NULL,
 
-    CONSTRAINT pk_customer_profiles         PRIMARY KEY (id),
-    CONSTRAINT uq_customer_profiles_user_id UNIQUE (user_id)
+    CONSTRAINT pk_customer_profiles PRIMARY KEY (id)
 );
-
-CREATE INDEX idx_customer_profiles_user_id ON customer_profiles (user_id);

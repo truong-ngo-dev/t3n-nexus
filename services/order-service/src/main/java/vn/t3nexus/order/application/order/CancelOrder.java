@@ -7,6 +7,7 @@ import vn.t3nexus.order.domain.order.Order;
 import vn.t3nexus.order.domain.order.OrderCancelReason;
 import vn.t3nexus.order.domain.order.OrderException;
 import vn.t3nexus.order.domain.order.OrderId;
+import vn.t3nexus.order.domain.order.OrderInventoryTimeoutIndex;
 import vn.t3nexus.order.domain.order.OrderRepository;
 
 @Service
@@ -14,6 +15,7 @@ import vn.t3nexus.order.domain.order.OrderRepository;
 public class CancelOrder implements CommandHandler<CancelOrder.Command, CancelOrder.Result> {
 
     private final OrderRepository orderRepository;
+    private final OrderInventoryTimeoutIndex inventoryTimeoutIndex;
 
     @Override
     public Result handle(Command command) {
@@ -22,6 +24,7 @@ public class CancelOrder implements CommandHandler<CancelOrder.Command, CancelOr
         if (!order.canProcess()) return new Result(); // late/duplicate reply — already resolved, no-op
         order.cancel(command.reason());
         orderRepository.save(order);
+        inventoryTimeoutIndex.remove(command.orderId()); // dọn sớm — order đã resolved, không cần chờ quét
         return new Result();
     }
 

@@ -21,6 +21,7 @@ public class ProductAttributeValueJpaEntity {
     @Column(name = "template_id", nullable = false, updatable = false)
     private String templateId;
 
-    @Column(name = "value", nullable = false, columnDefinition = "TEXT")
+    @Id
+    @Column(name = "value", nullable = false, updatable = false, columnDefinition = "TEXT")
     private String value;
 }

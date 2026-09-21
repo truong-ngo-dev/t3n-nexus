@@ -20,15 +20,18 @@ public class ProductPersistenceAdapter implements ProductRepository {
 
     private final ProductJpaRepository jpaRepository;
     private final ProductAttributeValueJpaRepository attributeValueRepository;
+    private final ProductVariantDefiningAttributeJpaRepository variantDefiningAttributeRepository;
     private final ProductImageJpaRepository imageRepository;
 
     @Override
     public Optional<Product> findById(ProductId id) {
         String rawId = id.getValue();
         return jpaRepository.findById(rawId).map(entity -> {
-            List<ProductAttributeValueJpaEntity> attrs  = attributeValueRepository.findByProductId(rawId);
-            List<ProductImageJpaEntity>          images = imageRepository.findByProductId(rawId);
-            return ProductMapper.toDomain(entity, attrs, images);
+            List<ProductAttributeValueJpaEntity> attrs = attributeValueRepository.findByProductId(rawId);
+            List<ProductVariantDefiningAttributeJpaEntity> variantDefining =
+                    variantDefiningAttributeRepository.findByProductId(rawId);
+            List<ProductImageJpaEntity> images = imageRepository.findByProductId(rawId);
+            return ProductMapper.toDomain(entity, attrs, variantDefining, images);
         });
     }
 
@@ -44,6 +47,13 @@ public class ProductPersistenceAdapter implements ProductRepository {
             attributeValueRepository.saveAll(attrEntities);
         }
 
+        variantDefiningAttributeRepository.deleteByProductId(rawId);
+        List<ProductVariantDefiningAttributeJpaEntity> variantDefiningEntities =
+                ProductMapper.toVariantDefiningAttributeEntities(product);
+        if (!variantDefiningEntities.isEmpty()) {
+            variantDefiningAttributeRepository.saveAll(variantDefiningEntities);
+        }
+
         imageRepository.deleteByProductId(rawId);
         List<ProductImageJpaEntity> imageEntities = ProductMapper.toImageEntities(product);
         if (!imageEntities.isEmpty()) {
@@ -56,6 +66,7 @@ public class ProductPersistenceAdapter implements ProductRepository {
     public void delete(ProductId id) {
         String rawId = id.getValue();
         imageRepository.deleteByProductId(rawId);
+        variantDefiningAttributeRepository.deleteByProductId(rawId);
         attributeValueRepository.deleteByProductId(rawId);
         jpaRepository.deleteById(rawId);
     }
@@ -71,6 +82,10 @@ public class ProductPersistenceAdapter implements ProductRepository {
                 attributeValueRepository.findByProductIdIn(productIds).stream()
                         .collect(Collectors.groupingBy(ProductAttributeValueJpaEntity::getProductId));
 
+        Map<String, List<ProductVariantDefiningAttributeJpaEntity>> variantDefiningByProduct =
+                variantDefiningAttributeRepository.findByProductIdIn(productIds).stream()
+                        .collect(Collectors.groupingBy(ProductVariantDefiningAttributeJpaEntity::getProductId));
+
         Map<String, List<ProductImageJpaEntity>> imagesByProduct =
                 imageRepository.findByProductIdIn(productIds).stream()
                         .collect(Collectors.groupingBy(ProductImageJpaEntity::getProductId));
@@ -79,6 +94,7 @@ public class ProductPersistenceAdapter implements ProductRepository {
                 .map(e -> ProductMapper.toDomain(
                         e,
                         attrsByProduct.getOrDefault(e.getId(), List.of()),
+                        variantDefiningByProduct.getOrDefault(e.getId(), List.of()),
                         imagesByProduct.getOrDefault(e.getId(), List.of())))
                 .toList();
     }

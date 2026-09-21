@@ -3,7 +3,7 @@ package vn.t3nexus.catalog.infrastructure.adapter.repository.attributetemplate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeScope;
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeOptionId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplate;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateRepository;
@@ -13,6 +13,7 @@ import vn.t3nexus.catalog.infrastructure.persistence.attributetemplate.Attribute
 import vn.t3nexus.catalog.infrastructure.persistence.attributetemplate.AttributeTemplateJpaRepository;
 import vn.t3nexus.catalog.infrastructure.persistence.attributetemplate.AttributeTemplateMapper;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,17 +56,22 @@ public class AttributeTemplatePersistenceAdapter implements AttributeTemplateRep
     }
 
     @Override
-    public List<AttributeTemplate> findAllByScope(AttributeScope scope) {
-        List<AttributeTemplateJpaEntity> entities = jpaRepository.findAllByScope(scope);
+    public List<AttributeTemplate> findAllByIds(Collection<AttributeTemplateId> ids) {
+        List<String> rawIds = ids.stream().map(AttributeTemplateId::getValue).toList();
+        if (rawIds.isEmpty()) return List.of();
 
+        List<AttributeTemplateJpaEntity> entities = jpaRepository.findAllById(rawIds);
+
+        // 1 round-trip cho option, scope đúng bằng templateIds cần — không findAll() như 2 method trên
+        // (những cái đó load option của MỌI template, chấp nhận được vì phục vụ admin list/scope-wide
+        // read; ở đây phục vụ validate trong write path nên tránh amplify không cần thiết).
         Map<String, List<AttributeOptionJpaEntity>> optionsByTemplate =
-                optionRepository.findAll().stream()
+                optionRepository.findByTemplateIdIn(rawIds).stream()
                         .collect(Collectors.groupingBy(AttributeOptionJpaEntity::getTemplateId));
 
         return entities.stream()
                 .map(entity -> AttributeTemplateMapper.toDomain(
-                        entity,
-                        optionsByTemplate.getOrDefault(entity.getId(), List.of())))
+                        entity, optionsByTemplate.getOrDefault(entity.getId(), List.of())))
                 .toList();
     }
 
@@ -87,5 +93,13 @@ public class AttributeTemplatePersistenceAdapter implements AttributeTemplateRep
     public void delete(AttributeTemplateId id) {
         optionRepository.deleteByTemplateId(id.getValue());
         jpaRepository.deleteById(id.getValue());
+    }
+
+    @Override
+    @Transactional
+    public void incrementOptionUsage(Collection<AttributeOptionId> optionIds) {
+        List<String> rawIds = optionIds.stream().map(AttributeOptionId::getValue).distinct().toList();
+        if (rawIds.isEmpty()) return;
+        optionRepository.incrementUsageCount(rawIds);
     }
 }

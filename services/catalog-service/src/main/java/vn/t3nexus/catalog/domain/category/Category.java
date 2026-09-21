@@ -1,6 +1,5 @@
 package vn.t3nexus.catalog.domain.category;
 
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.common.domain.model.AbstractAggregateRoot;
 import vn.t3nexus.lib.common.domain.model.AggregateRoot;
@@ -72,38 +71,37 @@ public class Category extends AbstractAggregateRoot<CategoryId> implements Aggre
         addDomainEvent(new CategoryUpdatedEvent(getId().getValue()));
     }
 
-    public void assignAttribute(CategoryAttributeAssignment assignment) {
-        boolean duplicate = assignments.stream()
-                .anyMatch(a -> a.getAttributeTemplateId().equals(assignment.getAttributeTemplateId()));
-        if (duplicate) {
+    // Soft toggle điều hướng/hiển thị — KHÔNG phải khoá toàn vẹn dữ liệu, nên KHÔNG guard theo "đang có
+    // Product/children hay không" (khác hẳn hard-delete). Khớp Magento/Shopify: deactivate ẩn khỏi
+    // GetCategoryTree + chặn CreateProduct mới, nhưng Product cũ tham chiếu category này không bị ảnh
+    // hưởng gì (không cascade xuống children — mỗi node tự quản lý độc lập, đúng tinh thần leaf-only
+    // attribute assignment). Hard-delete (DeleteCategory, guard HAS_CHILDREN/HAS_PRODUCT_REFERENCE) vẫn
+    // giữ nguyên, riêng biệt — chỉ dùng dọn category tạo nhầm, chưa từng ai dùng.
+    public void deactivate() {
+        this.status    = CategoryStatus.INACTIVE;
+        this.updatedAt = Instant.now();
+    }
+
+    public void activate() {
+        this.status    = CategoryStatus.ACTIVE;
+        this.updatedAt = Instant.now();
+    }
+
+    // Thay toàn bộ danh sách attribute — assign/update/remove 1 attribute đều quy về gọi lại method
+    // này với danh sách mong muốn cuối cùng (client tự GET rồi sửa trước khi PUT lại), khớp đúng cách
+    // persistence đã làm (xoá hết + insert lại toàn bộ mỗi lần save).
+    public void replaceAssignments(List<CategoryAttributeAssignment> newAssignments) {
+        long distinctTemplateCount = newAssignments.stream()
+                .map(CategoryAttributeAssignment::getAttributeTemplateId)
+                .distinct()
+                .count();
+        if (distinctTemplateCount != newAssignments.size()) {
             throw new DomainException(CategoryErrorCode.ASSIGNMENT_ALREADY_EXISTS);
         }
-        assignments.add(assignment);
+
+        assignments.clear();
+        assignments.addAll(newAssignments);
         this.updatedAt = Instant.now();
-    }
-
-    public void updateAssignment(CategoryAttributeAssignment updated) {
-        AttributeTemplateId templateId = updated.getAttributeTemplateId();
-        int index = findAssignmentIndex(templateId);
-        assignments.set(index, updated);
-        this.updatedAt = Instant.now();
-    }
-
-    public void removeAssignment(AttributeTemplateId templateId) {
-        int index = findAssignmentIndex(templateId);
-        assignments.remove(index);
-        this.updatedAt = Instant.now();
-    }
-
-    // ───────────── Private helpers ─────────────
-
-    private int findAssignmentIndex(AttributeTemplateId templateId) {
-        for (int i = 0; i < assignments.size(); i++) {
-            if (assignments.get(i).getAttributeTemplateId().equals(templateId)) {
-                return i;
-            }
-        }
-        throw new DomainException(CategoryErrorCode.ASSIGNMENT_NOT_FOUND);
     }
 
     // ───────────── Getters ─────────────

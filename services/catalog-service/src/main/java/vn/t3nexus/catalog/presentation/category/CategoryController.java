@@ -19,9 +19,9 @@ public class CategoryController {
     private final CreateCategory createCategory;
     private final UpdateCategory updateCategory;
     private final DeleteCategory deleteCategory;
-    private final AssignAttributeToCategory assignAttributeToCategory;
-    private final UpdateCategoryAttributeAssignment updateCategoryAttributeAssignment;
-    private final RemoveCategoryAttributeAssignment removeCategoryAttributeAssignment;
+    private final DeactivateCategory deactivateCategory;
+    private final ActivateCategory activateCategory;
+    private final ReplaceCategoryAttributeAssignments replaceCategoryAttributeAssignments;
 
     @GetMapping("/api/categories")
     public ApiResponse<List<CategoryTreeResponse>> getCategoryTree() {
@@ -39,9 +39,8 @@ public class CategoryController {
                         .attributes().stream()
                         .map(dto -> new CategoryAttributeResponse(
                                 dto.templateId(), dto.name(), dto.displayName(),
-                                dto.inputType(), dto.scope(),
-                                dto.variantDefining(), dto.required(),
-                                dto.filterable(), dto.displayOrder()))
+                                dto.inputType(), dto.required(),
+                                dto.filterable(), dto.searchable(), dto.displayOrder()))
                         .toList();
         return ApiResponse.ok(attributes);
     }
@@ -67,33 +66,28 @@ public class CategoryController {
         return ApiResponse.ok(null);
     }
 
-    @PostMapping("/api/admin/categories/{id}/attributes")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<Void> assignAttribute(@PathVariable String id,
-                                             @Valid @RequestBody AssignAttributeRequest request) {
-        assignAttributeToCategory.handle(new AssignAttributeToCategory.Command(
-                id, request.templateId(),
-                request.variantDefining(), request.required(),
-                request.filterable(), request.displayOrder()));
+    @PostMapping("/api/admin/categories/{id}/deactivate")
+    public ApiResponse<Void> deactivateCategory(@PathVariable String id) {
+        deactivateCategory.handle(new DeactivateCategory.Command(id));
         return ApiResponse.ok(null);
     }
 
-    @PutMapping("/api/admin/categories/{id}/attributes/{templateId}")
-    public ApiResponse<Void> updateAssignment(@PathVariable String id,
-                                              @PathVariable String templateId,
-                                              @Valid @RequestBody UpdateAssignmentRequest request) {
-        updateCategoryAttributeAssignment.handle(new UpdateCategoryAttributeAssignment.Command(
-                id, templateId,
-                request.variantDefining(), request.required(),
-                request.filterable(), request.displayOrder()));
+    @PostMapping("/api/admin/categories/{id}/activate")
+    public ApiResponse<Void> activateCategory(@PathVariable String id) {
+        activateCategory.handle(new ActivateCategory.Command(id));
         return ApiResponse.ok(null);
     }
 
-    @DeleteMapping("/api/admin/categories/{id}/attributes/{templateId}")
-    public ApiResponse<Void> removeAssignment(@PathVariable String id,
-                                              @PathVariable String templateId) {
-        removeCategoryAttributeAssignment.handle(
-                new RemoveCategoryAttributeAssignment.Command(id, templateId));
+    @PutMapping("/api/admin/categories/{id}/attributes")
+    public ApiResponse<Void> replaceAttributes(
+            @PathVariable String id,
+            @Valid @RequestBody List<ReplaceCategoryAttributesRequest> request) {
+        List<ReplaceCategoryAttributeAssignments.AttributeAssignmentItem> items = request.stream()
+                .map(r -> new ReplaceCategoryAttributeAssignments.AttributeAssignmentItem(
+                        r.templateId(), r.required(), r.filterable(), r.searchable(), r.displayOrder()))
+                .toList();
+        replaceCategoryAttributeAssignments.handle(
+                new ReplaceCategoryAttributeAssignments.Command(id, items));
         return ApiResponse.ok(null);
     }
 

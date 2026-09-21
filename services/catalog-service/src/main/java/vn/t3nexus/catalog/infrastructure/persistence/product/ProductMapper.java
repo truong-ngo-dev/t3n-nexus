@@ -1,11 +1,16 @@
 package vn.t3nexus.catalog.infrastructure.persistence.product;
 
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.category.CategoryId;
 import vn.t3nexus.catalog.domain.product.*;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class ProductMapper {
 
@@ -13,11 +18,23 @@ public final class ProductMapper {
 
     public static Product toDomain(ProductJpaEntity entity,
                                    List<ProductAttributeValueJpaEntity> attrEntities,
+                                   List<ProductVariantDefiningAttributeJpaEntity> variantDefiningEntities,
                                    List<ProductImageJpaEntity> imageEntities) {
-        List<ProductAttributeValue> attributeValues = attrEntities.stream()
-                .map(a -> new ProductAttributeValue(
-                        vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId.of(a.getTemplateId()),
-                        a.getValue()))
+        Map<String, List<ProductAttributeValueJpaEntity>> entitiesByTemplate = attrEntities.stream()
+                .collect(Collectors.groupingBy(
+                        ProductAttributeValueJpaEntity::getTemplateId,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        Set<String> variantDefiningTemplateIds = variantDefiningEntities.stream()
+                .map(ProductVariantDefiningAttributeJpaEntity::getTemplateId)
+                .collect(Collectors.toSet());
+
+        List<ProductAttributeValue> attributeValues = entitiesByTemplate.entrySet().stream()
+                .map(e -> new ProductAttributeValue(
+                        AttributeTemplateId.of(e.getKey()),
+                        e.getValue().stream().map(ProductAttributeValueJpaEntity::getValue).toList(),
+                        variantDefiningTemplateIds.contains(e.getKey())))
                 .toList();
 
         List<ProductImage> images = imageEntities.stream()
@@ -73,11 +90,24 @@ public final class ProductMapper {
     public static List<ProductAttributeValueJpaEntity> toAttributeValueEntities(Product product) {
         String productId = product.getId().getValue();
         return product.getAttributeValues().stream()
-                .map(av -> {
+                .flatMap(av -> av.values().stream().map(value -> {
                     ProductAttributeValueJpaEntity e = new ProductAttributeValueJpaEntity();
                     e.setProductId(productId);
                     e.setTemplateId(av.templateId().getValue());
-                    e.setValue(av.value());
+                    e.setValue(value);
+                    return e;
+                }))
+                .toList();
+    }
+
+    public static List<ProductVariantDefiningAttributeJpaEntity> toVariantDefiningAttributeEntities(Product product) {
+        String productId = product.getId().getValue();
+        return product.getAttributeValues().stream()
+                .filter(ProductAttributeValue::isVariantDefining)
+                .map(av -> {
+                    ProductVariantDefiningAttributeJpaEntity e = new ProductVariantDefiningAttributeJpaEntity();
+                    e.setProductId(productId);
+                    e.setTemplateId(av.templateId().getValue());
                     return e;
                 })
                 .toList();

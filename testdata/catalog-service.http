@@ -1,0 +1,331 @@
+### catalog-service — seed test data (Brand -> Category -> AttributeTemplate -> Product -> Variant)
+### Xem testdata/README.md cho cách dùng file .http này.
+
+@baseUrl = http://localhost:8005
+@oauthUrl = http://localhost:8004
+
+### 0. Lấy token (client_credentials, mượn client nội bộ oauth2-service-internal)
+# @name auth
+POST {{oauthUrl}}/oauth2/token
+Authorization: Basic oauth2-service-internal changeme-internal-client-secret
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&scope=webgw.internal
+
+### 1. Tạo Brand
+# @name createBrand
+POST {{baseUrl}}/api/admin/brands
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "name": "Nike",
+  "slug": "nike"
+}
+
+### 2. Tạo Category L1 (root, không có parentId)
+# @name createCategoryL1
+POST {{baseUrl}}/api/admin/categories
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "name": "Electronics",
+  "slug": "electronics"
+}
+
+### 3. Tạo Category L2 (con của L1)
+# @name createCategoryL2
+POST {{baseUrl}}/api/admin/categories
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "name": "Phones & Accessories",
+  "slug": "phones-accessories",
+  "parentId": "{{createCategoryL1.response.body.$.data}}"
+}
+
+### 4. Tạo Category L3 (leaf, con của L2) — CHỈ leaf mới được assign attribute và CHỈ leaf mới được
+### Product tham chiếu (422 CATEGORY_NOT_LEAF nếu Product gán vào L1/L2, 422
+### ATTRIBUTE_ASSIGNMENT_REQUIRES_LEAF nếu cố assign attribute vào L1/L2).
+# @name createCategoryL3
+POST {{baseUrl}}/api/admin/categories
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "name": "Smartphones",
+  "slug": "smartphones",
+  "parentId": "{{createCategoryL2.response.body.$.data}}"
+}
+
+### 5. Tạo AttributeTemplate "color" (SELECT) — master data thuần, không tự áp dụng ở đâu cả (đã bỏ
+### khái niệm GLOBAL/CATEGORY) — phải assign tường minh vào category L3 ở #11 mới dùng được.
+# @name createAttrColor
+POST {{baseUrl}}/api/admin/attribute-templates
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "name": "color",
+  "displayName": "Mau sac",
+  "inputType": "SELECT"
+}
+
+### 6. Option "black" cho color
+# @name addColorBlack
+POST {{baseUrl}}/api/admin/attribute-templates/{{createAttrColor.response.body.$.data.id}}/options
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "value": "black",
+  "displayValue": "Den"
+}
+
+### 7. Option "white" cho color
+# @name addColorWhite
+POST {{baseUrl}}/api/admin/attribute-templates/{{createAttrColor.response.body.$.data.id}}/options
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "value": "white",
+  "displayValue": "Trang"
+}
+
+### 8. Tạo AttributeTemplate "storage" (SELECT)
+# @name createAttrStorage
+POST {{baseUrl}}/api/admin/attribute-templates
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "name": "storage",
+  "displayName": "Dung luong",
+  "inputType": "SELECT"
+}
+
+### 9. Option "128gb" cho storage
+# @name addStorage128
+POST {{baseUrl}}/api/admin/attribute-templates/{{createAttrStorage.response.body.$.data.id}}/options
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "value": "128gb",
+  "displayValue": "128GB"
+}
+
+### 10. Option "256gb" cho storage
+# @name addStorage256
+POST {{baseUrl}}/api/admin/attribute-templates/{{createAttrStorage.response.body.$.data.id}}/options
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "value": "256gb",
+  "displayValue": "256GB"
+}
+
+### 11. Gán "color" + "storage" vào category L3 (Smartphones) trong 1 lần gọi duy nhất — endpoint là
+### REPLACE-ALL (thay TOÀN BỘ danh sách assignment hiện có, không phải merge/patch). "color" không
+### required, chỉ mô tả (Product không dùng nó trong combination -> không "act như" variant-defining).
+### "storage" required=true — sẽ "act như" variant-defining vì Variant ở #16/#16b dùng nó trong combination.
+### Muốn sửa 1 attribute sau này (VD đổi filterable) hay gỡ 1 attribute: GET #22 lấy list hiện tại, sửa,
+### rồi PUT lại nguyên list đã sửa vào đúng endpoint này — không có endpoint CRUD riêng lẻ nào khác.
+PUT {{baseUrl}}/api/admin/categories/{{createCategoryL3.response.body.$.data}}/attributes
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+[
+  { "templateId": "{{createAttrColor.response.body.$.data.id}}", "required": false, "filterable": true, "searchable": false, "displayOrder": 0 },
+  { "templateId": "{{createAttrStorage.response.body.$.data.id}}", "required": true, "filterable": true, "searchable": true, "displayOrder": 1 }
+]
+
+### 12. Thử gán attribute vào category KHÔNG phải leaf (L2) — kỳ vọng 422
+### ATTRIBUTE_ASSIGNMENT_REQUIRES_LEAF.
+PUT {{baseUrl}}/api/admin/categories/{{createCategoryL2.response.body.$.data}}/attributes
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+[
+  { "templateId": "{{createAttrColor.response.body.$.data.id}}", "required": false, "filterable": false, "searchable": false, "displayOrder": 0 }
+]
+
+### 13. Tạo Product (Seller) dưới category L3 — cần header X-Seller-Id (giá trị bất kỳ để test).
+### attributeValues gộp về 1 list duy nhất — color 1 giá trị, isVariantDefining=false (thuần thông tin,
+### KHÔNG dùng để tách SKU); storage 2 giá trị, isVariantDefining=true (Product hỗ trợ cả 128gb/256gb,
+### BẮT BUỘC mọi Variant phải khai combination có storage — Variant ở #15/#15b chọn đúng 1 trong tập này).
+### isVariantDefining do Seller tự khai per-listing (không phải category `required`), chỉ hợp lệ với
+### template SELECT, và bị khoá lại (không đổi được) sau khi Product đã có Variant đầu tiên.
+### QUAN TRỌNG: values giờ là AttributeOptionId (ULID của option), KHÔNG phải raw value string
+### ("black"/"128gb") như trước — Product tham chiếu option bằng ID, không copy value nữa.
+# @name createProduct
+POST {{baseUrl}}/api/seller/products
+Authorization: Bearer {{auth.response.body.$.access_token}}
+X-Seller-Id: 01HXSELLERTESTID0000000001
+Content-Type: application/json
+
+{
+  "categoryId": "{{createCategoryL3.response.body.$.data}}",
+  "brandId": "{{createBrand.response.body.$.data}}",
+  "name": "iPhone 15",
+  "description": "Test product seed",
+  "warrantyMonths": 12,
+  "warrantyType": "MANUFACTURER",
+  "warrantyCoverage": "Loi nha san xuat",
+  "attributeValues": [
+    { "templateId": "{{createAttrColor.response.body.$.data.id}}", "values": ["{{addColorBlack.response.body.$.data.id}}"], "isVariantDefining": false },
+    { "templateId": "{{createAttrStorage.response.body.$.data.id}}", "values": ["{{addStorage128.response.body.$.data.id}}", "{{addStorage256.response.body.$.data.id}}"], "isVariantDefining": true }
+  ]
+}
+
+### 14. Thử tạo Product dưới category KHÔNG phải leaf (L2) — kỳ vọng 422 CATEGORY_NOT_LEAF.
+POST {{baseUrl}}/api/seller/products
+Authorization: Bearer {{auth.response.body.$.access_token}}
+X-Seller-Id: 01HXSELLERTESTID0000000001
+Content-Type: application/json
+
+{
+  "categoryId": "{{createCategoryL2.response.body.$.data}}",
+  "brandId": "{{createBrand.response.body.$.data}}",
+  "name": "Invalid product",
+  "attributeValues": []
+}
+
+### 15. Thêm Variant (SKU) cho product — combination theo "storage" — optionId phải nằm trong tập
+### Product đã khai ở #13 (128gb/256gb) — chọn optionId khác sẽ bị 422
+### VARIANT_OPTION_NOT_DECLARED_BY_PRODUCT. "color" KHÔNG mang vào combination vì isVariantDefining=false
+### (Seller không chọn nó làm trục tách SKU) — nếu bỏ luôn "storage" (isVariantDefining=true) khỏi
+### combination sẽ bị 422 VARIANT_MISSING_VARIANT_DEFINING_ATTRIBUTE.
+# @name addVariant
+POST {{baseUrl}}/api/seller/products/{{createProduct.response.body.$.data}}/variants
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "combination": [
+    { "templateId": "{{createAttrStorage.response.body.$.data.id}}", "optionId": "{{addStorage128.response.body.$.data.id}}" }
+  ],
+  "skuCode": "IP15-128",
+  "price": 25000000
+}
+
+### 15b. Thêm Variant thứ 2 (256gb) — cùng Product, combination khác — chứng minh Product khai được
+### NHIỀU option cho 1 attribute, mỗi Variant chọn đúng 1.
+# @name addVariant256
+POST {{baseUrl}}/api/seller/products/{{createProduct.response.body.$.data}}/variants
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "combination": [
+    { "templateId": "{{createAttrStorage.response.body.$.data.id}}", "optionId": "{{addStorage256.response.body.$.data.id}}" }
+  ],
+  "skuCode": "IP15-256",
+  "price": 28000000
+}
+
+### 16. Publish product — cần publish thì GET public mới thấy (status != PUBLISHED -> 404)
+POST {{baseUrl}}/api/seller/products/{{createProduct.response.body.$.data}}/publish
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 16d. Thử DeleteProduct trên product ĐÃ publish ở #16 — kỳ vọng 422 PRODUCT_NOT_DRAFT.
+DELETE {{baseUrl}}/api/seller/products/{{createProduct.response.body.$.data}}
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### ── DeleteProduct trên 1 draft riêng (không đụng product chính ở trên) ─────────────────────────
+
+### 16e. Tạo 1 product DRAFT riêng để test xoá — không publish.
+# @name createDraftProduct
+POST {{baseUrl}}/api/seller/products
+Authorization: Bearer {{auth.response.body.$.access_token}}
+X-Seller-Id: 01HXSELLERTESTID0000000001
+Content-Type: application/json
+
+{
+  "categoryId": "{{createCategoryL3.response.body.$.data}}",
+  "brandId": "{{createBrand.response.body.$.data}}",
+  "name": "Draft product to delete",
+  "attributeValues": [
+    { "templateId": "{{createAttrStorage.response.body.$.data.id}}", "values": ["{{addStorage128.response.body.$.data.id}}"], "isVariantDefining": true }
+  ]
+}
+
+### 16f. Thêm Variant cho draft product — chứng minh cascade xoá luôn Variant khi DeleteProduct.
+# @name addVariantDraft
+POST {{baseUrl}}/api/seller/products/{{createDraftProduct.response.body.$.data}}/variants
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "combination": [
+    { "templateId": "{{createAttrStorage.response.body.$.data.id}}", "optionId": "{{addStorage128.response.body.$.data.id}}" }
+  ],
+  "skuCode": "DRAFT-DEL-128",
+  "price": 10000000
+}
+
+### 16g. Xoá draft product — kỳ vọng 200 OK, cascade xoá luôn Variant vừa tạo ở #16f.
+DELETE {{baseUrl}}/api/seller/products/{{createDraftProduct.response.body.$.data}}
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 16h. GET lại draft product đã xoá — kỳ vọng 404 PRODUCT_NOT_FOUND.
+GET {{baseUrl}}/api/seller/products/{{createDraftProduct.response.body.$.data}}
+Authorization: Bearer {{auth.response.body.$.access_token}}
+X-Seller-Id: 01HXSELLERTESTID0000000001
+
+### ── AttributeTemplate lifecycle (chạy độc lập, KHÔNG phụ thuộc luồng tạo mới ở trên) ────────────
+
+### 16b. Deactivate "storage" — kỳ vọng 409 TEMPLATE_REQUIRED_BY_CATEGORY vì đang required=true ở
+### category L3 (assign ở #11). Phải replace assignment (bỏ required hoặc gỡ hẳn) trước mới deactivate được.
+DELETE {{baseUrl}}/api/admin/attribute-templates/{{createAttrStorage.response.body.$.data.id}}
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 16c. Deactivate "color" — kỳ vọng 200 OK vì chỉ assign filterable, KHÔNG required (assign ở #11).
+DELETE {{baseUrl}}/api/admin/attribute-templates/{{createAttrColor.response.body.$.data.id}}
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 16d. Thử replace lại list assignment của L3 có kèm "color" (đã deactivate ở #16c) — kỳ vọng 422
+### TEMPLATE_INACTIVE (áp dụng cho toàn bộ request, kể cả các templateId khác trong cùng list vẫn ACTIVE).
+PUT {{baseUrl}}/api/admin/categories/{{createCategoryL3.response.body.$.data}}/attributes
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+[
+  { "templateId": "{{createAttrStorage.response.body.$.data.id}}", "required": true, "filterable": true, "searchable": true, "displayOrder": 1 },
+  { "templateId": "{{createAttrColor.response.body.$.data.id}}", "required": false, "filterable": false, "searchable": false, "displayOrder": 2 }
+]
+
+### ── Verify sản phẩm vừa tạo (dùng id từ luồng tạo mới ở trên, KHÔNG cần token) ─────────────────
+
+### 17. Product detail (public — chỉ thấy nếu đã publish ở #16)
+GET {{baseUrl}}/api/products/{{createProduct.response.body.$.data}}
+
+### 18. Product variants
+GET {{baseUrl}}/api/products/{{createProduct.response.body.$.data}}/variants
+
+### ── Lookup / Danh sách (chạy độc lập, KHÔNG phụ thuộc phần tạo mới ở trên) ─────────────────────
+### Dùng khi đã có sẵn data từ trước (không muốn tạo lại) — chạy các request dưới để lấy id thật,
+### thay {{createXxx.response.body...}} bằng id vừa lấy được rồi paste tay vào chỗ cần dùng.
+
+### 19. Category tree (kèm id từng category, mọi level) — public, không cần token
+GET {{baseUrl}}/api/categories
+
+### 20. Brand list (kèm id từng brand) — public, không cần token
+GET {{baseUrl}}/api/brands
+
+### 21. List AttributeTemplates (kèm toàn bộ option + id của từng cái) — cần token
+GET {{baseUrl}}/api/admin/attribute-templates
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 22. Attribute đã gán cho 1 category leaf (L3) — public, không cần token. Gọi trên category L1/L2
+### luôn trả về mảng rỗng (không có kế thừa).
+GET {{baseUrl}}/api/categories/{{createCategoryL3.response.body.$.data}}/attributes
+
+### 23. List Product theo Seller (phân trang) — cần token + X-Seller-Id
+GET {{baseUrl}}/api/seller/products?page=0&size=20
+Authorization: Bearer {{auth.response.body.$.access_token}}
+X-Seller-Id: 01HXSELLERTESTID0000000001

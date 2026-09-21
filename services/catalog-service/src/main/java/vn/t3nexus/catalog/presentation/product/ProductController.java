@@ -17,6 +17,7 @@ public class ProductController {
 
     private final CreateProduct createProduct;
     private final UpdateProduct updateProduct;
+    private final DeleteProduct deleteProduct;
     private final PublishProduct publishProduct;
     private final UnpublishProduct unpublishProduct;
     private final BlockProduct blockProduct;
@@ -35,7 +36,7 @@ public class ProductController {
             @RequestHeader("X-Seller-Id") String sellerId,
             @Valid @RequestBody CreateProductRequest request) {
         List<CreateProduct.AttributeValue> attrs = request.attributeValues().stream()
-                .map(a -> new CreateProduct.AttributeValue(a.templateId(), a.value()))
+                .map(a -> new CreateProduct.AttributeValue(a.templateId(), a.values(), a.isVariantDefining()))
                 .toList();
         CreateProduct.Result result = createProduct.handle(new CreateProduct.Command(
                 sellerId,
@@ -79,7 +80,7 @@ public class ProductController {
             @PathVariable String id,
             @Valid @RequestBody UpdateProductRequest request) {
         List<UpdateProduct.AttributeValueDto> attrDtos = request.attributeValues().stream()
-                .map(a -> new UpdateProduct.AttributeValueDto(a.templateId(), a.value()))
+                .map(a -> new UpdateProduct.AttributeValueDto(a.templateId(), a.values(), a.isVariantDefining()))
                 .toList();
         updateProduct.handle(new UpdateProduct.Command(
                 id,
@@ -89,6 +90,12 @@ public class ProductController {
                 request.warrantyType(),
                 request.warrantyCoverage(),
                 attrDtos));
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/api/seller/products/{id}")
+    public ApiResponse<Void> deleteProduct(@PathVariable String id) {
+        deleteProduct.handle(new DeleteProduct.Command(id));
         return ApiResponse.ok(null);
     }
 
@@ -164,7 +171,12 @@ public class ProductController {
                         result.warrantyInfo().coverage());
 
         List<ProductResponse.AttributeValueResponse> attrs = result.attributeValues().stream()
-                .map(a -> new ProductResponse.AttributeValueResponse(a.templateId(), a.value()))
+                .map(a -> new ProductResponse.AttributeValueResponse(
+                        a.templateId(), a.templateName(), a.templateDisplayName(),
+                        a.values().stream()
+                                .map(v -> new ProductResponse.AttributeValueItemResponse(v.value(), v.displayValue()))
+                                .toList(),
+                        a.isVariantDefining()))
                 .toList();
 
         List<ProductResponse.ProductImageResponse> images = result.images().stream()
@@ -172,7 +184,9 @@ public class ProductController {
                 .toList();
 
         return new ProductResponse(
-                result.id(), result.sellerId(), result.categoryId(), result.brandId(),
+                result.id(), result.sellerId(),
+                result.categoryId(), result.categoryName(),
+                result.brandId(), result.brandName(),
                 result.name(), result.description(), result.status(),
                 warranty, attrs, images);
     }

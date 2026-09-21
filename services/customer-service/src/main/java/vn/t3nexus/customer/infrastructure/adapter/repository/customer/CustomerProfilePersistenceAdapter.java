@@ -23,16 +23,9 @@ public class CustomerProfilePersistenceAdapter implements CustomerProfileReposit
     }
 
     @Override
-    public Optional<CustomerProfile> findByUserId(String userId) {
-        return jpaRepository.findByUserId(userId)
-                .map(mapper::toDomain);
-    }
-
-    @Override
     public void save(CustomerProfile profile) {
         jpaRepository.insertIgnoreConflict(
                 profile.getId().getValue(),
-                profile.getUserId(),
                 profile.getCreatedAt(),
                 profile.getUpdatedAt()
         );

@@ -30,6 +30,7 @@ public final class OrderMapper {
                 JsonUtils.fromJson(e.getShippingAddressJson(), ShippingAddress.class),
                 OrderStatus.valueOf(e.getStatus()),
                 e.getCancelReason() == null ? null : OrderCancelReason.valueOf(e.getCancelReason()),
+                e.getInventoryReplyDeadline(),
                 e.getCreatedAt(),
                 e.getUpdatedAt()
         );
@@ -47,6 +48,7 @@ public final class OrderMapper {
         e.setShippingAddressJson(JsonUtils.toJson(order.getShippingAddress()));
         e.setStatus(order.getStatus().name());
         e.setCancelReason(order.getCancelReason() == null ? null : order.getCancelReason().name());
+        e.setInventoryReplyDeadline(order.getInventoryReplyDeadline());
         e.setVersion((Long) ReflectionUtils.getField(VERSION_FIELD, order));
         e.setCreatedAt(order.getCreatedAt());
         e.setUpdatedAt(order.getUpdatedAt());

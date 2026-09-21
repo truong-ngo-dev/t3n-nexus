@@ -8,12 +8,13 @@ import java.util.List;
 public interface VariantCombinationItemJpaRepository
         extends JpaRepository<VariantCombinationItemJpaEntity, VariantCombinationItemKey> {
 
-    boolean existsByOptionId(String optionId);
-
     List<VariantCombinationItemJpaEntity> findByVariantId(String variantId);
 
     List<VariantCombinationItemJpaEntity> findByVariantIdIn(List<String> variantIds);
 
     @Transactional
     void deleteByVariantId(String variantId);
+
+    @Transactional
+    void deleteByVariantIdIn(List<String> variantIds);
 }

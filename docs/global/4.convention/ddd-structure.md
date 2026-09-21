@@ -1157,6 +1157,14 @@ public class User {
 }
 ```
 
+### Ngoại lệ — quan hệ identifying 1-1 với `UserAccount`
+
+**Không tự sinh ID riêng (ULID) khi aggregate có quan hệ identifying 1-1 với `UserAccount` (identity-service)** — tức luôn được tạo đồng thời/ngay sau khi `UserAccount` tồn tại, không có lifecycle độc lập, và không nơi nào khác trong hệ thống cần phân biệt "id của nó" với `userId`. Trường hợp này, dùng thẳng `userId` làm PK — bỏ luôn field/cột `userId` tách biệt (tránh 2 field cùng mang 1 giá trị) và bỏ luôn `findByUserId` (thay bằng `findById` thuần).
+
+Ví dụ đã áp dụng: `CustomerProfile` (`customer-service`, đảo ngược 2026-09-21, xem `service/customer-service/data.md`). Áp dụng tương tự khi build `SellerProfile`/shop (`seller-service`), hồ sơ `shipper-service` sau này — cùng bản chất quan hệ.
+
+Phân biệt với trường hợp **không** áp dụng ngoại lệ này: aggregate có thể tồn tại độc lập, tạo qua nhiều nguồn khác nhau, hoặc quan hệ với `UserAccount` là 1-N/N-N (ví dụ `Order.customerId` chỉ là 1 field tham chiếu, `Order` không phải "hồ sơ mở rộng của user" — vẫn tự sinh `OrderId` riêng bình thường).
+
 ## Aggregate reference convention
 
 Khi một aggregate cần reference đến aggregate khác, cách dùng phụ thuộc vào vị trí của 2 aggregate.

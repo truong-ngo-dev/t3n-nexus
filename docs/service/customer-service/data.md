@@ -9,24 +9,22 @@
 
 > **Phase 3**: tạo khi consume `identity.customer.registered`.
 
-| Column       | Type          | Constraint       | Ghi chú                                   |
-|--------------|---------------|------------------|-------------------------------------------|
-| `id`         | `VARCHAR(26)` | PK               | ULID                                      |
-| `user_id`    | `VARCHAR(26)` | UNIQUE, NOT NULL | Ref sang identity-service — không dùng FK |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL         |                                           |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL         |                                           |
+**Đảo ngược 2026-09-21**: `id` dùng thẳng giá trị `UserAccount.id` (identity-service) thay vì tự sinh ULID riêng — quan hệ với `UserAccount` là **identifying** (1-1, luôn tồn tại đồng thời, không nơi nào khác dùng 1 "customerId" khác `userId`), nên bỏ luôn cột `user_id`/UNIQUE constraint/index riêng (PK đã đủ). Convention này áp dụng chung cho mọi aggregate kiểu "profile" khác gắn 1-1 với `UserAccount` (seller/shipper profile sau này) — xem `global/4.convention/ddd-structure.md`.
 
-**Indexes**
-- `idx_customer_profiles_user_id` on `user_id`
+| Column       | Type          | Constraint | Ghi chú                                      |
+|--------------|---------------|------------|-----------------------------------------------|
+| `id`         | `VARCHAR(26)` | PK         | = `UserAccount.id` (identity-service), không dùng FK |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL   |                                                |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL   |                                                |
 
 **Idempotency**
 
-UNIQUE constraint trên `user_id` xử lý duplicate event mà không cần bảng riêng:
+PK trên `id` (= `userId`) xử lý duplicate event mà không cần bảng riêng:
 
 ```sql
-INSERT INTO customer_profiles (id, user_id, created_at, updated_at)
-VALUES (?, ?, NOW(), NOW())
-ON CONFLICT (user_id) DO NOTHING;
+INSERT INTO customer_profiles (id, created_at, updated_at)
+VALUES (?, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
 ```
 
 ---

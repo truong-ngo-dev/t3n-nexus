@@ -3,10 +3,13 @@ package vn.t3nexus.order.domain.order;
 import vn.t3nexus.lib.common.domain.model.AbstractAggregateRoot;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Order extends AbstractAggregateRoot<OrderId> {
+
+    private static final long INVENTORY_REPLY_TIMEOUT_MINUTES = 3;
 
     private String customerId;
     private String sellerId;
@@ -15,6 +18,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
     private ShippingAddress shippingAddress;
     private OrderStatus status;
     private OrderCancelReason cancelReason;
+    private Instant inventoryReplyDeadline;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -33,6 +37,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
         order.paymentMethod = paymentMethod;
         order.shippingAddress = shippingAddress;
         order.status = OrderStatus.CREATED;
+        order.inventoryReplyDeadline = now.plus(INVENTORY_REPLY_TIMEOUT_MINUTES, ChronoUnit.MINUTES);
         order.createdAt = now;
         order.updatedAt = now;
         order.addDomainEvent(new OrderCreatedEvent(id.getValue(), customerId, sellerId, items, paymentMethod, shippingAddress));
@@ -42,7 +47,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
     /** Reconstitute từ persistence — dùng bởi repository, không fire event. */
     public static Order reconstitute(OrderId id, String customerId, String sellerId, List<OrderLineItem> items,
                                      PaymentMethod paymentMethod, ShippingAddress shippingAddress,
-                                     OrderStatus status, OrderCancelReason cancelReason,
+                                     OrderStatus status, OrderCancelReason cancelReason, Instant inventoryReplyDeadline,
                                      Instant createdAt, Instant updatedAt) {
         Order order = new Order();
         order.setId(id);
@@ -53,6 +58,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
         order.shippingAddress = shippingAddress;
         order.status = status;
         order.cancelReason = cancelReason;
+        order.inventoryReplyDeadline = inventoryReplyDeadline;
         order.createdAt = createdAt;
         order.updatedAt = updatedAt;
         return order;
@@ -89,6 +95,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
     public ShippingAddress getShippingAddress() { return shippingAddress; }
     public OrderStatus getStatus() { return status; }
     public OrderCancelReason getCancelReason() { return cancelReason; }
+    public Instant getInventoryReplyDeadline() { return inventoryReplyDeadline; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

@@ -22,7 +22,12 @@ public class ReleaseReservation {
 
     @Transactional
     public void handle(Command command) {
-        Reservation reservation = reservationRepository.findByOrderId(command.orderId())
+        // findByOrderIdForUpdate (SELECT FOR UPDATE) — không chỉ findByOrderId thường — để chặn race
+        // thật khi 2 lần xử lý CÙNG orderId chạy gần như đồng thời (VD Kafka rebalance): nếu chỉ check
+        // isPending() bằng read thường, cả 2 có thể đọc "pending" trước khi bên nào commit, dẫn tới
+        // release 2 lần (double-release reservedQty). Khoá này serialize 2 lần gọi lại với nhau, giống
+        // pattern findBySkuIdForUpdate đã dùng ở ReserveInventory.
+        Reservation reservation = reservationRepository.findByOrderIdForUpdate(command.orderId())
                 .orElse(null);
 
         if (reservation == null) {
@@ -37,7 +42,7 @@ public class ReleaseReservation {
         }
 
         reservation.getItems().forEach(item -> {
-            Stock stock = stockRepository.findBySkuId(item.getSkuId()).orElse(null);
+            Stock stock = stockRepository.findBySkuIdForUpdate(item.getSkuId()).orElse(null);
             if (stock == null) {
                 log.warn("[ReleaseReservation] stock not found for skuId={}, skipping", item.getSkuId());
                 return;

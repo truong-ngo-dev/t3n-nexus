@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeScope;
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateStatus;
 import vn.t3nexus.catalog.domain.attributetemplate.InputType;
 
 import java.time.Instant;
@@ -31,8 +31,8 @@ public class AttributeTemplateJpaEntity {
     private InputType inputType;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "scope", nullable = false, updatable = false)
-    private AttributeScope scope;
+    @Column(name = "status", nullable = false)
+    private AttributeTemplateStatus status;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

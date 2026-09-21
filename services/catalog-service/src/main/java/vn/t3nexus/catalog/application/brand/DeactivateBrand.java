@@ -10,7 +10,6 @@ import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
-import vn.t3nexus.catalog.domain.product.ProductRepository;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
@@ -21,7 +20,6 @@ import vn.t3nexus.lib.common.domain.exception.DomainException;
 public class DeactivateBrand implements CommandHandler<DeactivateBrand.Command, DeactivateBrand.Result> {
 
     private final BrandRepository brandRepository;
-    private final ProductRepository productRepository;
 
     @Override
     @Transactional
@@ -30,10 +28,10 @@ public class DeactivateBrand implements CommandHandler<DeactivateBrand.Command, 
         Brand brand = brandRepository.findById(BrandId.of(command.id()))
                 .orElseThrow(() -> new DomainException(BrandErrorCode.BRAND_NOT_FOUND));
 
-        if (productRepository.existsByBrandId(brand.getId().getValue())) {
-            throw new DomainException(BrandErrorCode.BRAND_IN_USE);
-        }
-
+        // Soft toggle điều hướng/hiển thị (ẩn khỏi ListActiveBrands) — KHÔNG khoá toàn vẹn dữ liệu, nên
+        // KHÔNG guard theo "đang có Product dùng hay không" (đã sửa — trước đây chặn ngược, xem
+        // service.md § Category lifecycle cho nguyên tắc đầy đủ). Product cũ tham chiếu brand đã
+        // deactivate vẫn resolve bình thường (GetProduct không lọc theo status).
         brand.deactivate();
         brandRepository.save(brand);
 

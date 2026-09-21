@@ -13,4 +13,7 @@ public interface SkuImageJpaRepository extends JpaRepository<SkuImageJpaEntity, 
 
     @Transactional
     void deleteByVariantId(String variantId);
+
+    @Transactional
+    void deleteByVariantIdIn(List<String> variantIds);
 }

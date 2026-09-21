@@ -29,7 +29,8 @@
 
 ### CustomerProfile
 - Được tạo **async** sau khi nhận `identity.customer-account.created` — buyer không chờ.
-- **Idempotency**: UNIQUE constraint trên `user_id` — consume cùng event 2 lần không tạo 2 profile (`ON CONFLICT DO NOTHING`). DB-only có chủ đích, không Redis — miss ở đây vi phạm business invariant (2 profile/user), nguyên tắc chọn cơ chế xem `3.technical/idempotency-layering.md`.
+- `CustomerProfileId` = `UserAccount.id` (identity-service) — quan hệ identifying 1-1, không tự sinh ULID riêng, không có field/cột `userId` tách biệt (đảo ngược 2026-09-21, xem `data.md`).
+- **Idempotency**: PK trên `id` (= `userId`) — consume cùng event 2 lần không tạo 2 profile (`ON CONFLICT DO NOTHING`). DB-only có chủ đích, không Redis — miss ở đây vi phạm business invariant (2 profile/user), nguyên tắc chọn cơ chế xem `3.technical/idempotency-layering.md`.
 - Không có FK sang identity-service DB — DB isolation theo service boundary.
 
 ### Loyalty Points Ledger

@@ -3,7 +3,6 @@ package vn.t3nexus.catalog.infrastructure.adapter.repository.variant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeOptionId;
 import vn.t3nexus.catalog.domain.variant.Variant;
 import vn.t3nexus.catalog.domain.variant.VariantId;
 import vn.t3nexus.catalog.domain.variant.VariantRepository;
@@ -65,11 +64,6 @@ public class VariantPersistenceAdapter implements VariantRepository {
     }
 
     @Override
-    public boolean existsByOptionId(AttributeOptionId optionId) {
-        return combinationItemRepository.existsByOptionId(optionId.getValue());
-    }
-
-    @Override
     public boolean existsByProductId(String productId) {
         return jpaRepository.existsByProductId(productId);
     }
@@ -82,6 +76,19 @@ public class VariantPersistenceAdapter implements VariantRepository {
     @Override
     public boolean existsByProductIdAndCombinationHash(String productId, String combinationHash) {
         return jpaRepository.existsByProductIdAndCombinationHash(productId, combinationHash);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByProductId(String productId) {
+        List<String> variantIds = jpaRepository.findByProductId(productId).stream()
+                .map(VariantJpaEntity::getId)
+                .toList();
+        if (!variantIds.isEmpty()) {
+            combinationItemRepository.deleteByVariantIdIn(variantIds);
+            skuImageRepository.deleteByVariantIdIn(variantIds);
+        }
+        jpaRepository.deleteByProductId(productId);
     }
 
     @Override

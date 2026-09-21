@@ -47,6 +47,10 @@ Domain methods:
 - `Stock.activate()` / `Stock.deactivate()` — toggle `sellerActive` (theo `VariantActivatedEvent`/`VariantDeactivatedEvent`)
 - `Stock.publishProduct()` / `Stock.unpublishProduct()` — toggle `productPublished` (theo `ProductPublishedEvent`/`ProductUnpublishedEvent`, áp cho toàn bộ SKU của product)
 - `Stock.block()` / `Stock.unblock()` — toggle `adminBlocked` (theo `ProductBlockedEvent`/`ProductUnblockedEvent`)
+- **Hard-delete (ngoại lệ duy nhất của Stock, không có method domain nào — xoá thẳng row):** `DeleteStock`
+  (theo `VariantDeletedEvent`) — chỉ xảy ra khi catalog-service xoá cứng 1 Variant, mà catalog CHỈ cho xoá
+  cứng khi Product của nó còn DRAFT (chưa từng publish) — nên Stock đó chắc chắn `reservedQty = 0`, chưa
+  từng có Order/reservation nào chạm tới, xoá an toàn tuyệt đối. Idempotent — skuId không tồn tại thì no-op.
 
 ### Reservation
 
@@ -106,6 +110,7 @@ Event-driven (Kafka consumers):
 | `catalog.variant.created`     | `VariantCreatedConsumer`     | —  *(init Stock, sellerActive/productPublished mirror theo payload)* |
 | `catalog.variant.activated`   | `VariantActivatedConsumer`   | —                                                                    |
 | `catalog.variant.deactivated` | `VariantDeactivatedConsumer` | —                                                                    |
+| `catalog.variant.deleted`     | `VariantDeletedConsumer`     | — *(hard-delete Stock row — chỉ xảy ra khi Variant bị xoá cứng lúc Product còn DRAFT, an toàn tuyệt đối vì chưa từng có Order/reservation nào)* |
 | `catalog.product.published`   | `ProductPublishedConsumer`   | — *(set `productPublished=true` cho toàn bộ SKU của product)*        |
 | `catalog.product.unpublished` | `ProductUnpublishedConsumer` | — *(set `productPublished=false` cho toàn bộ SKU của product)*       |
 | `catalog.product.blocked`     | `ProductBlockedConsumer`     | —                                                                    |
@@ -211,15 +216,26 @@ Trước mỗi event: `INSERT INTO processed_event(event_id) VALUES(?) ON CONFLI
 
 | Topic                         | Event                     | Handler                       | Idempotency |
 |-------------------------------|---------------------------|-------------------------------|-------------|
-| `order.order.created`         | `OrderCreated`            | `OrderCreatedConsumer`        | `eventId`   |
-| `order.order.cancelled`       | `OrderCancelled`          | `OrderCancelledConsumer`      | `eventId`   |
-| `catalog.variant.created`     | `VariantCreatedEvent`     | `VariantCreatedConsumer`      | `eventId`   |
-| `catalog.variant.activated`   | `VariantActivatedEvent`   | `VariantActivatedConsumer`    | `eventId`   |
-| `catalog.variant.deactivated` | `VariantDeactivatedEvent` | `VariantDeactivatedConsumer`  | `eventId`   |
-| `catalog.product.published`   | `ProductPublishedEvent`   | `ProductPublishedConsumer`    | `eventId`   |
-| `catalog.product.unpublished` | `ProductUnpublishedEvent` | `ProductUnpublishedConsumer`  | `eventId`   |
-| `catalog.product.blocked`     | `ProductBlockedEvent`     | `ProductBlockedConsumer`      | `eventId`   |
-| `catalog.product.unblocked`   | `ProductUnblockedEvent`   | `ProductUnblockedConsumer`    | `eventId`   |
+| `order.order.created`         | `OrderCreated`            | `OrderCreatedConsumer`        | DB `UNIQUE(order_id)` + `FOR UPDATE` trên stock (`ReserveInventory`) |
+| `order.order.cancelled`       | `OrderCancelled`          | `OrderCancelledConsumer`      | DB `isPending()` + `FOR UPDATE` trên reservation/stock (`ReleaseReservation`) |
+| `catalog.variant.created`     | `VariantCreatedEvent`     | `VariantCreatedConsumer`      | DB `existsBySkuId` + `UNIQUE(sku_id)` (`InitializeStock`) |
+| `catalog.variant.activated`   | `VariantActivatedEvent`   | `VariantActivatedConsumer`    | DB fast-path + `@Version` (`ActivateStock`) |
+| `catalog.variant.deactivated` | `VariantDeactivatedEvent` | `VariantDeactivatedConsumer`  | DB fast-path + `@Version` (`DeactivateStock`) |
+| `catalog.variant.deleted`     | `VariantDeletedEvent`     | `VariantDeletedConsumer`      | DELETE tự thân idempotent (`DeleteStock`) |
+| `catalog.product.published`   | `ProductPublishedEvent`   | `ProductPublishedConsumer`    | DB set tuyệt đối + `@Version` (`PublishProductStocks`) |
+| `catalog.product.unpublished` | `ProductUnpublishedEvent` | `ProductUnpublishedConsumer`  | DB set tuyệt đối + `@Version` (`DeactivateProductStocks`) |
+| `catalog.product.blocked`     | `ProductBlockedEvent`     | `ProductBlockedConsumer`      | DB set tuyệt đối + `@Version` (`BlockProductStocks`) |
+| `catalog.product.unblocked`   | `ProductUnblockedEvent`   | `ProductUnblockedConsumer`    | DB set tuyệt đối + `@Version` (`ActivateStocksOnProductUnblocked`) |
+
+**2026-09-20:** toàn bộ 9 consumer trên (trừ `OrderCreatedConsumer` vốn đã đúng từ đầu) đã bỏ hẳn Redis
+`IdempotencyGuard` — trước đó guard-trước-DB kiểu `tryAcquire`/`release` có lỗ hổng thật (crash giữa 2
+bước làm key rò rỉ, event bị nuốt mất khi Kafka redeliver, không tự phục hồi tới khi TTL 7 ngày hết hạn).
+Chuyển hẳn sang DB-based, khớp quy tắc ở `global/3.technical/idempotency-layering.md`. 2 handler cần thêm
+biện pháp mới (không chỉ bỏ Redis): `ReleaseReservation` thêm `findByOrderIdForUpdate`/`findBySkuIdForUpdate`
+(trước đó đọc không khoá, có race double-release dưới concurrency thật); `InitializeStock` thêm catch
+`DataIntegrityViolationException` quanh `save()` (đã đổi `StockPersistenceAdapter.save()` sang
+`saveAndFlush` để race ở `UNIQUE(sku_id)` surface đồng bộ, thay vì lọt ra ngoài thành lỗi thật phải đợi 1
+vòng retry mới tự chữa).
 
 > **Gap:** Khi Promotion BC được implement, cần bổ sung consumer cho `LimitedOfferActivated` / `LimitedOfferDeactivated`. Hai events này chưa có trong event-catalog.
 

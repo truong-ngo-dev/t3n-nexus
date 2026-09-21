@@ -1,6 +1,7 @@
 package vn.t3nexus.catalog.infrastructure.persistence.variant;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.catalog.domain.variant.VariantStatus;
 
 import java.util.List;
@@ -14,4 +15,7 @@ public interface VariantJpaRepository extends JpaRepository<VariantJpaEntity, St
     boolean existsByProductIdAndStatus(String productId, VariantStatus status);
 
     boolean existsByProductIdAndCombinationHash(String productId, String combinationHash);
+
+    @Transactional
+    void deleteByProductId(String productId);
 }

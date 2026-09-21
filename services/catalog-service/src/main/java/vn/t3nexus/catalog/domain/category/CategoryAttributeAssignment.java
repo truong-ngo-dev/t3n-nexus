@@ -8,27 +8,27 @@ import java.util.Objects;
 public class CategoryAttributeAssignment implements ValueObject {
 
     private final AttributeTemplateId attributeTemplateId;
-    private final boolean isVariantDefining;
     private final boolean isRequired;
     private final boolean isFilterable;
+    private final boolean isSearchable;
     private final int displayOrder;
 
     public CategoryAttributeAssignment(AttributeTemplateId attributeTemplateId,
-                                       boolean isVariantDefining,
                                        boolean isRequired,
                                        boolean isFilterable,
+                                       boolean isSearchable,
                                        int displayOrder) {
         this.attributeTemplateId = attributeTemplateId;
-        this.isVariantDefining   = isVariantDefining;
         this.isRequired          = isRequired;
         this.isFilterable        = isFilterable;
+        this.isSearchable        = isSearchable;
         this.displayOrder        = displayOrder;
     }
 
     public AttributeTemplateId getAttributeTemplateId() { return attributeTemplateId; }
-    public boolean isVariantDefining()                  { return isVariantDefining; }
     public boolean isRequired()                         { return isRequired; }
     public boolean isFilterable()                       { return isFilterable; }
+    public boolean isSearchable()                        { return isSearchable; }
     public int getDisplayOrder()                        { return displayOrder; }
 
     // Equality is solely by templateId — two assignments to same template are duplicates

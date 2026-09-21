@@ -21,14 +21,14 @@ public class CategoryAttributeAssignmentJpaEntity {
     @Column(name = "template_id", nullable = false, updatable = false)
     private String templateId;
 
-    @Column(name = "is_variant_defining", nullable = false)
-    private boolean variantDefining;
-
     @Column(name = "is_required", nullable = false)
     private boolean required;
 
     @Column(name = "is_filterable", nullable = false)
     private boolean filterable;
+
+    @Column(name = "is_searchable", nullable = false)
+    private boolean searchable;
 
     @Column(name = "display_order", nullable = false)
     private int displayOrder;

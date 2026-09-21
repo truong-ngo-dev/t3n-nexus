@@ -9,20 +9,20 @@ import vn.t3nexus.inventory.application.reservation.ReleaseReservation;
 import vn.t3nexus.lib.events.EventEnvelopeDecoder;
 import vn.t3nexus.lib.events.EventEnvelopeMdcPropagator;
 import vn.t3nexus.lib.events.OutboxEventData;
-import vn.t3nexus.lib.idempotency.IdempotencyGuard;
 
-import java.time.Duration;
-
+/**
+ * Idempotency: DB-based, không dùng Redis — cùng lý do đã áp dụng cho {@code OrderCreatedConsumer}.
+ * {@code ReleaseReservation.handle()} tự idempotent qua {@code isPending()} + khoá pessimistic
+ * ({@code findByOrderIdForUpdate}/{@code findBySkuIdForUpdate}) để chặn race khi 2 lần gọi cùng orderId
+ * chạy gần như đồng thời. Không có "khoá" Redis nào có thể rò rỉ.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OrderCancelledConsumer {
 
-    private static final Duration IDEMPOTENCY_TTL = Duration.ofDays(7);
-
     private final ObjectMapper objectMapper;
     private final EventEnvelopeDecoder decoder;
-    private final IdempotencyGuard idempotencyGuard;
     private final ReleaseReservation releaseReservation;
 
     @KafkaListener(
@@ -33,18 +33,10 @@ public class OrderCancelledConsumer {
         OutboxEventData event = objectMapper.readValue(message, OutboxEventData.class);
         EventEnvelopeMdcPropagator.propagate(event.payload());
 
-        String idempotencyKey = "inv:order-cancelled:" + event.payload().eventId();
-        if (!idempotencyGuard.tryAcquire(idempotencyKey, IDEMPOTENCY_TTL)) {
-            log.info("[OrderCancelledConsumer] duplicate eventId={}, skipping", event.payload().eventId());
-            EventEnvelopeMdcPropagator.clear();
-            return;
-        }
-
         try {
             Payload payload = decoder.decode(event, Payload.class);
             releaseReservation.handle(new ReleaseReservation.Command(payload.orderId()));
         } catch (Exception e) {
-            idempotencyGuard.release(idempotencyKey);
             log.error("[OrderCancelledConsumer] failed to process eventId={}", event.payload().eventId(), e);
             throw e;
         } finally {

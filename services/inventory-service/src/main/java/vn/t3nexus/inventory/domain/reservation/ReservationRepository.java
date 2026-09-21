@@ -8,5 +8,8 @@ public interface ReservationRepository extends Repository<Reservation, Reservati
 
     Optional<Reservation> findByOrderId(String orderId);
 
+    /** Acquires pessimistic write lock (SELECT FOR UPDATE). Must be called within a transaction. */
+    Optional<Reservation> findByOrderIdForUpdate(String orderId);
+
     boolean existsByOrderId(String orderId);
 }

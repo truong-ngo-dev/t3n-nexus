@@ -17,5 +17,8 @@ public record CreateProductRequest(
         String warrantyCoverage,
         @NotNull @Valid List<AttributeValueItem> attributeValues
 ) {
-    public record AttributeValueItem(@NotBlank String templateId, @NotBlank String value) {}
+    public record AttributeValueItem(
+            @NotBlank String templateId,
+            @NotEmpty List<@NotBlank String> values,
+            boolean isVariantDefining) {}
 }

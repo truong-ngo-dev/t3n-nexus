@@ -11,7 +11,15 @@ public enum ProductErrorCode implements ErrorCode {
     IMAGE_NOT_FOUND                ("20305", "Image not found",                                            "error.product.image_not_found",              404),
     CATEGORY_LOCKED_AFTER_VARIANT  ("20306", "Category cannot be changed after variants have been added",  "error.product.category_locked_after_variant", 422),
     ATTRIBUTE_NOT_IN_CATEGORY      ("20307", "Attribute template does not belong to product's category",   "error.product.attribute_not_in_category",      422),
-    REQUIRED_ATTRIBUTE_MISSING     ("20308", "Required attribute is missing",                              "error.product.required_attribute_missing",      422);
+    REQUIRED_ATTRIBUTE_MISSING     ("20308", "Required attribute is missing",                              "error.product.required_attribute_missing",      422),
+    INVALID_ATTRIBUTE_VALUE        ("20309", "Value is not an active option of this SELECT attribute",     "error.product.invalid_attribute_value",         422),
+    VARIANT_OPTION_NOT_DECLARED_BY_PRODUCT("20310", "Variant option value is not part of the product's declared attribute values", "error.product.variant_option_not_declared", 422),
+    ATTRIBUTE_VALUE_STILL_USED_BY_VARIANT("20311", "Attribute value cannot be removed while a variant still uses it", "error.product.attribute_value_still_used_by_variant", 422),
+    VARIANT_MISSING_VARIANT_DEFINING_ATTRIBUTE("20312", "Variant combination is missing a value for an attribute marked variant-defining", "error.product.variant_missing_variant_defining_attribute", 422),
+    VARIANT_DEFINING_REQUIRES_SELECT("20313", "isVariantDefining can only be true for a SELECT attribute", "error.product.variant_defining_requires_select", 422),
+    VARIANT_DEFINING_LOCKED_AFTER_VARIANT("20314", "isVariantDefining cannot change once the product has a variant", "error.product.variant_defining_locked_after_variant", 422),
+    ATTRIBUTE_VALUE_FORMAT_INVALID("20315", "Value does not match the attribute's inputType format", "error.product.attribute_value_format_invalid", 422),
+    PRODUCT_NOT_DRAFT("20316", "Only a DRAFT product (never published) can be permanently deleted", "error.product.not_draft", 422);
 
     private final String code;
     private final String defaultMessage;

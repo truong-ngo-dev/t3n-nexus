@@ -7,6 +7,7 @@ import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.order.domain.order.Order;
 import vn.t3nexus.order.domain.order.OrderException;
 import vn.t3nexus.order.domain.order.OrderId;
+import vn.t3nexus.order.domain.order.OrderInventoryTimeoutIndex;
 import vn.t3nexus.order.domain.order.OrderRepository;
 import vn.t3nexus.order.domain.order.PaymentMethod;
 
@@ -20,6 +21,7 @@ import vn.t3nexus.order.domain.order.PaymentMethod;
 public class ConfirmOrderOnCodCreated implements CommandHandler<ConfirmOrderOnCodCreated.Command, ConfirmOrderOnCodCreated.Result> {
 
     private final OrderRepository orderRepository;
+    private final OrderInventoryTimeoutIndex inventoryTimeoutIndex;
 
     @Override
     public Result handle(Command command) {
@@ -34,6 +36,7 @@ public class ConfirmOrderOnCodCreated implements CommandHandler<ConfirmOrderOnCo
         if (!order.canProcess()) return new Result(); // late/duplicate reply — already resolved, no-op
         order.confirm();
         orderRepository.save(order);
+        inventoryTimeoutIndex.remove(command.orderId()); // dọn sớm — order đã resolved, không cần chờ quét
         return new Result();
     }
 

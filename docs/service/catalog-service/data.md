@@ -24,12 +24,21 @@
 | Column         | Type        | Nullable | Notes                                           |
 |----------------|-------------|----------|-------------------------------------------------|
 | `id`           | `uuid`      | NO       | PK                                              |
-| `name`         | `varchar`   | NO       | UNIQUE — không sửa sau khi có Product reference |
+| `name`         | `varchar`   | NO       | UNIQUE, immutable — machine key ổn định (cùng vai trò `Brand.slug`/`Category.slug`), không phải vì sợ vỡ tham chiếu (mọi nơi đều tham chiếu bằng ID, không bằng `name`) |
 | `display_name` | `varchar`   | NO       |                                                 |
-| `input_type`   | `varchar`   | NO       | `SELECT, TEXT, NUMBER, BOOLEAN`                 |
-| `scope`        | `varchar`   | NO       | `GLOBAL, CATEGORY`                              |
+| `input_type`   | `varchar`   | NO       | `SELECT, TEXT, NUMBER, BOOLEAN` — immutable vì lý do KỸ THUẬT thật (khác `name`): đổi SELECT↔TEXT sau khi đã có `AttributeOption`/dữ liệu tham chiếu sẽ làm sai lệch cấu trúc dữ liệu đã lưu |
+| `status`       | `varchar`   | NO       | `ACTIVE, INACTIVE` — soft-delete, cùng pattern Brand/Category/AttributeOption |
 | `created_at`   | `timestamp` | NO       |                                                 |
 | `updated_at`   | `timestamp` | NO       |                                                 |
+
+> **V8:** bỏ cột `scope` — không còn khái niệm GLOBAL/CATEGORY. AttributeTemplate là master data thuần,
+> phải được assign tường minh vào category (chỉ leaf/L3) mới có hiệu lực. Xem `service.md` § Attribute
+> Value Model.
+>
+> **V9:** thêm cột `status` — thay cho hard delete (vốn không dùng được vì FK `ON DELETE RESTRICT` từ
+> `category_attribute_assignment`/`product_attribute_value`/`variant_combination_item`). Deactivate bị
+> chặn nếu template đang `required=true` ở bất kỳ category nào — xem `service.md` § AttributeTemplate
+> lifecycle.
 
 ### `attribute_option`
 
@@ -37,10 +46,16 @@
 |-----------------|-------------|----------|---------------------------|
 | `id`            | `uuid`      | NO       | PK                        |
 | `template_id`   | `uuid`      | NO       | FK → `attribute_template` |
-| `value`         | `varchar`   | NO       |                           |
+| `value`         | `varchar`   | NO       | Immutable — machine key ổn định (giống `AttributeTemplate.name`), không unique constraint (không kẹt tên khi reactivate) |
 | `display_value` | `varchar`   | NO       |                           |
 | `status`        | `varchar`   | NO       | `ACTIVE, INACTIVE`        |
+| `usage_count`   | `int`       | NO       | Số lần option xuất hiện trong `variant_combination_item`, bump bởi `AddVariant` cùng transaction — dùng để guard `OPTION_IN_USE` (thay cho query `existsByOptionId` full-scan, xem V10) |
 | `created_at`    | `timestamp` | NO       |                           |
+
+> **V10:** thêm cột `usage_count` — thay cho `VariantCombinationItemJpaRepository.existsByOptionId`
+> (full scan `variant_combination_item`, bảng ghi liên tục qua mỗi `AddVariant` và không có index trên
+> `option_id` — Postgres không tự index cột FK). `AttributeOption.deactivate()` giờ chặn `OPTION_IN_USE`
+> bằng in-aggregate check (`usageCount > 0`), không cần query `VariantRepository` nữa.
 
 ---
 
@@ -54,7 +69,7 @@
 | `parent_id`  | `uuid`      | YES      | FK → `category` (nullable = root) |
 | `level`      | `smallint`  | NO       | 1, 2, 3                           |
 | `image_url`  | `varchar`   | YES      |                                   |
-| `status`     | `varchar`   | NO       | `ACTIVE, INACTIVE`                |
+| `status`     | `varchar`   | NO       | `ACTIVE, INACTIVE` — soft toggle điều hướng (ẩn khỏi `GetCategoryTree`, chặn `CreateProduct` mới), KHÔNG guard theo children/product reference (khác `DeleteCategory` hard-delete) |
 | `created_at` | `timestamp` | NO       |                                   |
 | `updated_at` | `timestamp` | NO       |                                   |
 
@@ -83,12 +98,20 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 
 | Column                | Type      | Nullable | Notes          |
 |-----------------------|-----------|----------|----------------|
-| `category_id`         | `uuid`    | NO       | PK (composite) |
+| `category_id`         | `uuid`    | NO       | PK (composite) — FK trỏ tới category phải có `level = 3` (enforce ở application layer, không phải DB constraint) |
 | `template_id`         | `uuid`    | NO       | PK (composite) |
-| `is_variant_defining` | `boolean` | NO       |                |
 | `is_required`         | `boolean` | NO       |                |
 | `is_filterable`       | `boolean` | NO       |                |
+| `is_searchable`       | `boolean` | NO       | Default `false`. Catalog chỉ lưu + phát ra cho search-service tương lai đồng bộ (build full-text index) — catalog KHÔNG tự dùng flag này để query |
 | `display_order`       | `int`     | NO       |                |
+
+> **V8:** bỏ cột `is_variant_defining` — không còn được khai báo trước ở đâu, chỉ là hệ quả của việc
+> attribute có xuất hiện trong `variant_combination_item` của Variant hay không. Đồng thời: chỉ category
+> leaf (`level = 3`) mới có row trong bảng này — không có kế thừa từ category cha (L1/L2 luôn rỗng).
+>
+> **V13:** thêm `is_searchable` — cùng nhóm quyết định curation của Admin với `is_required`/
+> `is_filterable` (per-category, không phải per-attribute-template — cùng 1 template có thể searchable ở
+> category này nhưng không ở category khác). Xem `service.md` § Attribute Value Model.
 
 ---
 
@@ -98,7 +121,7 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 |---------------------|-------------|----------|------------------------------------------------------------------|
 | `id`                | `uuid`      | NO       | PK                                                               |
 | `seller_id`         | `uuid`      | NO       | không thay đổi sau khi tạo                                       |
-| `category_id`       | `uuid`      | NO       | FK → `category`; không thay đổi sau khi có Variant               |
+| `category_id`       | `uuid`      | NO       | FK → `category`; phải là leaf (`level = 3`, enforce ở application layer) — không thay đổi sau khi có Variant |
 | `brand_id`          | `uuid`      | NO       | FK → `brand`                                                     |
 | `name`              | `varchar`   | NO       |                                                                  |
 | `description`       | `text`      | YES      |                                                                  |
@@ -121,7 +144,27 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 |---------------|-----------|----------|----------------|
 | `product_id`  | `uuid`    | NO       | PK (composite) |
 | `template_id` | `uuid`    | NO       | PK (composite) |
-| `value`       | `varchar` | NO       |                |
+| `value`       | `varchar` | NO       | PK (composite) — với template `inputType=SELECT`, chứa `AttributeOptionId` (không phải business value string); với TEXT/NUMBER/BOOLEAN chứa raw value. Tên cột giữ nguyên `value` để tránh migration không cần thiết |
+
+> **V7:** PK mở rộng từ `(product_id, template_id)` sang `(product_id, template_id, value)` — cho phép
+> Product khai 1..N giá trị cho 1 attribute (VD 1 tập option con của master pool để Variant chọn 1
+> combination cụ thể từ đó).
+
+### `product_variant_defining_attribute`
+
+| Column        | Type      | Nullable | Notes          |
+|---------------|-----------|----------|----------------|
+| `product_id`  | `uuid`    | NO       | PK (composite), FK → `product` (`ON DELETE CASCADE`) |
+| `template_id` | `uuid`    | NO       | PK (composite), FK → `attribute_template` (`ON DELETE RESTRICT`) |
+
+> **V11:** `isVariantDefining` quay lại làm khái niệm khai báo tường minh (V8 từng bỏ ở
+> `category_attribute_assignment`), nhưng lần này ở Product/Seller, per-listing, không phải Admin áp đặt
+> toàn category. Tách bảng riêng thay vì nhét cột vào `product_attribute_value` — vì đó là thuộc tính của
+> CẶP `(product_id, template_id)`, không phải của từng `(product_id, template_id, value)`; nhét vào
+> `product_attribute_value` sẽ lặp lại cùng 1 giá trị boolean trên mọi row cùng template, tốn thêm 1 hàng
+> lặp mỗi option khi attribute có cardinality cao (VD "Màu sắc" 30 option). Tồn tại row = true, không cần
+> cột boolean, giống cách `variant_combination_item` không lưu "false" cho pair không dùng. Xem
+> `service.md` § Attribute Value Model.
 
 ### `product_image`
 

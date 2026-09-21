@@ -1,0 +1,130 @@
+### scheduler-service — REST Admin API test data
+### Xem testdata/README.md cho cách dùng file .http này.
+
+@baseUrl = http://localhost:8009
+@oauthUrl = http://localhost:8004
+
+### 0. Lấy token (client_credentials, mượn client nội bộ oauth2-service-internal)
+# @name auth
+POST {{oauthUrl}}/oauth2/token
+Authorization: Basic oauth2-service-internal changeme-internal-client-secret
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&scope=webgw.internal
+
+### 1. Tạo job ONE_OFF — SỬA "dueAt" thành thời điểm gần tương lai (vài chục giây sau "now") trước khi chạy
+# @name createOneOff
+POST {{baseUrl}}/api/admin/scheduled-jobs
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "jobName": "Smoke test - one off",
+  "taskType": "SMOKE_TEST",
+  "scheduleType": "ONE_OFF",
+  "dueAt": "2026-09-16T12:00:00Z",
+  "payload": { "note": "hello" }
+}
+
+### 2. Activate job vừa tạo — PENDING -> RUNNING
+POST {{baseUrl}}/api/admin/scheduled-jobs/{{createOneOff.response.body.$.data}}/start
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 3. Detail — xác nhận status=RUNNING, nextFireAt đúng dueAt
+GET {{baseUrl}}/api/admin/scheduled-jobs/{{createOneOff.response.body.$.data}}
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### Đợi tới sau "dueAt" ở bước 1 rồi chạy lại request #3 — status phải COMPLETED, nextFireAt=null.
+### Xem log scheduler-service lúc đó: [IndexPoller] claimed ... -> [FireScheduledJob] fired: ... ->
+### [ScheduledJobFiredHandler] fired (log-only, chưa outbox): ...
+
+### 4. Tạo job RECURRING, cron mỗi 30s (Spring 6-field: giây phút giờ ngày tháng thứ)
+# @name createRecurring
+POST {{baseUrl}}/api/admin/scheduled-jobs
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "jobName": "Smoke test - recurring 30s",
+  "taskType": "SMOKE_TEST",
+  "scheduleType": "RECURRING",
+  "cronExpression": "*/30 * * * * *",
+  "timezone": "Asia/Ho_Chi_Minh"
+}
+
+### 5. Activate job recurring
+POST {{baseUrl}}/api/admin/scheduled-jobs/{{createRecurring.response.body.$.data}}/start
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 6. List — filter jobName (search substring, case-insensitive)
+GET {{baseUrl}}/api/admin/scheduled-jobs?jobName=smoke
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 7. List — filter status (exact match)
+GET {{baseUrl}}/api/admin/scheduled-jobs?status=RUNNING
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 8. List — filter taskType (exact match) + phân trang
+GET {{baseUrl}}/api/admin/scheduled-jobs?taskType=SMOKE_TEST&page=0&size=10
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 9. Stop job recurring — idempotent, gọi lại nhiều lần không lỗi
+POST {{baseUrl}}/api/admin/scheduled-jobs/{{createRecurring.response.body.$.data}}/stop
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 10. Edit — đổi jobName + cron (chỉ hợp lệ khi status != RUNNING, đã stop ở #9)
+PUT {{baseUrl}}/api/admin/scheduled-jobs/{{createRecurring.response.body.$.data}}
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "jobName": "Smoke test - recurring 1min (edited)",
+  "scheduleType": "RECURRING",
+  "cronExpression": "0 * * * * *",
+  "timezone": "Asia/Ho_Chi_Minh"
+}
+
+### 11. Start lại sau edit
+POST {{baseUrl}}/api/admin/scheduled-jobs/{{createRecurring.response.body.$.data}}/start
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### ── Test lỗi kỳ vọng (422 / 400 / 404) ──────────────────────────────────────────────────────────
+
+### 12. start khi đã RUNNING -> 422 SCHEDULED_JOB_INVALID_TRANSITION
+POST {{baseUrl}}/api/admin/scheduled-jobs/{{createRecurring.response.body.$.data}}/start
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 13. edit khi đang RUNNING -> 422 SCHEDULED_JOB_INVALID_TRANSITION
+PUT {{baseUrl}}/api/admin/scheduled-jobs/{{createRecurring.response.body.$.data}}
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "jobName": "x",
+  "scheduleType": "RECURRING",
+  "cronExpression": "0 * * * * *",
+  "timezone": "Asia/Ho_Chi_Minh"
+}
+
+### 14. thiếu jobName/taskType/scheduleType -> 400 VALIDATION_ERROR
+POST {{baseUrl}}/api/admin/scheduled-jobs
+Authorization: Bearer {{auth.response.body.$.access_token}}
+Content-Type: application/json
+
+{}
+
+### 15. id không tồn tại -> 404 SCHEDULED_JOB_NOT_FOUND
+GET {{baseUrl}}/api/admin/scheduled-jobs/does-not-exist
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### ── Lookup / Danh sách (chạy độc lập, KHÔNG phụ thuộc phần tạo mới ở trên) ─────────────────────
+### Dùng khi đã có sẵn job từ trước (không muốn tạo lại) — chạy request dưới để lấy id thật, thay
+### {{createXxx.response.body...}} bằng id vừa lấy được rồi paste tay vào chỗ cần dùng.
+
+### 16. List TẤT CẢ job, không filter (mặc định page=0, size=20)
+GET {{baseUrl}}/api/admin/scheduled-jobs
+Authorization: Bearer {{auth.response.body.$.access_token}}
+
+### 17. Detail 1 job theo id thật — sửa "<id>" thành id lấy từ #16
+GET {{baseUrl}}/api/admin/scheduled-jobs/<id>
+Authorization: Bearer {{auth.response.body.$.access_token}}

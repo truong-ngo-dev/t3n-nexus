@@ -29,8 +29,9 @@ Có 1 cơ chế trigger job định kỳ dùng chung cho nhiều domain (loyalty
 | `customer-service`  | Consumer — loyalty point expiry                                     |
 | `cart-service`      | Consumer — cleanup giỏ hàng bỏ quên                                 |
 | `payment-service`   | Consumer — batch payout cho seller                                  |
+| `order-service`     | Consumer — heartbeat cho `CREATED`-timeout (2 taskType, xem `service/scheduler-service/service.md` §Không làm, đảo ngược 2026-09-21) |
 
-Consumer cụ thể (`customer-service`/`cart-service`/`payment-service`) **chưa implement phần tiêu thụ, kể cả phần publish callback** — scope hiện tại (`implementation.md`) chỉ dừng ở việc `scheduler-service` publish đúng, đủ tin cậy, và tự implement phía consume callback (chưa có ai publish thật để test end-to-end). Flow dưới đây mô tả tổng quát, generic theo `taskType`, không đặc thù riêng cho 1 consumer.
+Consumer cụ thể (`customer-service`/`cart-service`/`payment-service`/`order-service`) **chưa implement phần tiêu thụ, kể cả phần publish callback** — scope hiện tại (`implementation.md`) chỉ dừng ở việc `scheduler-service` publish đúng, đủ tin cậy, và tự implement phía consume callback (chưa có ai publish thật để test end-to-end). Flow dưới đây mô tả tổng quát, generic theo `taskType`, không đặc thù riêng cho 1 consumer.
 
 ---
 
@@ -58,7 +59,7 @@ Consumer cụ thể (`customer-service`/`cart-service`/`payment-service`) **chư
    - recurring vừa fire hoặc skipMisfire → mirror lại DueItemFinder.index(id, nextFireAt) (AFTER_COMMIT,
      best-effort); one-off vừa COMPLETED → DueItemFinder.deindex(id) — chỉ áp dụng khi đã có Redis (Phase 4)
 4. Debezium CDC đọc outbox_events → publish Kafka topic scheduler.job.fired
-5. Consumer (customer-service/cart-service/payment-service) nhận event, lọc theo taskType,
+5. Consumer (customer-service/cart-service/payment-service/order-service) nhận event, lọc theo taskType,
    tự query dữ liệu mới nhất của chính nó, tự xử lý — KHÔNG tin payload mang theo là dữ liệu
    nghiệp vụ đầy đủ, chỉ coi là tín hiệu "tới giờ rồi"
 6. Consumer xử lý xong (thành công hoặc lỗi) → publish event callback riêng (qua Outbox của chính

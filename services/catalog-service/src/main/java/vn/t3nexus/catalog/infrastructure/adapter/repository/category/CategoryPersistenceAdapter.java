@@ -3,6 +3,7 @@ package vn.t3nexus.catalog.infrastructure.adapter.repository.category;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryId;
 import vn.t3nexus.catalog.domain.category.CategoryRepository;
@@ -45,6 +46,11 @@ public class CategoryPersistenceAdapter implements CategoryRepository {
     @Override
     public boolean hasProductReference(CategoryId categoryId) {
         return productJpaRepository.existsByCategoryId(categoryId.getValue());
+    }
+
+    @Override
+    public boolean existsRequiredAssignmentByTemplateId(AttributeTemplateId templateId) {
+        return assignmentRepository.existsByTemplateIdAndRequiredTrue(templateId.getValue());
     }
 
     @Override

@@ -47,6 +47,9 @@ public class OrderJpaEntity {
     @Column(name = "cancel_reason", length = 30)
     private String cancelReason;
 
+    @Column(name = "inventory_reply_deadline", nullable = false)
+    private Instant inventoryReplyDeadline;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;

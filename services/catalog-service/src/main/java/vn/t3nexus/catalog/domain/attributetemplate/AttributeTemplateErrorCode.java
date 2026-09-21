@@ -9,7 +9,8 @@ public enum AttributeTemplateErrorCode implements ErrorCode {
     OPTION_NOT_FOUND      ("20103", "Attribute option not found",                "error.attribute_option.not_found",       404),
     OPTION_IN_USE         ("20104", "Attribute option is used by a variant",     "error.attribute_option.in_use",          409),
     INPUT_TYPE_NOT_SELECT        ("20105", "Options are only allowed for SELECT type",             "error.attribute_template.not_select",           422),
-    GLOBAL_TEMPLATE_NOT_ASSIGNABLE ("20106", "GLOBAL templates apply to all categories automatically", "error.attribute_template.global_not_assignable", 422);
+    TEMPLATE_INACTIVE            ("20106", "Attribute template is inactive",                       "error.attribute_template.inactive",             422),
+    TEMPLATE_REQUIRED_BY_CATEGORY("20107", "Attribute template is required by at least one category", "error.attribute_template.required_by_category", 409);
 
     private final String code;
     private final String defaultMessage;

@@ -11,20 +11,20 @@ import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.events.EventEnvelopeDecoder;
 import vn.t3nexus.lib.events.EventEnvelopeMdcPropagator;
 import vn.t3nexus.lib.events.OutboxEventData;
-import vn.t3nexus.lib.idempotency.IdempotencyGuard;
 
-import java.time.Duration;
-
+/**
+ * Idempotency: DB-based, không dùng Redis — {@code InitializeStock.handle()} tự idempotent qua
+ * {@code existsBySkuId} (fast-path) + {@code UNIQUE(sku_id)} + catch {@code DataIntegrityViolationException}
+ * (race thật, surfaced qua {@code saveAndFlush}), cả 2 trường hợp đều ném {@code STOCK_ALREADY_EXISTS}
+ * được catch bên dưới như no-op.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class VariantCreatedConsumer {
 
-    private static final Duration IDEMPOTENCY_TTL = Duration.ofDays(7);
-
     private final ObjectMapper objectMapper;
     private final EventEnvelopeDecoder decoder;
-    private final IdempotencyGuard idempotencyGuard;
     private final InitializeStock initializeStock;
 
     @KafkaListener(
@@ -34,13 +34,6 @@ public class VariantCreatedConsumer {
     public void consume(String message) {
         OutboxEventData event = objectMapper.readValue(message, OutboxEventData.class);
         EventEnvelopeMdcPropagator.propagate(event.payload());
-
-        String idempotencyKey = "inv:variant-created:" + event.payload().eventId();
-        if (!idempotencyGuard.tryAcquire(idempotencyKey, IDEMPOTENCY_TTL)) {
-            log.info("[VariantCreatedConsumer] duplicate eventId={}, skipping", event.payload().eventId());
-            EventEnvelopeMdcPropagator.clear();
-            return;
-        }
 
         try {
             Payload payload = decoder.decode(event, Payload.class);
@@ -55,7 +48,6 @@ public class VariantCreatedConsumer {
                 log.info("[VariantCreatedConsumer] stock already exists for skuId={}, no-op", payload.skuId());
             }
         } catch (Exception e) {
-            idempotencyGuard.release(idempotencyKey);
             log.error("[VariantCreatedConsumer] failed to process eventId={}", event.payload().eventId(), e);
             throw e;
         } finally {

@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import vn.t3nexus.catalog.application.attributetemplate.*;
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateStatus;
 import vn.t3nexus.catalog.presentation.attributetemplate.model.*;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
 
@@ -19,6 +20,9 @@ public class AttributeTemplateController {
     private final AddAttributeOption addAttributeOption;
     private final UpdateAttributeOption updateAttributeOption;
     private final DeactivateAttributeOption deactivateAttributeOption;
+    private final DeactivateAttributeTemplate deactivateAttributeTemplate;
+    private final ActivateAttributeTemplate activateAttributeTemplate;
+    private final ActivateAttributeOption activateAttributeOption;
     private final ListAttributeTemplates listAttributeTemplates;
 
     @GetMapping("/api/admin/attribute-templates")
@@ -36,16 +40,28 @@ public class AttributeTemplateController {
             @Valid @RequestBody CreateAttributeTemplateRequest request) {
         CreateAttributeTemplate.Result result = createAttributeTemplate.handle(
                 new CreateAttributeTemplate.Command(
-                        request.name(), request.displayName(), request.inputType(), request.scope()));
+                        request.name(), request.displayName(), request.inputType()));
         return ApiResponse.ok(new AttributeTemplateResponse(
                 result.id(), request.name(), request.displayName(),
-                request.inputType(), request.scope(), List.of()));
+                request.inputType(), AttributeTemplateStatus.ACTIVE, List.of()));
     }
 
     @PutMapping("/api/admin/attribute-templates/{id}")
     public ApiResponse<Void> updateTemplate(@PathVariable String id,
                                             @Valid @RequestBody UpdateAttributeTemplateRequest request) {
         updateAttributeTemplate.handle(new UpdateAttributeTemplate.Command(id, request.displayName()));
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/api/admin/attribute-templates/{id}")
+    public ApiResponse<Void> deactivateTemplate(@PathVariable String id) {
+        deactivateAttributeTemplate.handle(new DeactivateAttributeTemplate.Command(id));
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/api/admin/attribute-templates/{id}/activate")
+    public ApiResponse<Void> activateTemplate(@PathVariable String id) {
+        activateAttributeTemplate.handle(new ActivateAttributeTemplate.Command(id));
         return ApiResponse.ok(null);
     }
 
@@ -72,12 +88,18 @@ public class AttributeTemplateController {
         return ApiResponse.ok(null);
     }
 
+    @PostMapping("/api/admin/attribute-templates/{id}/options/{optionId}/activate")
+    public ApiResponse<Void> activateOption(@PathVariable String id, @PathVariable String optionId) {
+        activateAttributeOption.handle(new ActivateAttributeOption.Command(id, optionId));
+        return ApiResponse.ok(null);
+    }
+
     private AttributeTemplateResponse toResponse(ListAttributeTemplates.AttributeTemplateDetail detail) {
         List<AttributeOptionResponse> options = detail.options().stream()
                 .map(o -> new AttributeOptionResponse(o.id(), o.value(), o.displayValue(), o.status()))
                 .toList();
         return new AttributeTemplateResponse(
                 detail.id(), detail.name(), detail.displayName(),
-                detail.inputType(), detail.scope(), options);
+                detail.inputType(), detail.status(), options);
     }
 }

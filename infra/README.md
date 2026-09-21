@@ -67,6 +67,20 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
 > `outbox_events` (xem `implementation.md` Phase 4 TODO) — đăng ký connector này trước là chuẩn bị hạ
 > tầng, chưa có event nào chảy qua cho tới khi handler đó đổi sang `outboxEventStore.store(event)`.
 
+### Đăng ký inventory-outbox-connector
+
+Đọc WAL của `inventory_db.public.outbox_events`, route theo `routing_key` → topic tương ứng
+(`InventoryReservedEvent`/`InventoryReservationFailedEvent`/`StockReplenishedEvent`/`StockDepletedEvent`).
+**2026-09-20**: phát hiện connector này chưa từng tồn tại (không có file, không đăng ký) trong lúc rà soát
+luồng đặt hàng COD — `inventory-service` vẫn ghi đúng vào `outbox_events` mỗi lần reserve/release, nhưng
+không ai đọc bảng đó nên `order-service.InventoryReservedConsumer` không bao giờ nhận được gì, saga đứng
+im ở `Order.CREATED` vĩnh viễn dù toàn bộ code phía sau đúng — cùng lớp lỗi với `order-outbox-connector`
+đã ghi nhận ở `feature/07-place-order/implementation.md` Phase 0. Đã tạo file + đăng ký.
+
+```bash
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-inventory-outbox.json
+```
+
 ---
 
 ## Kiểm tra trạng thái
@@ -80,6 +94,7 @@ curl http://localhost:8083/connectors/identity-outbox-connector/status
 curl http://localhost:8083/connectors/notification-connector/status
 curl http://localhost:8083/connectors/order-outbox-connector/status
 curl http://localhost:8083/connectors/scheduler-outbox-connector/status
+curl http://localhost:8083/connectors/inventory-outbox-connector/status
 ```
 
 Kết quả mong đợi — connector và task đều `RUNNING`:

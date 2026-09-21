@@ -1,0 +1,44 @@
+package vn.t3nexus.catalog.application.category;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import vn.t3nexus.catalog.domain.category.Category;
+import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
+import vn.t3nexus.catalog.domain.category.CategoryId;
+import vn.t3nexus.catalog.domain.category.CategoryRepository;
+import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
+import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
+import vn.t3nexus.lib.common.domain.exception.DomainException;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class DeactivateCategory
+        implements CommandHandler<DeactivateCategory.Command, DeactivateCategory.Result> {
+
+    private final CategoryRepository categoryRepository;
+
+    @Override
+    @Transactional
+    @CacheEvict(value = CacheNames.CATEGORY_TREE, key = "'all'")
+    public Result handle(Command command) {
+        Category category = categoryRepository.findById(CategoryId.of(command.id()))
+                .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+
+        category.deactivate();
+        categoryRepository.save(category);
+
+        log.info("[DeactivateCategory] deactivated: categoryId={}, traceId={}",
+                command.id(), MDC.get("traceId"));
+
+        return new Result();
+    }
+
+    public record Command(String id) {}
+
+    public record Result() {}
+}

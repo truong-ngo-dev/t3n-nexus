@@ -6,6 +6,7 @@ import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
 import vn.t3nexus.order.domain.order.Order;
 import vn.t3nexus.order.domain.order.OrderId;
+import vn.t3nexus.order.domain.order.OrderInventoryTimeoutIndex;
 import vn.t3nexus.order.domain.order.OrderLineItem;
 import vn.t3nexus.order.domain.order.OrderRepository;
 import vn.t3nexus.order.domain.order.PaymentMethod;
@@ -18,6 +19,7 @@ import java.util.List;
 public class CreateOrder implements CommandHandler<CreateOrder.Command, CreateOrder.Result> {
 
     private final OrderRepository orderRepository;
+    private final OrderInventoryTimeoutIndex inventoryTimeoutIndex;
     private final ULIDGenerator ulidGenerator;
 
     @Override
@@ -26,6 +28,7 @@ public class CreateOrder implements CommandHandler<CreateOrder.Command, CreateOr
         Order order = Order.create(id, command.customerId(), command.sellerId(), command.items(),
                 command.paymentMethod(), command.address());
         orderRepository.save(order);
+        inventoryTimeoutIndex.add(id.getValue(), order.getInventoryReplyDeadline());
         return new Result(id.getValue(), order.getStatus().name());
     }
 

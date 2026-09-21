@@ -15,9 +15,15 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;
+import org.springframework.data.redis.serializer.JacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import tools.jackson.databind.ObjectMapper;
+import vn.t3nexus.catalog.application.brand.ListActiveBrands;
+import vn.t3nexus.catalog.application.category.GetCategoryAttributes;
+import vn.t3nexus.catalog.application.category.GetCategoryTree;
+import vn.t3nexus.catalog.application.product.GetProduct;
+import vn.t3nexus.catalog.application.variant.GetProductVariants;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.LocalCacheInvalidator;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.TwoLevelCacheManager;
@@ -62,6 +68,17 @@ public class CacheConfig {
 
     // ── L2: Redis (shared across all instances) ───────────────────────────────
 
+    // BUG (2026-09-16): GenericJacksonJsonRedisSerializer + ObjectMapper thường (không bật polymorphic
+    // default-typing — cố tình, để không lộ tên class nội bộ ra JSON response REST dùng chung mapper
+    // này) KHÔNG giữ lại type info trong JSON lưu ở Redis. Lúc đọc lại (cache hit), Jackson không biết
+    // phải deserialize về type cụ thể nào -> trả LinkedHashMap thô -> @Cacheable proxy ép kiểu
+    // (T) cachedValue về Result record thật -> ClassCastException ("LinkedHashMap cannot be cast to
+    // ListActiveBrands$Result"). Miss trên L1 Caffeine (CATEGORY_TREE/PRODUCT/PRODUCT_VARIANTS) rơi
+    // xuống L2 cũng dính y hệt lỗi này, chỉ hiếm gặp hơn vì L1 thường hit trước.
+    //
+    // Fix: mỗi cache dùng JacksonJsonRedisSerializer<T> (typed, biết chính xác class đích) thay vì
+    // GenericJacksonJsonRedisSerializer (generic, phải suy luận type lúc đọc) — không cần bật
+    // polymorphic typing, không đổi ObjectMapper dùng chung cho REST response.
     @Bean
     public RedisCacheManager redisCacheManager(RedisConnectionFactory connectionFactory,
                                                ObjectMapper objectMapper) {
@@ -76,15 +93,25 @@ public class CacheConfig {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base)
                 .withCacheConfiguration(CacheNames.BRANDS_ACTIVE,
-                        base.entryTtl(Duration.ofMinutes(30)))
+                        base.entryTtl(Duration.ofMinutes(30))
+                            .serializeValuesWith(SerializationPair.fromSerializer(
+                                    new JacksonJsonRedisSerializer<>(objectMapper, ListActiveBrands.Result.class))))
                 .withCacheConfiguration(CacheNames.CATEGORY_ATTRIBUTES,
-                        base.entryTtl(Duration.ofHours(1)))
+                        base.entryTtl(Duration.ofHours(1))
+                            .serializeValuesWith(SerializationPair.fromSerializer(
+                                    new JacksonJsonRedisSerializer<>(objectMapper, GetCategoryAttributes.Result.class))))
                 .withCacheConfiguration(CacheNames.CATEGORY_TREE,
-                        base.entryTtl(Duration.ofHours(1)))
+                        base.entryTtl(Duration.ofHours(1))
+                            .serializeValuesWith(SerializationPair.fromSerializer(
+                                    new JacksonJsonRedisSerializer<>(objectMapper, GetCategoryTree.Result.class))))
                 .withCacheConfiguration(CacheNames.PRODUCT,
-                        base.entryTtl(Duration.ofMinutes(10)))
+                        base.entryTtl(Duration.ofMinutes(10))
+                            .serializeValuesWith(SerializationPair.fromSerializer(
+                                    new JacksonJsonRedisSerializer<>(objectMapper, GetProduct.Result.class))))
                 .withCacheConfiguration(CacheNames.PRODUCT_VARIANTS,
-                        base.entryTtl(Duration.ofMinutes(5)))
+                        base.entryTtl(Duration.ofMinutes(5))
+                            .serializeValuesWith(SerializationPair.fromSerializer(
+                                    new JacksonJsonRedisSerializer<>(objectMapper, GetProductVariants.Result.class))))
                 .build();
     }
 

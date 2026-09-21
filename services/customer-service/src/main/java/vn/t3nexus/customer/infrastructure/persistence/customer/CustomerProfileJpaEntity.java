@@ -19,10 +19,7 @@ public class CustomerProfileJpaEntity {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
-    private String id;
-
-    @Column(name = "user_id", nullable = false, unique = true, updatable = false)
-    private String userId;
+    private String id;   // = UserAccount.id (identity-service) — shared PK, no separate userId column
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

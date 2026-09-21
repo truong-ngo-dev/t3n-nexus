@@ -58,9 +58,9 @@ public final class CategoryMapper {
             CategoryAttributeAssignmentJpaEntity entity) {
         return new CategoryAttributeAssignment(
                 AttributeTemplateId.of(entity.getTemplateId()),
-                entity.isVariantDefining(),
                 entity.isRequired(),
                 entity.isFilterable(),
+                entity.isSearchable(),
                 entity.getDisplayOrder()
         );
     }
@@ -70,9 +70,9 @@ public final class CategoryMapper {
         CategoryAttributeAssignmentJpaEntity entity = new CategoryAttributeAssignmentJpaEntity();
         entity.setCategoryId(categoryId);
         entity.setTemplateId(assignment.getAttributeTemplateId().getValue());
-        entity.setVariantDefining(assignment.isVariantDefining());
         entity.setRequired(assignment.isRequired());
         entity.setFilterable(assignment.isFilterable());
+        entity.setSearchable(assignment.isSearchable());
         entity.setDisplayOrder(assignment.getDisplayOrder());
         return entity;
     }

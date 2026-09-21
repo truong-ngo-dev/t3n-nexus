@@ -19,7 +19,7 @@ public final class AttributeTemplateMapper {
                 entity.getName(),
                 entity.getDisplayName(),
                 entity.getInputType(),
-                entity.getScope(),
+                entity.getStatus(),
                 options,
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
@@ -32,7 +32,7 @@ public final class AttributeTemplateMapper {
         entity.setName(template.getName());
         entity.setDisplayName(template.getDisplayName());
         entity.setInputType(template.getInputType());
-        entity.setScope(template.getScope());
+        entity.setStatus(template.getStatus());
         entity.setCreatedAt(template.getCreatedAt());
         entity.setUpdatedAt(template.getUpdatedAt());
         return entity;
@@ -51,6 +51,7 @@ public final class AttributeTemplateMapper {
                 entity.getValue(),
                 entity.getDisplayValue(),
                 entity.getStatus(),
+                entity.getUsageCount(),
                 entity.getCreatedAt()
         );
     }
@@ -62,6 +63,7 @@ public final class AttributeTemplateMapper {
         entity.setValue(option.getValue());
         entity.setDisplayValue(option.getDisplayValue());
         entity.setStatus(option.getStatus());
+        entity.setUsageCount(option.getUsageCount());
         entity.setCreatedAt(option.getCreatedAt());
         return entity;
     }

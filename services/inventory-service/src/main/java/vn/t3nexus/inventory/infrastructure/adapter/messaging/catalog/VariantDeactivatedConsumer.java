@@ -9,20 +9,18 @@ import vn.t3nexus.inventory.application.stock.DeactivateStock;
 import vn.t3nexus.lib.events.EventEnvelopeDecoder;
 import vn.t3nexus.lib.events.EventEnvelopeMdcPropagator;
 import vn.t3nexus.lib.events.OutboxEventData;
-import vn.t3nexus.lib.idempotency.IdempotencyGuard;
 
-import java.time.Duration;
-
+/**
+ * Idempotency: DB-based, không dùng Redis — {@code DeactivateStock.handle()} chỉ set field tuyệt đối,
+ * naturally idempotent, bảo vệ bởi {@code @Version} trên Stock.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class VariantDeactivatedConsumer {
 
-    private static final Duration IDEMPOTENCY_TTL = Duration.ofDays(7);
-
     private final ObjectMapper objectMapper;
     private final EventEnvelopeDecoder decoder;
-    private final IdempotencyGuard idempotencyGuard;
     private final DeactivateStock deactivateStock;
 
     @KafkaListener(
@@ -33,18 +31,10 @@ public class VariantDeactivatedConsumer {
         OutboxEventData event = objectMapper.readValue(message, OutboxEventData.class);
         EventEnvelopeMdcPropagator.propagate(event.payload());
 
-        String idempotencyKey = "inv:variant-deactivated:" + event.payload().eventId();
-        if (!idempotencyGuard.tryAcquire(idempotencyKey, IDEMPOTENCY_TTL)) {
-            log.info("[VariantDeactivatedConsumer] duplicate eventId={}, skipping", event.payload().eventId());
-            EventEnvelopeMdcPropagator.clear();
-            return;
-        }
-
         try {
             Payload payload = decoder.decode(event, Payload.class);
             deactivateStock.handle(new DeactivateStock.Command(payload.skuId()));
         } catch (Exception e) {
-            idempotencyGuard.release(idempotencyKey);
             log.error("[VariantDeactivatedConsumer] failed to process eventId={}", event.payload().eventId(), e);
             throw e;
         } finally {

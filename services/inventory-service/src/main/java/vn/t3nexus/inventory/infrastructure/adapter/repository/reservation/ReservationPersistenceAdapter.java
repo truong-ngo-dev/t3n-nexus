@@ -39,6 +39,14 @@ public class ReservationPersistenceAdapter implements ReservationRepository {
     }
 
     @Override
+    public Optional<Reservation> findByOrderIdForUpdate(String orderId) {
+        return jpaRepository.findByOrderIdForUpdate(orderId).map(entity -> {
+            List<ReservationItemJpaEntity> items = itemJpaRepository.findByReservationId(entity.getId());
+            return ReservationMapper.toDomain(entity, items);
+        });
+    }
+
+    @Override
     public boolean existsByOrderId(String orderId) {
         return jpaRepository.existsByOrderId(orderId);
     }

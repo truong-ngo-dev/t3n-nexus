@@ -47,6 +47,8 @@ Thêm 1 dữ kiện: `order-service` là **consumer duy nhất** của `event-so
 | `service/inapp-worker/service.md`           | Tạo mới                            | Service hoàn toàn mới                                                                                             |
 | `service/notification-service/service.md`   | Cập nhật                           | Events Consumed: đổi `OrderConfirmed`/`OrderCancelled` từ "later" → "current"                                     |
 | `global/2.architecture/5. event-catalog.md` | Kiểm tra + sửa nếu cần             | `OrderCancelled.reason` — catalog có `cancelledBy`, code hiện không có; thêm `OrderInventoryTimeoutCheck` nếu cần |
+| `service/scheduler-service/service.md`      | ✅ Đã cập nhật (2026-09-21)         | Đảo ngược §Không làm — `order-service` dùng scheduler-service làm heartbeat cho `CREATED`-timeout (2 taskType), xem Phase 5 |
+| `feature/08-scheduler-service/design.md`    | ✅ Đã cập nhật (2026-09-21)         | Thêm `order-service` vào bảng Actors + bước 5 Happy Path |
 
 ---
 
@@ -71,6 +73,19 @@ _Implement theo dependency chain — producer trước consumer. Blast radius m�
 - [ ] Đăng ký: `curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-order-outbox.json` — cần Docker chạy
 
 **Verify**: `curl http://localhost:8083/connectors/order-outbox-connector/status` → `RUNNING`. Gọi `POST /api/orders` → message xuất hiện ở topic `order.order.created` (kiểm bằng console consumer).
+
+**2026-09-20 — Phát hiện GAP Y HỆT cho `inventory-service` khi rà soát lại luồng COD trước khi test happy
+path:** `curl http://localhost:8083/connectors` chỉ liệt kê `notification-connector`,
+`catalog-outbox-connector`, `scheduler-outbox-connector`, `order-outbox-connector`, `oauth2-outbox-connector`,
+`identity-outbox-connector` — **không có connector nào cho `inventory_db`**, dù `inventory-service` đã ghi
+đúng vào `outbox_events` mỗi lần `ReserveInventory`/`ReleaseReservation` chạy. Hệ quả: `InventoryReserved`/
+`InventoryReservationFailed` không bao giờ tới được Kafka → `order-service.InventoryReservedConsumer`
+không nhận được gì → `Order` đứng im ở `CREATED` vĩnh viễn — **chặn đứng happy path COD ở đúng bước giữa**,
+dù code phía `ReserveInventory`/`ConfirmOrderOnCodCreated` đều đúng 100% (đã audit kỹ ở phiên trước, xem
+`global/3.technical/idempotency-layering.md`). Đã tạo `infra/debezium/connector-inventory-outbox.json`
+(copy mẫu `connector-order-outbox.json`, đổi `database.hostname=postgres-inventory`,
+`database.dbname=inventory_db`, `topic.prefix=inventory`) và đăng ký thành công (`RUNNING`). Cập nhật
+`infra/README.md`.
 
 ---
 
@@ -163,25 +178,38 @@ Thay vào đó dùng đúng 2 lớp đều DB, không có "khoá" nào có thể
 
 ---
 
-### Phase 5 — `order-service`: `CREATED`-state timeout (Redis ZSET + Postgres backstop, theo đúng mẫu `AWAITING_PAYMENT`)
+### Phase 5 — `order-service`: `CREATED`-state timeout (Redis ZSET + Postgres backstop, heartbeat qua `scheduler-service`)
 
 **Bối cảnh**: Order có thể kẹt vĩnh viễn ở `CREATED` nếu không bao giờ nhận được `InventoryReserved`/`InventoryReservationFailed` (inventory-service down dài hạn, message mất...). `design.md` có timeout cho `AWAITING_PAYMENT` (prepaid, 15 phút, ngoài scope hiện tại) — **không cover `CREATED`, áp dụng cho cả COD lẫn Prepaid**, nên thuộc scope COD.
 
 **Lịch sử quyết định** (giữ lại để nhớ tại sao, không lặp lại sai lầm):
 1. ~~Bảng `order_summary` riêng + partial index~~ — bị bác bỏ ban đầu vì lo ngại chi phí ghi index/scan, đề xuất Kafka delay-topic (partition pause) thay thế.
 2. ~~Kafka delay-topic~~ — bị bác bỏ tiếp vì Kafka không có delay queue native, tự chế pause/resume dễ gây head-of-line blocking, không phải pattern proven — quay lại dùng Redis ZSET, đúng pattern `AWAITING_PAYMENT` đã có sẵn trong design.md.
-3. **Chốt cuối**: sau khi `Order` đổi sang CRUD ở Phase 2, bảng `orders` chính nó **đã queryable** — không cần bảng `order_summary` riêng nữa. Dùng thẳng Redis ZSET (Lớp 1, tốc độ) + query trực tiếp bảng `orders` (Lớp 2, backstop) — y hệt cơ chế `AWAITING_PAYMENT`, chỉ khác thời lượng.
+3. Sau khi `Order` đổi sang CRUD ở Phase 2, bảng `orders` chính nó **đã queryable** — không cần bảng `order_summary` riêng nữa. Dùng thẳng Redis ZSET (Lớp 1, tốc độ) + query trực tiếp bảng `orders` (Lớp 2, backstop) — y hệt cơ chế `AWAITING_PAYMENT`, chỉ khác thời lượng.
+4. **Đảo ngược 2026-09-21 — cơ chế "đánh thức" 2 lớp trên chuyển từ `@Scheduled` nội bộ sang heartbeat của `scheduler-service`**: trước đây `docs/service/scheduler-service/service.md` §Không làm ghi rõ "không quản lý auto-cancel đơn hàng ... không băng qua ranh giới service nên không cần scheduler-service" — quyết định lại: `order-service` **vẫn tự sở hữu 100% state** (cột `inventory_reply_deadline`, Redis ZSET riêng, logic cancel) — chỉ đổi **nguồn phát tín hiệu "tới giờ quét"** từ `@Scheduled` cục bộ sang 2 `ScheduledJob` recurring tĩnh bên `scheduler-service` (seed cùng đợt với 4 job tĩnh hiện có, không phải 1 job/order — tránh đúng lo ngại ban đầu về cardinality). Lý do đổi: bản chất "định kỳ đánh thức 1 worker" là đúng use case scheduler-service đã build sẵn (Index Poller + Redis DueItemFinder + Postgres reconciliation) — tận dụng lại thay vì mỗi service tự viết `@Scheduled` + tự vận hành lịch trình riêng. Đã cập nhật `service/scheduler-service/service.md`, `feature/08-scheduler-service/design.md`, `global/2.architecture/5. event-catalog.md` khớp quyết định này.
 
-- [ ] `orders` table (đã có từ Phase 2): thêm cột `inventory_reply_deadline TIMESTAMPTZ`, set = `now() + 3 phút` lúc `Order.create()`
-- [ ] Partial index `idx_orders_inventory_timeout ON orders (inventory_reply_deadline) WHERE status='CREATED'`
-- [ ] `OrderCancelReason` thêm `INVENTORY_TIMEOUT`
-- [ ] Lớp 1 (Redis ZSET): `ZADD delayed:order-inventory-timeout <deadlineEpoch> <orderId>` lúc tạo Order; `ZREM` trong `InventoryReservedConsumer`/`InventoryReservationFailedConsumer` khi nhận reply (dọn sớm)
-- [ ] Worker poll `ZRANGEBYSCORE ... 0 now` mỗi vài giây, atomic pop (Lua) — với mỗi `orderId` quá hạn: re-check `canProcess()` trước khi cancel (an toàn nếu race với path khác)
-- [ ] Lớp 2 (Postgres backstop): `@Scheduled` job (2-5 phút/lần) — `SELECT id FROM orders WHERE status='CREATED' AND inventory_reply_deadline < now()`
-- [ ] Lớp 3 (cancel action, dùng chung cho cả 2 lớp): **KHÔNG raw SQL CAS**. Gọi đúng `CancelOrder.handle(new CancelOrder.Command(orderId, INVENTORY_TIMEOUT))` — tận dụng `canProcess()` + `ObjectOptimisticLockingFailureException` đã có ở Phase 3, không viết CAS riêng. Lý do: `Order` giờ vẫn qua domain layer + outbox — raw SQL UPDATE thẳng vào bảng sẽ bỏ qua toàn bộ publish event, consumer khác (inventory-service, notification-service) không biết gì.
+**Triển khai theo 2 lượt — lượt 1 dựng phần "plumbing" (schema + ghi Redis + đăng ký job, verify qua log), lượt 2 mới nối thành trigger thật (quyết định 2026-09-21, tránh viết consumer/scan logic trước khi phần nền đã chạy đúng):**
+
+**Lượt 1 — đã xong:**
+- [x] `orders` table: thêm cột `inventory_reply_deadline TIMESTAMPTZ` (migration `V2__order_inventory_timeout.sql`, không sửa `V1` vì đã apply thật — có test order từ phiên trước), set = `now() + 3 phút` lúc `Order.create()`
+- [x] Partial index `idx_orders_inventory_timeout ON orders (inventory_reply_deadline) WHERE status='CREATED'`
+- [x] `OrderCancelReason` thêm `INVENTORY_TIMEOUT`
+- [x] Lớp 1 (Redis ZSET, **order-service tự ghi/đọc, không qua scheduler-service**) — port `OrderInventoryTimeoutIndex` (domain) + `OrderInventoryTimeoutIndexAdapter` (infra, `StringRedisTemplate`, best-effort, lỗi không chặn luồng chính): `add()` gọi trong `CreateOrder.handle()` sau khi save; `remove()` gọi trong `ConfirmOrderOnCodCreated.handle()`/`CancelOrder.handle()` sau khi save (dọn sớm). Thêm `spring-boot-starter-data-redis` vào `pom.xml` + `spring.data.redis.host/port` (dùng chung Redis container của toàn hệ thống, không cần Redisson — chỉ `ZADD`/`ZREM` thuần, chưa cần lock).
+- [ ] Đăng ký 2 `ScheduledJob` recurring bên `scheduler-service` — **qua Admin REST API thật** (`POST /api/admin/scheduled-jobs` + `POST /{id}/start`), **không phải seed bootstrap** như ghi nhầm ở bản trước — grep xác nhận "4 job tĩnh" hiện mới là ý định thiết kế, chưa có code seed nào tồn tại, cơ chế đăng ký thật duy nhất hiện có là Admin API:
+  - `taskType=ORDER_INVENTORY_TIMEOUT_REDIS_SCAN`, `RecurringSchedule` cron ~5s/lần
+  - `taskType=ORDER_INVENTORY_TIMEOUT_DB_SCAN`, `RecurringSchedule` cron ~3 phút/lần
+  - Verify lượt 1: job fire đúng lịch — xem `scheduled_job_instance` chuyển `DISPATCHED` hoặc log/console-consumer topic `scheduler.job.fired` — **chưa cần** ai xử lý event này, mục tiêu chỉ là xác nhận heartbeat tự chạy đúng trước khi viết consumer.
+
+**Lượt 2 — logic đã viết (2026-09-21), Kafka wiring cố ý để rời cho tới khi lượt 1 verify xong:**
+- [x] `ScanRedisInventoryTimeout` (application/order) — claim atomic qua `OrderInventoryTimeoutIndex.pollDue()` (Lua `ZRANGEBYSCORE`+`ZREM` gộp, cùng kỹ thuật `scheduler-service.RedisDueItemFinderAdapter`), mỗi orderId gọi `CancelOrder.handle(INVENTORY_TIMEOUT)`
+- [x] `ScanDbInventoryTimeout` (application/order) — `OrderRepository.findCreatedWithExpiredDeadline()` (dùng partial index `idx_orders_inventory_timeout`), cùng gọi `CancelOrder.handle(INVENTORY_TIMEOUT)`
+- [x] Lớp 3 (cancel action, dùng chung cho cả 2 nhánh): **KHÔNG raw SQL CAS** — cả 2 handler trên gọi đúng `CancelOrder.handle()`, tận dụng `canProcess()` + `ObjectOptimisticLockingFailureException` đã có ở Phase 3.
+- [x] `ScheduledJobFiredConsumer` (infra/adapter/messaging/scheduler) — decode `{instanceId, taskType}`, rẽ nhánh theo `taskType` gọi 2 handler trên. **`@KafkaListener` + `app.kafka.topic.scheduler-job-fired` đang comment** (cả trong class lẫn `application.properties`) — bật lại khi 2 `ScheduledJob` đã đăng ký + verify fire đúng nhịp ở lượt 1, tránh consumer chạy trước khi có gì để consume.
 - [ ] **Quan trọng — quay lại sửa Phase 3**: `InventoryReservedConsumer`/`InventoryReservationFailedConsumer` khi `canProcess()==false` hiện chỉ log skip. Nếu Order đã bị timeout-cancel ở đây, còn `InventoryReserved` tới muộn do inventory-service chỉ CHẬM (không phải mất hẳn) — inventory-service **sẽ vẫn tạo Reservation thật** cho order đã cancelled (vì `OrderCreated` gốc vẫn còn trong Kafka, chưa từng bị huỷ), và `OrderCancelledConsumer` bên inventory đã chạy trước đó thấy "chưa có reservation, no-op" — **không ai release lại**, tạo Reservation mồ côi giữ stock vĩnh viễn. Xử lý theo đúng pattern "late reply" trong `saga-dlq-integration.md`: khi `canProcess()==false` VÀ order đang `CANCELLED`, phải **re-publish `OrderCancelled` với `eventId` mới** để trigger `OrderCancelledConsumer` chạy lại, lần này release đúng.
+- [ ] (Tuỳ chọn, không block correctness) Publish callback outcome về `scheduler-service` sau mỗi lần xử lý xong 1 batch quét — theo đúng contract §Callback của `scheduler-service`; bỏ qua nếu không cần audit `ScheduledJobInstance` cho 2 job này ở giai đoạn đầu.
+- [ ] Bật `@KafkaListener` + property trong `ScheduledJobFiredConsumer`/`application.properties` sau khi verify lượt 1.
 
-**Verify**: tạo Order, giả lập inventory-service không phản hồi → sau ~3 phút thấy `Order` tự `CANCELLED` (`INVENTORY_TIMEOUT`) qua Lớp 1 (Redis, nhanh) hoặc Lớp 2 (Postgres, backstop nếu Redis miss). Giả lập inventory-service phản hồi **muộn** sau khi đã timeout-cancel → xác nhận `OrderCancelled` được re-publish, `ReleaseReservation` chạy đúng lần 2, không có Reservation mồ côi nào còn `PENDING`.
+**Verify**: tạo Order, giả lập inventory-service không phản hồi → sau ~3 phút thấy `Order` tự `CANCELLED` (`INVENTORY_TIMEOUT`) qua Lớp 1 (Redis, nhanh, đánh thức bởi `ORDER_INVENTORY_TIMEOUT_REDIS_SCAN`) hoặc Lớp 2 (Postgres, backstop nếu Redis miss, đánh thức bởi `ORDER_INVENTORY_TIMEOUT_DB_SCAN`). Giả lập inventory-service phản hồi **muộn** sau khi đã timeout-cancel → xác nhận `OrderCancelled` được re-publish, `ReleaseReservation` chạy đúng lần 2, không có Reservation mồ côi nào còn `PENDING`. Kiểm thêm: tắt hẳn `scheduler-service` → 2 nhánh quét không chạy, `Order` kẹt ở `CREATED` (đúng kỳ vọng — heartbeat phụ thuộc `scheduler-service` chạy, khác với state chính vẫn nằm ở `order-service`).
 
 ---
 

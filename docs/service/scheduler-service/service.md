@@ -2,12 +2,13 @@
 
 ## Trách nhiệm
 
-Trigger job định kỳ/delayed cho các domain khác cần tự động hoá theo thời gian — hiện tại: loyalty point expiry, cart cleanup, seller payout, outbox cleanup. Chỉ quyết định **"khi nào"** — publish 1 tín hiệu trigger tối giản qua Kafka; domain service tiêu thụ tự quyết **"làm gì"** và tự query dữ liệu mới nhất của chính nó.
+Trigger job định kỳ/delayed cho các domain khác cần tự động hoá theo thời gian — hiện tại: loyalty point expiry, cart cleanup, seller payout, outbox cleanup, `order-service` `CREATED`-timeout heartbeat. Chỉ quyết định **"khi nào"** — publish 1 tín hiệu trigger tối giản qua Kafka; domain service tiêu thụ tự quyết **"làm gì"** và tự query dữ liệu mới nhất của chính nó.
 
 **Không làm:**
 - Không gọi API trực tiếp vào service đích — không nằm trong 4 cặp sync đã duyệt (`global/2.architecture/4. communication.md`). Mọi trigger đều qua Kafka.
 - Không diễn giải/thực thi business logic của consumer — `payload` mang theo là opaque, scheduler không đọc nội dung.
-- Không quản lý auto-cancel đơn hàng — deadline nằm ngay trên bảng `orders` của `order-service`, tự polling nội bộ, không băng qua ranh giới service nên không cần scheduler-service.
+- Không tự quản lý state "đơn hàng nào cần huỷ" — `order-service` (`CREATED`-timeout, xem `feature/07-place-order/implementation.md` Phase 5) chỉ dùng scheduler-service làm **nguồn heartbeat định kỳ** (2 recurring job tĩnh, `ORDER_INVENTORY_TIMEOUT_REDIS_SCAN`/`ORDER_INVENTORY_TIMEOUT_DB_SCAN`, đăng ký qua Admin REST API — không có cơ chế bootstrap-seed nào tồn tại trong code, xem §Domain Model dòng "Đã đảo ngược quyết định trước đó"). Toàn bộ state thật (`orders.inventory_reply_deadline`, Redis ZSET riêng của order-service, logic cancel) vẫn do `order-service` tự sở hữu 100% — scheduler-service không biết `Order` là gì, chỉ phát tín hiệu "tới giờ quét rồi" đúng nguyên tắc payload-opaque ở trên.
+  > **Đã đảo ngược 2026-09-21** (bản trước ghi "không băng qua ranh giới service nên không cần scheduler-service" — loại bỏ hoàn toàn việc dùng scheduler-service cho use case này). Quyết định lại: việc polling định kỳ (Redis fast-path + Postgres backstop) tự nó là 1 concern lặp lại giống hệt 4 job tĩnh đã có (loyalty expiry, cart cleanup, seller payout, outbox cleanup) — tận dụng lại hạ tầng heartbeat chung thay vì mỗi service tự viết `@Scheduled` riêng. Khác biệt so với lo ngại ban đầu: không có việc "1 `ScheduledJob` per order" (sẽ phình bảng theo volume đơn hàng) — chỉ 2 job **recurring tĩnh**, đúng cardinality scheduler-service đang thiết kế cho.
 
 ---
 
@@ -146,7 +147,7 @@ Truyền thẳng port vào `Schedule.nextFireTime()` (không resolve trước �
 
 | Event                    | Trigger                                                        | Consumers (dự kiến theo `taskType`)                                                       |
 |--------------------------|------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
-| `ScheduledJobFiredEvent` | `ScheduledJobInstance.dispatch()` — gọi bởi `ScheduledJobFireService` sau khi `ScheduledJob.fire()` thành công | `customer-service` (loyalty expiry), `cart-service` (cleanup), `payment-service` (payout) |
+| `ScheduledJobFiredEvent` | `ScheduledJobInstance.dispatch()` — gọi bởi `ScheduledJobFireService` sau khi `ScheduledJob.fire()` thành công | `customer-service` (loyalty expiry), `cart-service` (cleanup), `payment-service` (payout), `order-service` (`CREATED`-timeout heartbeat — 2 taskType, xem §Không làm) |
 
 `outbox_events` cleanup (ADR-005) chạy nội bộ scheduler-service (tự dọn bảng của chính mình), không publish event ra ngoài. `ScheduledJobInstance.succeed()`/`fail()` cũng không phát event ra ngoài — pure sink, chỉ cập nhật chính nó (xem §Callback).
 
@@ -174,6 +175,7 @@ Truyền thẳng port vào `Schedule.nextFireTime()` (không resolve trước �
 | Feature                                                           | Role                            | Handles | Publishes                |
 |-------------------------------------------------------------------|---------------------------------|---------|--------------------------|
 | [scheduler-service](../../feature/08-scheduler-service/design.md) | Coordinator — trigger theo lịch | —       | `ScheduledJobFiredEvent` |
+| [place-order](../../feature/07-place-order/implementation.md)     | Heartbeat source cho `order-service` `CREATED`-timeout | — | `ScheduledJobFiredEvent` (`ORDER_INVENTORY_TIMEOUT_REDIS_SCAN`/`ORDER_INVENTORY_TIMEOUT_DB_SCAN`) |
 
 ---
 
@@ -197,7 +199,7 @@ Không có. `scheduler-service` không nằm trong 4 cặp sync đã duyệt (`4
 
 ## Dependencies
 
-- **Services cần chạy cùng:** không service nào bắt buộc lúc khởi động — scheduler tự chạy độc lập. `customer-service`/`cart-service`/`payment-service` cần chạy để tiêu thụ `scheduler.job.fired`, nhưng scheduler-service vẫn đúng đắn (publish thành công) dù consumer đang down — Kafka giữ message.
+- **Services cần chạy cùng:** không service nào bắt buộc lúc khởi động — scheduler tự chạy độc lập. `customer-service`/`cart-service`/`payment-service`/`order-service` cần chạy để tiêu thụ `scheduler.job.fired`, nhưng scheduler-service vẫn đúng đắn (publish thành công) dù consumer đang down — Kafka giữ message.
 - **Infrastructure:**
   - PostgreSQL — nguồn sự thật (`scheduled_job`, `outbox_events`)
   - Redis — tăng tốc tìm job đến hạn (ZSET), **không phải nguồn sự thật**, **component tuỳ chọn** ở cardinality hiện tại (thêm có chủ đích để rehearse pattern scale, xem `design.md` §NFR Assessment) — xem `data.md`

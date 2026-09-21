@@ -11,7 +11,6 @@ public class CustomerProfileMapper {
     public CustomerProfile toDomain(CustomerProfileJpaEntity entity) {
         return CustomerProfile.reconstitute(
                 CustomerProfileId.of(entity.getId()),
-                entity.getUserId(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
@@ -20,7 +19,6 @@ public class CustomerProfileMapper {
     public CustomerProfileJpaEntity toEntity(CustomerProfile profile) {
         CustomerProfileJpaEntity entity = new CustomerProfileJpaEntity();
         entity.setId(profile.getId().getValue());
-        entity.setUserId(profile.getUserId());
         entity.setCreatedAt(profile.getCreatedAt());
         entity.setUpdatedAt(profile.getUpdatedAt());
         return entity;

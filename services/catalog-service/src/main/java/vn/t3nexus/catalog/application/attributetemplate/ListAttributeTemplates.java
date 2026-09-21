@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeOption;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeOptionStatus;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeScope;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateRepository;
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateStatus;
 import vn.t3nexus.catalog.domain.attributetemplate.InputType;
 import vn.t3nexus.lib.common.domain.cqrs.QueryHandler;
 
@@ -26,7 +26,7 @@ public class ListAttributeTemplates
                         template.getName(),
                         template.getDisplayName(),
                         template.getInputType(),
-                        template.getScope(),
+                        template.getStatus(),
                         template.getOptions().stream()
                                 .map(option -> new AttributeOptionDetail(
                                         option.getId().getValue(),
@@ -47,7 +47,7 @@ public class ListAttributeTemplates
             String name,
             String displayName,
             InputType inputType,
-            AttributeScope scope,
+            AttributeTemplateStatus status,
             List<AttributeOptionDetail> options) {}
 
     public record AttributeOptionDetail(

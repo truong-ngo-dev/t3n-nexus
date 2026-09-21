@@ -18,7 +18,6 @@ public class DeactivateAttributeOption
         implements CommandHandler<DeactivateAttributeOption.Command, DeactivateAttributeOption.Result> {
 
     private final AttributeTemplateRepository templateRepository;
-    private final AttributeTemplateDomainService domainService;
 
     @Override
     @Transactional
@@ -26,11 +25,11 @@ public class DeactivateAttributeOption
     public Result handle(Command command) {
         AttributeOptionId optionId = AttributeOptionId.of(command.optionId());
 
-        domainService.validateOptionNotUsedByVariant(optionId);
-
         AttributeTemplate template = templateRepository.findById(AttributeTemplateId.of(command.templateId()))
                 .orElseThrow(() -> new DomainException(AttributeTemplateErrorCode.TEMPLATE_NOT_FOUND));
 
+        // Guard OPTION_IN_USE (usageCount > 0) chạy bên trong AttributeOption.deactivate() — không cần
+        // hỏi sang VariantRepository nữa, xem AttributeOption.java.
         template.deactivateOption(optionId);
         templateRepository.save(template);
 

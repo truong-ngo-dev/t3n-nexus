@@ -10,9 +10,12 @@ import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateDomainServic
 import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
+import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
 import vn.t3nexus.catalog.domain.category.CategoryId;
+import vn.t3nexus.catalog.domain.category.CategoryLevel;
 import vn.t3nexus.catalog.domain.category.CategoryRepository;
+import vn.t3nexus.catalog.domain.category.CategoryStatus;
 import vn.t3nexus.catalog.domain.product.*;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
@@ -34,20 +37,30 @@ public class CreateProduct implements CommandHandler<CreateProduct.Command, Crea
     @Override
     @Transactional
     public Result handle(Command command) {
-        categoryRepository.findById(CategoryId.of(command.categoryId()))
+        Category category = categoryRepository.findById(CategoryId.of(command.categoryId()))
                 .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+
+        // Chỉ leaf (L3) mới có attribute assign — Product ở category cha sẽ không có attribute nào
+        // khả dụng, là trạng thái vô nghĩa nên chặn từ gốc.
+        if (category.getLevel() != CategoryLevel.L3) {
+            throw new DomainException(CategoryErrorCode.CATEGORY_NOT_LEAF);
+        }
+
+        // Category deactivate = ngừng cho tạo sản phẩm MỚI dưới nó — không ảnh hưởng Product cũ đã tồn tại.
+        if (category.getStatus() != CategoryStatus.ACTIVE) {
+            throw new DomainException(CategoryErrorCode.CATEGORY_INACTIVE);
+        }
 
         brandRepository.findById(BrandId.of(command.brandId()))
                 .orElseThrow(() -> new DomainException(BrandErrorCode.BRAND_NOT_FOUND));
 
         List<ProductAttributeValue> attributeValues = command.attributeValues().stream()
                 .map(dto -> new ProductAttributeValue(
-                        AttributeTemplateId.of(dto.templateId()),
-                        dto.value()))
+                        AttributeTemplateId.of(dto.templateId()), dto.values(), dto.isVariantDefining()))
                 .toList();
 
         attributeTemplateDomainService.validateProductAttributes(
-                CategoryId.of(command.categoryId()), attributeValues);
+                CategoryId.of(command.categoryId()), attributeValues, List.of());
 
         WarrantyInfo warrantyInfo = command.warrantyType() == null ? null
                 : new WarrantyInfo(command.warrantyMonths(), command.warrantyType(), command.warrantyCoverage());
@@ -84,7 +97,7 @@ public class CreateProduct implements CommandHandler<CreateProduct.Command, Crea
             List<AttributeValue> attributeValues
     ) {}
 
-    public record AttributeValue(String templateId, String value) {}
+    public record AttributeValue(String templateId, List<String> values, boolean isVariantDefining) {}
 
     public record Result(String id) {}
 }

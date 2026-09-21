@@ -8,9 +8,11 @@ import vn.t3nexus.lib.common.domain.model.DomainEvent;
 import vn.t3nexus.order.domain.order.Order;
 import vn.t3nexus.order.domain.order.OrderId;
 import vn.t3nexus.order.domain.order.OrderRepository;
+import org.springframework.data.domain.Limit;
 import vn.t3nexus.order.infrastructure.persistence.order.OrderJpaRepository;
 import vn.t3nexus.order.infrastructure.persistence.order.OrderMapper;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,5 +41,13 @@ public class OrderRepositoryAdapter implements OrderRepository {
     @Override
     public void delete(OrderId id) {
         jpaRepository.deleteById(id.getValue());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderId> findCreatedWithExpiredDeadline(Instant asOf, int limit) {
+        return jpaRepository.findCreatedWithExpiredDeadline(asOf, Limit.of(limit)).stream()
+                .map(OrderId::of)
+                .toList();
     }
 }

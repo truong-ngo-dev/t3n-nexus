@@ -58,7 +58,11 @@ public class StockPersistenceAdapter implements StockRepository {
 
     @Override
     public void save(Stock stock) {
-        jpaRepository.save(StockMapper.toJpaEntity(stock));
+        // saveAndFlush forces the INSERT (and UNIQUE(sku_id) check) to run inside this call, so a
+        // concurrent-duplicate conflict surfaces here instead of silently at commit time — same
+        // reasoning as ReservationPersistenceAdapter.save(); callers (e.g. InitializeStock) need to
+        // catch DataIntegrityViolationException synchronously.
+        jpaRepository.saveAndFlush(StockMapper.toJpaEntity(stock));
     }
 
     @Override

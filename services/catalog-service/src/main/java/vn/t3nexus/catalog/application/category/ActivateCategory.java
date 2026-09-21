@@ -6,7 +6,6 @@ import org.slf4j.MDC;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
 import vn.t3nexus.catalog.domain.category.CategoryId;
@@ -18,28 +17,28 @@ import vn.t3nexus.lib.common.domain.exception.DomainException;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RemoveCategoryAttributeAssignment
-        implements CommandHandler<RemoveCategoryAttributeAssignment.Command, RemoveCategoryAttributeAssignment.Result> {
+public class ActivateCategory
+        implements CommandHandler<ActivateCategory.Command, ActivateCategory.Result> {
 
     private final CategoryRepository categoryRepository;
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheNames.CATEGORY_ATTRIBUTES, key = "#command.categoryId()")
+    @CacheEvict(value = CacheNames.CATEGORY_TREE, key = "'all'")
     public Result handle(Command command) {
-        Category category = categoryRepository.findById(CategoryId.of(command.categoryId()))
+        Category category = categoryRepository.findById(CategoryId.of(command.id()))
                 .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
 
-        category.removeAssignment(AttributeTemplateId.of(command.templateId()));
+        category.activate();
         categoryRepository.save(category);
 
-        log.info("[RemoveCategoryAttributeAssignment] removed: categoryId={}, templateId={}, traceId={}",
-                command.categoryId(), command.templateId(), MDC.get("traceId"));
+        log.info("[ActivateCategory] activated: categoryId={}, traceId={}",
+                command.id(), MDC.get("traceId"));
 
         return new Result();
     }
 
-    public record Command(String categoryId, String templateId) {}
+    public record Command(String id) {}
 
     public record Result() {}
 }

@@ -116,7 +116,10 @@ components:
 
     CategoryAttributeResponse:
       type: object
-      required: [templateId, name, displayName, inputType, scope, variantDefining, required, filterable, displayOrder]
+      required: [templateId, name, displayName, inputType, required, filterable, searchable, displayOrder]
+      description: >
+        Chỉ trả về attribute đã được assign cho ĐÚNG category này — category phải là leaf (L3), không có
+        kế thừa từ category cha (L1/L2 luôn trả về mảng rỗng).
       properties:
         templateId:
           type: string
@@ -129,18 +132,19 @@ components:
           example: "Màu sắc"
         inputType:
           $ref: '#/components/schemas/InputType'
-        scope:
-          $ref: '#/components/schemas/AttributeScope'
-        variantDefining:
-          type: boolean
-          description: Nếu true — attribute này phân biệt Variant (SKU)
         required:
           type: boolean
         filterable:
           type: boolean
+        searchable:
+          type: boolean
+          description: >
+            Catalog chỉ lưu + trả ra cho 1 search-service tương lai đồng bộ (build full-text index) —
+            catalog KHÔNG tự dùng flag này để query. Quyết định curation của Admin, cùng chỗ với
+            required/filterable, không phải cấu hình kỹ thuật của AttributeTemplate (cùng 1 template có
+            thể searchable ở category này nhưng không ở category khác).
         displayOrder:
           type: integer
-          description: "-1 cho GLOBAL templates (luôn hiện trước CATEGORY)"
 
     CreateCategoryRequest:
       type: object
@@ -168,33 +172,25 @@ components:
           type: string
           nullable: true
 
-    AssignAttributeRequest:
+    ReplaceCategoryAttributesRequest:
       type: object
-      required: [templateId, variantDefining, required, filterable, displayOrder]
+      required: [templateId, required, filterable, searchable, displayOrder]
+      description: >
+        1 phần tử của body `PUT /api/admin/categories/{id}/attributes` — body là 1 ARRAY của schema này,
+        thay THẾ TOÀN BỘ danh sách attribute hiện có của category (không phải merge/patch). Client tự
+        GET `GetCategoryAttributes` trước, sửa trong list, rồi PUT lại nguyên list mong muốn cuối cùng —
+        assign/update/remove 1 attribute đều quy về gọi lại endpoint này với list đã sửa.
       properties:
         templateId:
           type: string
-          description: ULID của AttributeTemplate (phải tồn tại)
-        variantDefining:
-          type: boolean
+          description: ULID của AttributeTemplate (phải tồn tại, phải ACTIVE)
         required:
           type: boolean
         filterable:
           type: boolean
-        displayOrder:
-          type: integer
-          minimum: 0
-
-    UpdateAssignmentRequest:
-      type: object
-      required: [variantDefining, required, filterable, displayOrder]
-      properties:
-        variantDefining:
+        searchable:
           type: boolean
-        required:
-          type: boolean
-        filterable:
-          type: boolean
+          description: Xem CategoryAttributeResponse.searchable — catalog chỉ lưu, không tự dùng.
         displayOrder:
           type: integer
           minimum: 0
@@ -205,11 +201,11 @@ components:
       type: string
       enum: [SELECT, TEXT, NUMBER, BOOLEAN]
 
-    AttributeScope:
-      type: string
-      enum: [GLOBAL, CATEGORY]
-
     AttributeOptionStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    AttributeTemplateStatus:
       type: string
       enum: [ACTIVE, INACTIVE]
 
@@ -234,7 +230,10 @@ components:
 
     AttributeTemplateResponse:
       type: object
-      required: [id, name, displayName, inputType, scope, options]
+      required: [id, name, displayName, inputType, status, options]
+      description: >
+        Master data thuần — không tự áp dụng ở category nào cả. Phải được assign tường minh (chỉ vào
+        category leaf/L3) qua `PUT /api/admin/categories/{id}/attributes` mới có hiệu lực cho Product.
       properties:
         id:
           type: string
@@ -249,8 +248,8 @@ components:
           example: "Màu sắc"
         inputType:
           $ref: '#/components/schemas/InputType'
-        scope:
-          $ref: '#/components/schemas/AttributeScope'
+        status:
+          $ref: '#/components/schemas/AttributeTemplateStatus'
         options:
           type: array
           description: Non-empty chỉ khi inputType=SELECT
@@ -259,7 +258,7 @@ components:
 
     CreateAttributeTemplateRequest:
       type: object
-      required: [name, displayName, inputType, scope]
+      required: [name, displayName, inputType]
       properties:
         name:
           type: string
@@ -270,8 +269,6 @@ components:
           example: "Màu sắc"
         inputType:
           $ref: '#/components/schemas/InputType'
-        scope:
-          $ref: '#/components/schemas/AttributeScope'
 
     UpdateAttributeTemplateRequest:
       type: object
@@ -373,20 +370,48 @@ components:
         objectKey: { type: string }
         displayOrder: { type: integer }
 
+    AttributeValueItemResponse:
+      type: object
+      properties:
+        value:
+          type: string
+          description: >
+            Business value (VD "black") — GetProduct tự resolve từ AttributeOptionId Product đang lưu,
+            client không bao giờ thấy ULID nội bộ ở field này. Với TEXT/NUMBER/BOOLEAN là raw value.
+        displayValue:
+          type: string
+          description: >
+            Label để hiển thị (VD "Đen"). Với SELECT, resolve từ đúng AttributeOption. Với TEXT/NUMBER/
+            BOOLEAN, luôn bằng `value` (không có option pool để resolve).
+
     AttributeValueResponse:
       type: object
       properties:
         templateId: { type: string }
-        value: { type: string }
+        templateName: { type: string, description: "Machine key của attribute, VD \"color\"" }
+        templateDisplayName: { type: string, description: "Label hiển thị, VD \"Màu sắc\"" }
+        values:
+          type: array
+          items: { $ref: '#/components/schemas/AttributeValueItemResponse' }
+          description: >
+            1..N giá trị — không có cardinality constraint nào ở tầng Product.
+        isVariantDefining:
+          type: boolean
+          description: >
+            Seller tự khai per-listing khi tạo/sửa Product — true nghĩa là attribute này BẮT BUỘC xuất
+            hiện trong mọi Variant.combination của Product (xem AddVariant). Khoá lại (không đổi được)
+            sau khi Product đã có Variant đầu tiên.
 
     ProductResponse:
       type: object
-      required: [id, sellerId, categoryId, brandId, name, status]
+      required: [id, sellerId, categoryId, categoryName, brandId, brandName, name, status]
       properties:
         id: { type: string, description: ULID }
         sellerId: { type: string }
         categoryId: { type: string }
+        categoryName: { type: string, description: Resolve sẵn — client không cần gọi thêm API category }
         brandId: { type: string }
+        brandName: { type: string, description: Resolve sẵn — client không cần gọi thêm API brand }
         name: { type: string }
         description: { type: string }
         status: { $ref: '#/components/schemas/ProductStatus' }
@@ -419,9 +444,31 @@ components:
         page: { type: integer }
         size: { type: integer }
 
+    AttributeValueItem:
+      type: object
+      required: [templateId, values, isVariantDefining]
+      description: >
+        templateId phải nằm trong tập attribute mà category (leaf) của product đã assign — không tự
+        thêm attribute ngoài tập đó. values 1..N tuỳ nhu cầu. Với attribute inputType=SELECT, mỗi phần tử
+        là AttributeOptionId (ULID, lấy từ GetCategoryAttributes/ListAttributeTemplates) — KHÔNG phải
+        business value string ("black") như trước. Với TEXT/NUMBER/BOOLEAN vẫn là raw value string.
+        isVariantDefining=true chỉ hợp lệ với SELECT (422 VARIANT_DEFINING_REQUIRES_SELECT nếu không),
+        bắt buộc attribute này xuất hiện trong mọi Variant.combination của Product (422
+        VARIANT_MISSING_VARIANT_DEFINING_ATTRIBUTE nếu addVariant thiếu), và bị khoá lại — không đổi được
+        qua updateProduct — sau khi Product đã có Variant đầu tiên (422
+        VARIANT_DEFINING_LOCKED_AFTER_VARIANT).
+      properties:
+        templateId: { type: string }
+        values:
+          type: array
+          minItems: 1
+          items: { type: string }
+        isVariantDefining: { type: boolean, default: false }
+
     CreateProductRequest:
       type: object
       required: [categoryId, brandId, name, attributeValues]
+      description: categoryId phải trỏ tới category leaf (L3) — 422 CATEGORY_NOT_LEAF nếu không.
       properties:
         categoryId: { type: string }
         brandId: { type: string }
@@ -432,12 +479,7 @@ components:
         warrantyCoverage: { type: string, example: "toàn cầu" }
         attributeValues:
           type: array
-          items:
-            type: object
-            required: [templateId, value]
-            properties:
-              templateId: { type: string }
-              value: { type: string }
+          items: { $ref: '#/components/schemas/AttributeValueItem' }
 
     UpdateProductRequest:
       type: object
@@ -450,12 +492,7 @@ components:
         warrantyCoverage: { type: string }
         attributeValues:
           type: array
-          items:
-            type: object
-            required: [templateId, value]
-            properties:
-              templateId: { type: string }
-              value: { type: string }
+          items: { $ref: '#/components/schemas/AttributeValueItem' }
 
     # ── Variant ───────────────────────────────────────────────────────────────
 
@@ -669,14 +706,60 @@ paths:
           $ref: '#/components/responses/409'
           # ErrorCode: HAS_CHILDREN | HAS_PRODUCT_REFERENCE
 
-  /api/admin/categories/{id}/attributes:
+  /api/admin/categories/{id}/deactivate:
     post:
       tags: [Category (Admin)]
-      summary: Assign attribute template vào category
+      summary: Deactivate category (soft toggle điều hướng, không phải xoá dữ liệu)
       description: |
-        Chỉ CATEGORY-scope templates mới có ý nghĩa khi assign.
-        GLOBAL templates tự động hiện trong GetCategoryAttributes mà không cần assign.
-      operationId: assignAttributeToCategory
+        Không guard theo "đang có Product/children hay không" — khác hard-delete. Ẩn category khỏi
+        `GET /api/categories` (cây); chặn `CreateProduct` mới dưới category này (422 CATEGORY_INACTIVE).
+        Product cũ tham chiếu category này không bị ảnh hưởng gì.
+      operationId: deactivateCategory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+
+  /api/admin/categories/{id}/activate:
+    post:
+      tags: [Category (Admin)]
+      summary: Reactivate category đã deactivate
+      operationId: activateCategory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+
+  /api/admin/categories/{id}/attributes:
+    put:
+      tags: [Category (Admin)]
+      summary: Thay toàn bộ danh sách attribute assignment của category (leaf/L3)
+      description: |
+        Body là 1 ARRAY, REPLACE TOÀN BỘ assignment hiện có — không phải merge/patch. Assign 1 attribute
+        mới, sửa config 1 attribute, hay gỡ 1 attribute đều gọi endpoint này với list mong muốn cuối
+        cùng (client tự GET `GET /api/categories/{id}/attributes` trước, sửa trong list, rồi PUT lại).
+        Category đích phải là leaf (L3) — không có kế thừa từ category cha.
+      operationId: replaceCategoryAttributeAssignments
       parameters:
         - name: id
           in: path
@@ -688,10 +771,12 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AssignAttributeRequest'
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplaceCategoryAttributesRequest'
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -703,64 +788,11 @@ paths:
           # ErrorCode: CATEGORY_NOT_FOUND | TEMPLATE_NOT_FOUND
         "409":
           $ref: '#/components/responses/409'
-          # ErrorCode: ASSIGNMENT_ALREADY_EXISTS
+          # ErrorCode: ASSIGNMENT_ALREADY_EXISTS — 1 templateId xuất hiện nhiều hơn 1 lần trong request
         "422":
           $ref: '#/components/responses/422'
-          # ErrorCode: GLOBAL_TEMPLATE_NOT_ASSIGNABLE — GLOBAL templates tự động áp dụng, không cần assign
-
-  /api/admin/categories/{id}/attributes/{templateId}:
-    put:
-      tags: [Category (Admin)]
-      summary: Cập nhật config assignment
-      operationId: updateCategoryAttributeAssignment
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-        - name: templateId
-          in: path
-          required: true
-          schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateAssignmentRequest'
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseVoid'
-        "404":
-          $ref: '#/components/responses/404'
-          # ErrorCode: CATEGORY_NOT_FOUND | ASSIGNMENT_NOT_FOUND
-    delete:
-      tags: [Category (Admin)]
-      summary: Bỏ assignment attribute khỏi category
-      operationId: removeCategoryAttributeAssignment
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-        - name: templateId
-          in: path
-          required: true
-          schema: { type: string }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseVoid'
-        "404":
-          $ref: '#/components/responses/404'
-          # ErrorCode: CATEGORY_NOT_FOUND | ASSIGNMENT_NOT_FOUND
+          # ErrorCode: ATTRIBUTE_ASSIGNMENT_REQUIRES_LEAF — chỉ category leaf (L3) mới assign được
+          # ErrorCode: TEMPLATE_INACTIVE — không assign được template đã deactivate
 
   # ── Brand (Public) ──────────────────────────────────────────────────────────
 
@@ -846,10 +878,12 @@ paths:
           # ErrorCode: BRAND_NOT_FOUND
     delete:
       tags: [Brand (Admin)]
-      summary: Vô hiệu hóa brand (soft delete)
+      summary: Vô hiệu hóa brand (soft toggle, không phải xoá dữ liệu)
       description: |
-        Chuyển brand sang INACTIVE. Brand sẽ không còn xuất hiện ở storefront.
-        **NOTE:** Guard `BRAND_IN_USE` chưa active — sẽ enable khi Product feature hoàn thành (Phase 4).
+        Chuyển brand sang INACTIVE — ẩn khỏi `ListActiveBrands`/storefront. KHÔNG guard theo "đang có
+        Product dùng hay không" (đã bỏ guard `BRAND_IN_USE` — chặn ngược với nguyên tắc soft-toggle, xem
+        service.md § Category lifecycle). Product cũ tham chiếu brand đã deactivate vẫn resolve bình
+        thường qua `GetProduct` (không lọc theo status).
       operationId: deactivateBrand
       parameters:
         - name: id
@@ -946,14 +980,65 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: TEMPLATE_NOT_FOUND
+    delete:
+      tags: [AttributeTemplate (Admin)]
+      summary: Deactivate template (soft-delete)
+      description: |
+        Không hard-delete — chuyển status sang INACTIVE. Chặn nếu template đang `required=true` ở bất kỳ
+        category nào (tránh deadlock: category đòi hỏi bắt buộc 1 attribute không còn dùng được).
+        Không chặn nếu chỉ assign nhưng không required.
+      operationId: deactivateAttributeTemplate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: TEMPLATE_REQUIRED_BY_CATEGORY
+
+  /api/admin/attribute-templates/{id}/activate:
+    post:
+      tags: [AttributeTemplate (Admin)]
+      summary: Reactivate template đã deactivate
+      description: |
+        Đối xứng DELETE (deactivate) — không cần guard, bật lại không vi phạm invariant nào. Ưu tiên dùng
+        endpoint này thay vì tạo template mới cùng `name` (vốn dĩ cũng không tạo được — `name` unique trên
+        mọi row bất kể status).
+      operationId: activateAttributeTemplate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND
 
   /api/admin/attribute-templates/{id}/options:
     post:
       tags: [AttributeTemplate (Admin)]
       summary: Thêm option vào template
       description: |
-        Chỉ áp dụng cho template có `inputType=SELECT`.
-        Gọi trên template TEXT/NUMBER/BOOLEAN → 422.
+        Chỉ áp dụng cho template có `inputType=SELECT`. Gọi trên template TEXT/NUMBER/BOOLEAN → 422.
+        Template phải đang ACTIVE — không quản lý option của template đã deactivate.
       operationId: addAttributeOption
       parameters:
         - name: id
@@ -985,13 +1070,14 @@ paths:
           # ErrorCode: TEMPLATE_NOT_FOUND
         "422":
           $ref: '#/components/responses/422'
-          # ErrorCode: INPUT_TYPE_NOT_SELECT
+          # ErrorCode: INPUT_TYPE_NOT_SELECT | TEMPLATE_INACTIVE
 
   /api/admin/attribute-templates/{id}/options/{optionId}:
     put:
       tags: [AttributeTemplate (Admin)]
       summary: Cập nhật displayValue của option
-      description: Chỉ `displayValue` (UI label) được phép sửa. `value` là immutable.
+      description: |
+        Chỉ `displayValue` (UI label) được phép sửa. `value` là immutable. Template phải đang ACTIVE.
       operationId: updateAttributeOption
       parameters:
         - name: id
@@ -1027,12 +1113,15 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: TEMPLATE_NOT_FOUND | OPTION_NOT_FOUND
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: TEMPLATE_INACTIVE
     delete:
       tags: [AttributeTemplate (Admin)]
       summary: Vô hiệu hóa option (soft delete)
       description: |
-        Chuyển option sang INACTIVE. Option đang được dùng bởi Variant sẽ bị reject (409).
-        Guard được thực hiện qua `VariantRepository.existsByOptionId` trước khi load AR.
+        Chuyển option sang INACTIVE. Option đang được Variant dùng sẽ bị reject (409) — in-aggregate
+        check qua `AttributeOption.usageCount` (bump bởi AddVariant), không còn query VariantRepository.
       operationId: deactivateAttributeOption
       parameters:
         - name: id
@@ -1058,6 +1147,37 @@ paths:
         "409":
           $ref: '#/components/responses/409'
           # ErrorCode: OPTION_IN_USE
+
+  /api/admin/attribute-templates/{id}/options/{optionId}/activate:
+    post:
+      tags: [AttributeTemplate (Admin)]
+      summary: Reactivate option đã deactivate
+      description: |
+        Đối xứng DELETE (deactivate) — không cần guard. Ưu tiên bật lại option cũ thay vì tạo option mới
+        cùng `value`, tránh phân mảnh identity (2 AttributeOptionId khác nhau cho cùng 1 khái niệm).
+        Không bị chặn bởi trạng thái parent template (bật/tắt option độc lập với template).
+      operationId: activateAttributeOption
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: AttributeTemplate ULID
+        - name: optionId
+          in: path
+          required: true
+          schema: { type: string }
+          description: AttributeOption ULID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND | OPTION_NOT_FOUND
 
   # ── Product (Public) ────────────────────────────────────────────────────────
 
@@ -1147,6 +1267,13 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: CATEGORY_NOT_FOUND | BRAND_NOT_FOUND
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: CATEGORY_NOT_LEAF — categoryId phải trỏ tới category leaf (L3)
+          # ErrorCode: CATEGORY_INACTIVE — category đã deactivate, không cho tạo Product mới
+          # ErrorCode: ATTRIBUTE_NOT_IN_CATEGORY | REQUIRED_ATTRIBUTE_MISSING
+          # ErrorCode: INVALID_ATTRIBUTE_VALUE | TEMPLATE_INACTIVE | ATTRIBUTE_VALUE_FORMAT_INVALID
+          # ErrorCode: VARIANT_DEFINING_REQUIRES_SELECT — isVariantDefining=true trên template không phải SELECT
     get:
       tags: [Product (Seller)]
       summary: Danh sách products của seller (paged)
@@ -1225,6 +1352,37 @@ paths:
         "422":
           $ref: '#/components/responses/422'
           # ErrorCode: PRODUCT_BLOCKED
+          # ErrorCode: ATTRIBUTE_NOT_IN_CATEGORY | REQUIRED_ATTRIBUTE_MISSING
+          # ErrorCode: INVALID_ATTRIBUTE_VALUE | TEMPLATE_INACTIVE | ATTRIBUTE_VALUE_FORMAT_INVALID
+          # ErrorCode: ATTRIBUTE_VALUE_STILL_USED_BY_VARIANT — gỡ 1 giá trị khỏi attributeValues mà vẫn còn
+          #   Variant (bất kỳ status) dùng đúng giá trị đó trong combination; deactivate Variant đó trước.
+          # ErrorCode: VARIANT_DEFINING_REQUIRES_SELECT — isVariantDefining=true trên template không phải SELECT
+          # ErrorCode: VARIANT_DEFINING_LOCKED_AFTER_VARIANT — đổi isVariantDefining sau khi Product đã có Variant
+    delete:
+      tags: [Product (Seller)]
+      summary: Xoá vĩnh viễn Product (chỉ khi còn DRAFT)
+      description: |
+        Hard-delete — chỉ cho phép khi `status = DRAFT` (chưa từng publish, nên chắc chắn chưa có Order
+        nào tham chiếu tới bất kỳ Variant nào). Cascade xoá luôn toàn bộ Variant của Product. Không phục
+        hồi được — khác hẳn `unpublish` (soft, giữ nguyên dữ liệu). Dùng để dọn các bản nháp tạo nhầm/bỏ
+        dở, tránh rác tồn mãi trong danh sách Product của Seller.
+      operationId: deleteProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        "404":
+          $ref: '#/components/responses/404'
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: PRODUCT_NOT_DRAFT — Product đã từng publish (status khác DRAFT), không cho xoá cứng
 
   /api/seller/products/{id}/publish:
     post:
@@ -1418,6 +1576,14 @@ paths:
       description: |
         Combination phải unique trong Product (check qua combination_hash).
         Guard: VARIANT_COMBINATION_EXISTS nếu trùng.
+        Mỗi optionId trong combination phải nằm trong tập giá trị Product đã khai cho đúng templateId
+        (xem `service.md` § Attribute Value Model) — không nằm trong đó thì VARIANT_OPTION_NOT_DECLARED_BY_PRODUCT.
+        Attribute nào Product tự đánh dấu `isVariantDefining=true` (per-listing, xem AttributeValueItem)
+        thì BẮT BUỘC phải có mặt ĐỦ trong combination — thiếu 1 trục nào cũng bị
+        VARIANT_MISSING_VARIANT_DEFINING_ATTRIBUTE (các attribute variant-defining tạo thành 1 ma trận
+        Cartesian, mỗi Variant là 1 điểm trong không gian đó nên không được thiếu toạ độ). `required` của
+        category KHÔNG liên quan tới guard này — đó là completeness policy của Admin, tách biệt hoàn toàn
+        khỏi việc attribute có dùng để tách SKU hay không.
         Variant tạo mới luôn ACTIVE. Không có field `stock`/quantity ở đây — số lượng tồn kho
         set riêng qua `PUT /api/seller/inventory/stocks/{skuId}/quantity` (inventory-service),
         sau khi inventory-service khởi tạo Stock từ `VariantCreatedEvent`.
@@ -1444,10 +1610,15 @@ paths:
                   data: { type: string, description: SKU ULID }
         "404":
           $ref: '#/components/responses/404'
-          # ErrorCode: PRODUCT_NOT_FOUND
+          # ErrorCode: PRODUCT_NOT_FOUND | TEMPLATE_NOT_FOUND | OPTION_NOT_FOUND
         "409":
           $ref: '#/components/responses/409'
           # ErrorCode: VARIANT_COMBINATION_EXISTS
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: VARIANT_OPTION_NOT_DECLARED_BY_PRODUCT
+          # ErrorCode: VARIANT_MISSING_VARIANT_DEFINING_ATTRIBUTE — combination thiếu pair cho 1 attribute
+          #   Product đánh dấu isVariantDefining=true.
 
   /api/seller/products/{productId}/variants/{skuId}:
     put:

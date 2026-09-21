@@ -3,6 +3,7 @@ package vn.t3nexus.inventory.application.stock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.inventory.domain.stock.Stock;
@@ -30,7 +31,14 @@ public class InitializeStock implements CommandHandler<InitializeStock.Command, 
         StockId id = StockId.of(ulidGenerator.generate());
         Stock stock = Stock.initialize(id, command.skuId(), command.productId(), command.sellerId(),
                 command.sellerActive(), command.productPublished());
-        stockRepository.save(stock);
+        try {
+            stockRepository.save(stock);
+        } catch (DataIntegrityViolationException e) {
+            // Concurrent duplicate: another transaction already inserted this skuId (UNIQUE(sku_id)
+            // caught it, surfaced synchronously via saveAndFlush). Benign race, not a real failure —
+            // same reasoning as ReserveInventory's UNIQUE(order_id) catch.
+            throw StockException.alreadyExists();
+        }
 
         log.info("[InitializeStock] created: stockId={}, skuId={}, traceId={}",
                 id.getValue(), command.skuId(), MDC.get("traceId"));
