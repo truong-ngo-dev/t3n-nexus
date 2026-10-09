@@ -37,8 +37,8 @@ giảm chi phí. Chia riêng khi một trong các điều kiện sau đúng:
 
 | Phương án                | Gồm                                                                                  | Ưu                                             | Nhược                                                                         |
 |--------------------------|--------------------------------------------------------------------------------------|------------------------------------------------|-------------------------------------------------------------------------------|
-| A. Ba portal             | Cửa hàng (khách, người mua) · Người bán · Nội bộ (quản trị + kho + shipper)          | Ít ứng dụng nhất                               | Shipper phải dùng giao diện nội bộ trên điện thoại; trái ngữ cảnh ngoài đường |
-| **B. Bốn portal (chốt)** | Cửa hàng · Người bán · **Nội bộ (quản trị + nhân viên kho)** · **Shipper (di động)** | Mỗi portal một ngữ cảnh; shipper đúng thiết bị | Bốn ứng dụng, tốn công hơn với frontend yếu                                   |
+| A. Ba portal             | Cửa hàng (khách, người mua) · Người bán · Vận hành (quản trị + kho + shipper)          | Ít ứng dụng nhất                               | Shipper phải dùng giao diện nội bộ trên điện thoại; trái ngữ cảnh ngoài đường |
+| **B. Bốn portal (chốt)** | Cửa hàng · Người bán · **Vận hành (quản trị + nhân viên kho)** · **Shipper (di động)** | Mỗi portal một ngữ cảnh; shipper đúng thiết bị | Bốn ứng dụng, tốn công hơn với frontend yếu                                   |
 | C. Một cổng gộp          | Tất cả                                                                               | Một mã nguồn                                   | Lộ chức năng chéo vai; thiết bị khác nhau không dung hòa được                 |
 
 **Chốt B**, vì A đẩy shipper vào giao diện sai ngữ cảnh (mâu thuẫn nguyên tắc 2), còn C vi phạm tiêu chí quyền. Cái giá
@@ -52,7 +52,7 @@ Shipper tối giản** (vài màn hình, phục vụ đúng việc giao hàng).
 | Nhu cầu                                                | Ai cần                  | Thiết bị tự nhiên                                  | Chỗ đặt                  |
 |--------------------------------------------------------|-------------------------|----------------------------------------------------|--------------------------|
 | Xem thống kê việc, lịch sử của chính mình              | Shipper                 | Điện thoại (cuối ngày xem ngay trên máy đang dùng) | Portal Shipper (di động) |
-| Xem hiệu suất của các shipper                          | Quản trị, nhân viên kho | Máy tính                                           | Portal Nội bộ (web)      |
+| Xem hiệu suất của các shipper                          | Quản trị, nhân viên kho | Máy tính                                           | Portal Vận hành (web)      |
 
 Công nợ COD không có màn hình ở mức cơ sở: công nợ, nộp tiền và đối soát COD là phần cắt tạm (`4-context-map.md` B27),
 kéo vào cùng Sổ cái.
@@ -65,7 +65,7 @@ B27). Đi thử di chuyển thật làm sau.
 
 ### 3.4 Mức cơ sở và mở rộng
 
-- **Mức cơ sở:** web cho mọi vai trừ shipper (ba portal web: Cửa hàng, Người bán, Nội bộ); shipper dùng portal di động riêng.
+- **Mức cơ sở:** web cho mọi vai trừ shipper (ba portal web: Cửa hàng, Người bán, Vận hành); shipper dùng portal di động riêng.
   Cửa hàng là web đáp ứng nên người mua dùng được trên điện thoại.
 - **Mở rộng (cắt tạm, P3): ứng dụng di động riêng cho các vai khác** (người mua, người bán). Điểm nối: web đáp ứng của Cửa
   hàng và Người bán đã dùng được trên điện thoại; API không phụ thuộc loại ứng dụng. Điều kiện kéo vào: lõi xong và còn
@@ -95,7 +95,7 @@ B27). Đi thử di chuyển thật làm sau.
 | Báo cáo bán hàng                         | Báo cáo                    |
 | Chat với người mua                       | Chat                       |
 
-### 4.3 Nội bộ (quản trị và nhân viên kho)
+### 4.3 Vận hành (quản trị và nhân viên kho)
 | Nhóm                                                   | Vai                     | BC nguồn                          |
 |--------------------------------------------------------|-------------------------|-----------------------------------|
 | Duyệt người bán, quản lý tài khoản                     | Quản trị                | Người bán, Xác thực, Định danh    |

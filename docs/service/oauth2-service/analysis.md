@@ -1,6 +1,6 @@
 # Phân tích nghiệp vụ: Xác thực
 
-> **Trạng thái:** DRAFT · **Cập nhật:** `2026-10-08` · **Mã BC:** `ATH` (tiền tố cho ID)
+> **Trạng thái:** DRAFT · **Cập nhật:** `2026-10-09` · **Mã BC:** `ATH` (tiền tố cho ID)
 >
 > Tài liệu giữ nghiệp vụ **kèm lý do**, phản ánh trạng thái hiện tại, không ghi lịch sử thay đổi. Bản này mới phủ phần
 > thuộc chặng C0; phần của chặng sau ở mức tên (mục 8). Chỗ cần chốt nằm ở mục 9.
@@ -43,6 +43,8 @@ Xác thực **không** làm:
 | Người dùng | Vai của tài khoản tự đăng ký. Viết hoa chỉ vai này (glossary) | — |
 | Vai nội bộ | Mọi vai khác "Người dùng": Quản trị ở C0, các vai cấp dưới thêm sau | — |
 | Phiên | Khoảng thời gian một tài khoản được coi là đã xác thực; có hai tầng (mục 4.6) | Định danh hiển thị phiên đang hoạt động |
+| Portal | Ứng dụng giao diện cho một nhóm bên tham gia (Cửa hàng, Người bán, Vận hành, Shipper); người dùng vào một portal thì đăng nhập qua Xác thực | Mỗi portal tự quyết hiển thị gì, không quyết ai được đăng nhập |
+| Phiên gốc, phiên portal | Phiên gốc là một lần đăng nhập trên một thiết bị, ở nơi xác thực; phiên portal là phần của lần đăng nhập đó ở từng portal đã vào (mục 4.6) | Định danh gọi cả hai là "phiên" khi hiển thị |
 | Hồ sơ năng lực | Dữ liệu và vòng đời của một năng lực thêm vào tài khoản Người dùng (bán, giao hàng), do BC khác giữ và trỏ về tài khoản | Người bán, Shipper |
 | Hợp đồng danh tính | Nội dung Xác thực công bố cho BC khác đọc về người đang gọi (mục 4.5) | Mọi BC đọc |
 
@@ -145,7 +147,25 @@ phiên gốc. Lý do: đăng nhập chung, người dùng không đăng nhập l
 - Mỗi phiên ghi: chủ phiên, portal, thời điểm cấp và hạn, địa chỉ mạng và thông tin thiết bị lúc cấp (để Định danh hiển thị).
 - **Hạn tuyệt đối.** Hết hạn là suy ra từ hạn, không phải một trạng thái; các kiểu hết hạn xem Q2.
 - Mỗi (phiên gốc, portal) có tối đa một phiên đang hoạt động (INV-ATH-10).
+- **Đăng nhập chung.** Khi người dùng vào portal thứ hai mà phiên gốc còn hiệu lực thì chỉ cấp phiên portal bên dưới phiên
+  gốc đó, không hỏi lại mật khẩu. Phiên gốc gắn với một lần đăng nhập trên một thiết bị; đăng nhập ở thiết bị khác tạo phiên
+  gốc khác.
+- **Vai quyết định portal được vào** (INV-ATH-11): phiên portal chỉ cấp cho tài khoản có vai được phép vào portal đó.
 - Xác thực chỉ giữ phiên đang hoạt động. Phiên đã kết thúc và lịch sử thuộc Định danh (C1b).
+
+**Portal và vai được vào.** Bảng này là dữ liệu của Xác thực: thêm một portal là thêm dòng, không đổi cấu trúc tài khoản hay phiên.
+
+| Portal | Vai được vào | Ghi chú |
+|---|---|---|
+| Cửa hàng | Người dùng | Vai nội bộ không mua hàng (mục 4.4) nên không vào; thấy trang "không có quyền" kèm nút về portal Vận hành |
+| Vận hành | Vai nội bộ (Quản trị ở C0) | Chỉ chứa nghiệp vụ vận hành sàn: duyệt, phân xử, điều phối shipper, nhận hàng ở kho. Người dùng thấy trang "không có quyền" kèm nút về Cửa hàng |
+| Người bán | Người dùng | Xác thực chỉ cho vào portal. Bán được hay không do BC Người bán quyết (hồ sơ bán hàng). Khi vào, portal gọi BC Người bán để chọn màn hình: chưa có hồ sơ thì màn đăng ký làm người bán, chờ duyệt, đã duyệt, bị khóa. Quyền thật kiểm ở mọi API của Người bán; ẩn màn hình không thay cho kiểm quyền |
+| Shipper | Người dùng | Như Người bán, với BC Shipper. Có lối vào riêng (ứng dụng di động), Cửa hàng không dẫn tới |
+
+- **Không có quyền không phải đăng nhập lỗi.** Mật khẩu đúng thì phiên gốc vẫn được tạo; chỉ phiên portal không được cấp. Trang
+  "không có quyền" có nút về portal phù hợp với vai, và vì phiên gốc còn nên vào đó không hỏi lại mật khẩu.
+- Từ Cửa hàng có lối sang portal Người bán (menu tài khoản; dùng chung phiên gốc), cũng là đường để người mua trở thành người
+  bán. Có hiện lối đó hay không là quyết định giao diện của từng portal, không phải của Xác thực.
 
 ## 5. Năng lực trong C0
 
@@ -172,23 +192,33 @@ suôn sẻ, (5) ai xem lại được lịch sử, (6) dữ liệu chảy sang �
 
 ### CAP-ATH-02 Đăng nhập (stage: H3)
 
-1. Người có tài khoản.
-2. Xác thực chuẩn hóa email, kiểm email và mật khẩu; thành công thì cấp phiên (CAP-ATH-03).
-3. Người dùng thấy kết quả.
+1. Người có tài khoản, khi vào một portal cần đăng nhập. Đầu vào là email, mật khẩu và **portal đích** (portal người dùng
+   đang muốn vào; do portal chuyển người dùng tới nơi đăng nhập, người dùng không tự chọn).
+2. Xác thực xử lý theo thứ tự: chuẩn hóa email, tìm tài khoản, kiểm mật khẩu, kiểm tài khoản đang hoạt động; đạt thì có phiên gốc.
+   Hai bước đầu sai thì cùng một kết quả (INV-ATH-03). Rồi mới xin phiên portal cho portal đích: kiểm vai được vào (INV-ATH-11)
+   và cấp phiên portal (CAP-ATH-03). Nếu người dùng đã có phiên gốc còn hiệu lực (đã đăng nhập ở portal khác) thì **không hỏi
+   lại mật khẩu**: chỉ xin phiên portal (đăng nhập chung, mục 4.6).
+3. Người dùng thấy kết quả và được đưa về portal đích trong trạng thái đã đăng nhập.
 4. Đường không suôn sẻ:
    - Sai email hoặc sai mật khẩu: cùng một kết quả, kể cả thời gian trả lời (INV-ATH-03), để không dò được email nào có
-     tài khoản.
-   - Tài khoản bị khóa: chừa chỗ, làm ở C1b.
-   - Đã đang đăng nhập rồi đăng nhập lại (Q3).
-   - Thử mật khẩu sai nhiều lần: chưa có biện pháp ở C0 (mục 8).
-5. Chưa lưu lịch sử đăng nhập ở C0 (Định danh, C1b); đăng nhập thất bại được phát thành event để Định danh ghi về sau.
+     tài khoản. Hệ quả: email không tồn tại cũng tốn đúng công kiểm mật khẩu như email có thật, nên tải đăng nhập không phụ
+     thuộc việc email có thật hay không (và đây là lý do đăng nhập cần giới hạn tần suất, Q7).
+   - Mật khẩu đúng nhưng vai không được vào portal đích: phiên gốc vẫn được tạo, phiên portal không được cấp; người dùng thấy
+     trang "không có quyền" kèm nút về portal phù hợp với vai, và vào đó không hỏi lại mật khẩu (mục 4.6). Nói rõ được vì người
+     gọi đã chứng minh danh tính, không còn gì để dò.
+   - Tài khoản bị khóa: từ chối sau khi mật khẩu đúng, nói rõ là bị khóa; làm ở C1b.
+   - Đã đăng nhập rồi đăng nhập lại, hoặc đăng nhập trên thiết bị khác: được, mỗi lần đăng nhập là một phiên gốc riêng (Q3).
+   - Thử mật khẩu sai nhiều lần: giới hạn theo địa chỉ mạng ở cổng; khóa tạm tài khoản chưa làm ở C0 (mục 8, Q7).
+5. Chưa lưu lịch sử đăng nhập ở C0 (Định danh, C1b). Đăng nhập thất bại được phát thành event để Định danh ghi về sau,
+   **chỉ khi tìm ra tài khoản**: email không tồn tại không có chủ để ghi, và nếu ghi thì kẻ dò email làm phình lịch sử.
 6. Phiên chảy sang các BC khác dưới dạng hợp đồng danh tính (mục 4.5).
 
 ### CAP-ATH-03 Giữ phiên (stage: H4)
 
 1. Hệ thống, sau đăng nhập thành công.
-2. Một lần đăng nhập tạo một phiên ở nơi xác thực; mỗi portal người dùng vào tạo một phiên portal bên dưới (mục 4.6). Xác
-   thực xác nhận phiên khi được hỏi.
+2. Một lần đăng nhập tạo một phiên gốc ở nơi xác thực; mỗi portal người dùng vào tạo một phiên portal bên dưới phiên gốc đó
+   (mục 4.6), và vào portal tiếp theo khi phiên gốc còn hiệu lực thì không đăng nhập lại. Xác thực xác nhận phiên khi được
+   hỏi: phiên còn hiệu lực hay không, của tài khoản nào, vai gì.
 3. Hết hạn thì người dùng về trạng thái chưa đăng nhập và đăng nhập lại được.
 4. Đường không suôn sẻ: phiên hết hạn khi người dùng đang làm dở thao tác thì bị từ chối và yêu cầu đăng nhập lại
    (INV-ATH-08); cấp phiên lặp cho cùng (phiên gốc, portal) không tạo thêm phiên (INV-ATH-10).
@@ -198,8 +228,9 @@ suôn sẻ, (5) ai xem lại được lịch sử, (6) dữ liệu chảy sang �
 ### CAP-ATH-04 Đăng xuất (stage: H5)
 
 1. Người dùng.
-2. Xác thực kết thúc phiên ở nơi xác thực và các phiên portal bên dưới, rồi báo portal hủy phiên của nó.
-3. Người dùng về trạng thái chưa đăng nhập.
+2. Xác thực kết thúc **phiên gốc của lần đăng nhập hiện tại** và mọi phiên portal bên dưới nó, rồi báo các portal đó hủy phiên
+   của mình. Lần đăng nhập khác của cùng tài khoản (thiết bị khác) giữ nguyên (Q3).
+3. Người dùng về trạng thái chưa đăng nhập ở mọi portal của thiết bị đó.
 4. Đường không suôn sẻ: đăng xuất khi phiên đã hết hạn hoặc chưa đăng nhập vẫn thành công (INV-ATH-05).
 5. Không có lịch sử ở Xác thực; event phiên kết thúc đi sang Định danh.
 6. Event phiên kết thúc chảy sang Định danh.
@@ -234,6 +265,7 @@ Quản trị, mật khẩu ở dạng băm, email thuộc miền nội bộ. D�
 | INV-ATH-08 | Phiên hết hạn hoặc bị hủy thì không còn hiệu lực | Mất ý nghĩa của hết hạn và đăng xuất nếu vẫn dùng được | mới |
 | INV-ATH-09 | Vai của tài khoản không đổi sau khi tạo (ở C0) | Giữ một nguồn sự thật cho vai; đổi vai kéo theo nghiệp vụ chưa có | mới |
 | INV-ATH-10 | Mỗi (phiên gốc, portal) có tối đa một phiên đang hoạt động | Đăng nhập chung không được nhân bản phiên; thu hồi một phiên là đủ cắt quyền | mới |
+| INV-ATH-11 | Phiên portal chỉ được cấp cho tài khoản có vai được phép vào portal đó | Vai quyết định tài khoản vào portal nào; nếu mỗi portal tự chặn thì một portal quên chặn là lộ cửa | R8 |
 
 ## 7. Điểm nối với BC khác
 
@@ -266,11 +298,12 @@ BC nhưng thuộc chặng sau. "Cắt tạm" theo B16. "Chưa có ở root" là 
 | Thiết bị tin cậy | **Cắt tạm** (B16) | Sau xác thực nhiều lớp | Đỡ nhập mã mỗi lần trên máy quen | Chỉ là tiện ích trên xác thực nhiều lớp | Mã thiết bị ghi sẵn trên phiên (Q6) |
 | Quên, đặt lại mật khẩu | **Cắt tạm** (B16) | Khi có Thông báo | Người dùng quên mật khẩu là chắc chắn; ở C0 người quên phải tạo tài khoản mới | Cần gửi thư | Thông báo |
 | Xác minh email | **Cắt tạm** (B16) | Khi có Thông báo | Chống chiếm email (Q4) | Cần gửi thư | Thông báo; thêm trạng thái "chờ xác minh" |
-| Giới hạn đăng nhập sai | **Cắt tạm** (B16) | Khi cần | Chống dò mật khẩu | Cần chỗ đếm và chính sách | Bước trước kiểm mật khẩu |
+| Giới hạn đăng nhập sai (khóa tạm tài khoản) | **Cắt tạm** (B16) | Khi cần | Chống dò mật khẩu | Cần chỗ đếm và chính sách; giới hạn tần suất ở cổng vẫn áp dụng (Q8) | Bước trước kiểm mật khẩu |
 | Đăng nhập mạng xã hội hoặc số điện thoại | **Cắt tạm** (B16) | Cải thiện | Tiện cho người dùng; quen thuộc với người dùng sàn ở Việt Nam | Cần hạ tầng bên ngoài | Thêm cách đăng nhập mà không đổi tài khoản |
 | Nhiều vai trên một tài khoản | Hoãn (chưa có ở root) | Không dự kiến | Trải nghiệm giống một số sàn | Không thêm bài học phân tán; kéo theo phiên mang tập vai, chuyển ngữ cảnh | Với mô hình hồ sơ năng lực (mục 4.2) có thể không bao giờ cần |
 | Liên kết nhân viên với tài khoản mua | Không thuộc Xác thực | Khi có ưu đãi nhân viên | Cho phép ưu đãi nhân viên | Chưa có nghiệp vụ | Xem mục 4.4 |
 | Nhân viên của gian hàng (tài khoản phụ có quyền riêng) | Không thuộc Xác thực | Người bán, nếu cần | Chủ gian hàng giao việc | Chưa có nghiệp vụ | Quan hệ thành viên giữa tài khoản và gian hàng ở BC Người bán |
+| Portal Nhân sự, ERP (chấm công, tính lương, kế toán, mua hàng) | Ngoài phạm vi dự án | Không xếp | Mở rộng sàn thành hệ thống doanh nghiệp | Nghiệp vụ lớn, ít bài học phân tán thêm; người dùng và độ nhạy dữ liệu khác portal Vận hành | Mỗi portal là một dòng trong bảng portal, vai; vai nội bộ thêm theo portal; Nhân sự có thể gọi tạo tài khoản nội bộ (mục 4.4) |
 | Shipper tự đăng ký hay Quản trị tạo | Root để ngỏ (B27) | C3a | — | Chốt khi làm | Hồ sơ Shipper trỏ về tài khoản |
 
 ## 9. Câu hỏi cần trả lời
@@ -282,10 +315,11 @@ khỏi đây.
 |---|---|---|---|
 | Q1 | Quản trị có sẵn: mật khẩu ban đầu từ đâu, có bắt đổi ở lần đăng nhập đầu không | Mật khẩu cố định trong mã là rủi ro; roadmap yêu cầu giữ bí mật ngoài mã từ C0 | Mật khẩu băm nằm trong script khởi tạo của môi trường, không trong mã. Đổi mật khẩu cho tài khoản đang đăng nhập có thể vào C0 vì Quản trị cần |
 | Q2 | Phiên hết hạn trong những trường hợp nào (không hoạt động, tuyệt đối) | Nghiệp vụ cần biết có hai kiểu hết hạn hay một | Hai kiểu; con số là quyết định kỹ thuật |
-| Q3 | Một tài khoản đăng nhập trên nhiều thiết bị cùng lúc có được không; đăng xuất hủy phiên nào | Ảnh hưởng nghĩa của "đăng xuất" | Được; đăng xuất chỉ hủy phiên hiện tại |
+| Q3 | Một tài khoản đăng nhập trên nhiều thiết bị cùng lúc có được không; đăng xuất hủy phiên nào | Ảnh hưởng nghĩa của "đăng xuất" | Được. Mỗi lần đăng nhập là một phiên gốc riêng; đăng xuất hủy phiên gốc của lần đăng nhập hiện tại cùng mọi phiên portal bên dưới nó, không đụng lần đăng nhập ở thiết bị khác |
 | Q4 | Chưa xác minh email thì chấp nhận rủi ro người đăng ký bằng email của người khác (chiếm email) | INV-ATH-01 giữ email duy nhất, nên chủ email thật sau đó không đăng ký được | Chấp nhận ở C0 vì xác minh email đang cắt tạm (mục 8) |
 | Q5 | Đăng xuất từ xa có hiệu lực ngay hay trong tối đa bao lâu, với từng loại ứng dụng | Token đã cấp không thu hồi ngay được; web giữ phiên ở gateway cắt ngay, ứng dụng giữ token ở máy có độ trễ | Web ngay; di động trong tối đa thời hạn token truy cập; khóa tài khoản đưa vào danh sách chặn |
 | Q6 | "Tin cậy thiết bị" để làm gì: bỏ qua xác thực nhiều lớp, hay là điều kiện để thu hồi thiết bị khác, hay cả hai | Ảnh hưởng nơi giữ dữ liệu tin cậy và luồng thu hồi | Chờ chốt khi vào C1b |
+| Q7 | Đăng nhập có giới hạn tần suất ở C0 không, theo khóa nào | Mỗi lần đăng nhập tốn một lần kiểm mật khẩu, kể cả với email không tồn tại (INV-ATH-03); kẻ dò có thể đẩy CPU. Giới hạn theo địa chỉ mạng ở cổng không thấy email; khóa tạm tài khoản đang cắt tạm | Giới hạn theo địa chỉ mạng ở cổng (nhóm 1) là đủ cho C0. Giới hạn theo email ở bước đăng nhập (nhóm 2, `docs/global/3.technical/rate-limiting-layers.md`) quyết khi làm feature đăng nhập, cùng với số đo trần băm của bộ đo nền. Khóa tạm tài khoản vẫn cắt tạm |
 
 ## 10. Tham khảo từ hệ thống khác
 

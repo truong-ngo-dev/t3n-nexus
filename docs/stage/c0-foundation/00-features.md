@@ -63,7 +63,7 @@ miền, lưu trữ và API của feature nghiệp vụ làm được độc lậ
 | 04 | Quản trị có sẵn | Dữ liệu khởi tạo | Dữ liệu khởi tạo | S4 · INV-ATH-01, 02, 06, 07 | không | Chưa bắt đầu |
 | 05 | Khung giao diện | Giao diện | Roadmap C0, `5-ui-analysis.md` | S1, S4 (nhìn thấy qua giao diện) | 01, 02, 03, 06 | Chưa bắt đầu |
 | 06 | Cổng truy cập | Kỹ thuật | Roadmap C0, `rate-limiting-layers.md` | Mọi kịch bản đi qua cổng; giới hạn tần suất của đăng ký trả 429 | không | Chưa bắt đầu |
-| 07 | Truy vết lỗi | Kỹ thuật | Roadmap C0, NFR | Một yêu cầu lỗi lần ra nguyên nhân từ log | 06 | Đã thiết kế, chưa cài (xem `07-error-tracing/plan.md`) |
+| 07 | Truy vết lỗi | Kỹ thuật | Roadmap C0, NFR | Một yêu cầu lỗi lần ra nguyên nhân từ log | 06 | Đã cài `2026-10-09`; nợ: đo overhead (chờ 08), `@Async` chưa kiểm, dịch vụ khác chưa chuyển cấu hình log (xem `07-error-tracing/plan.md`) |
 | 08 | Bộ đo nền | Kỹ thuật | NFR 4.1, roadmap C0 | Số trần máy cho điểm cuối rỗng, ghi cơ sở dữ liệu, băm mật khẩu | 06 | Chưa bắt đầu |
 | 09 | Kiểm đầu-cuối cả chặng | Kỹ thuật | Roadmap C0, `stage.md` mục 4 | Chạy hết S1 đến S5 qua cổng trên ứng dụng thật | 01 đến 08 | Chưa bắt đầu |
 
@@ -115,4 +115,15 @@ Ghi dần khi mỗi feature đóng; tổng kết khi đóng chặng.
 - **Giới hạn tần suất có hai nhóm** (bị động ở biên, nghiệp vụ trong BC); cấu hình bằng thuộc tính nạp lúc khởi động, chưa đổi
   lúc chạy. Mô hình ở `../../global/3.technical/rate-limiting-layers.md`.
 - **Còn nợ:** phép đo tải của đăng ký (chờ feature 08); các cột và trạng thái tạm trong `user_accounts` (xem `data.md`).
-  Giao diện đăng ký (gửi trường thừa, đọc mã lỗi `code`) thuộc feature 05. JSON hỏng đang trả 500, giao cho feature 07.
+  Giao diện đăng ký (gửi trường thừa, đọc mã lỗi `code`) thuộc feature 05. JSON hỏng trả 400 `MALFORMED_REQUEST` (feature 07).
+
+### Feature 07 (Truy vết lỗi), cài xong `2026-10-09`
+
+- **Kiểm nền kỹ thuật trước đã tránh được hai lỗi im lặng.** `EnvironmentPostProcessor` ở Boot 4 phải đăng ký bằng `META-INF/spring.factories`
+  (file `.imports` cũ bị bỏ qua, mặc định không bao giờ được đặt); `logback-spring.xml` tự khai báo bộ ghi chữ làm tắt log có cấu trúc.
+- **Một dòng hoàn tất cho mỗi yêu cầu**, nội dung yêu cầu chỉ khi lỗi và chỉ qua danh sách trường được phép; tên trường nhạy cảm bị che ở mọi độ sâu,
+  và nội dung hỏng không bao giờ ghi nguyên văn (từng để lọt mật khẩu qua đường lui dạng chữ, đã sửa và có test).
+- **Mã lỗi đi bằng thuộc tính của yêu cầu**, không qua MDC, để không rò sang các dòng log khác.
+- **Test đọc đầu ra JSON thật** (`RequestLoggingIntegrationTest`) thay cho kiểm bằng mắt; log bất đồng bộ nên test chờ có giới hạn.
+- **Còn nợ:** đo overhead (chờ feature 08); `@Async` tự truyền ngữ cảnh chưa kiểm; các dịch vụ khác chưa chuyển sang `observability-logback.xml`;
+  `client.ip` và `user.id` tự động chờ cổng truy cập (06) và đăng nhập (02).

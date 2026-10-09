@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import vn.t3nexus.lib.observability.http.LogRequestFields;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
 import vn.t3nexus.oauth2.application.user_account.register_user.RegisterUser;
 
@@ -18,6 +19,8 @@ public class UserAccountController {
     // Path trần, không tiền tố /api — khớp quy ước của /login, /mfa, /password/setup (cùng service)
     // và api-gateway route /auth/** (stripPrefix 1 segment): public /auth/register → /register nội bộ.
     // Nằm ngoài /api/** nên không bị apiResourceServerFilterChain (JWT) chặn — xem defaultSecurityFilterChain.
+    // Khi lỗi, chỉ email được ghi vào log (mật khẩu không bao giờ).
+    @LogRequestFields("email")
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<RegisterUser.Result> register(@RequestBody @Valid RegisterRequest request) {

@@ -19,3 +19,6 @@ web/.nx/
 # OS
 .DS_Store
 Thumbs.db
+
+# Log JSON cho ELK (profile log-elk)
+logs/

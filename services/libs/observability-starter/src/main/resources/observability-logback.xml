@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cấu hình logback dùng chung cho mọi dịch vụ. Ghi log qua hàng đợi bất đồng bộ để việc ghi không chặn luồng xử lý yêu cầu.
+  Dịch vụ dùng bằng cách tạo logback-spring.xml chỉ gồm:
+
+      <configuration>
+          <include resource="observability-logback.xml"/>
+      </configuration>
+
+  - Console: luôn ra chữ (định dạng mặc định của Spring Boot), vì JSON khó đọc bằng mắt. Không có công tắc đổi console sang JSON.
+  - ELK: luôn ghi thêm file JSON theo ECS (đường dẫn logging.file.name, mặc định logs/<tên ứng dụng>.json, xoay vòng theo ngày và kích thước,
+    giữ 7 ngày) để Filebeat đọc và đẩy lên ELK. Định dạng file không phụ thuộc định dạng console.
+  - Hàng đợi giới hạn; khi đầy thì bỏ các dòng mức thấp (TRACE, DEBUG, INFO) thay vì chặn luồng xử lý. Chỉnh bằng biến môi trường
+    OBS_LOG_QUEUE_SIZE và OBS_LOG_DISCARD_THRESHOLD (số chỗ trống còn lại dưới ngưỡng thì bắt đầu bỏ).
+  Xem docs/global/4.convention/logging.md mục 7.
+-->
+<included>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <springProperty scope="context" name="OBS_APP_NAME" source="spring.application.name" defaultValue="app"/>
+    <springProperty scope="context" name="LOG_FILE" source="logging.file.name" defaultValue="logs/${OBS_APP_NAME}.json"/>
+    <include resource="org/springframework/boot/logging/logback/structured-file-appender.xml"/>
+
+    <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>${OBS_LOG_QUEUE_SIZE:-8192}</queueSize>
+        <discardingThreshold>${OBS_LOG_DISCARD_THRESHOLD:-1638}</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="CONSOLE"/>
+    </appender>
+
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>${OBS_LOG_QUEUE_SIZE:-8192}</queueSize>
+        <discardingThreshold>${OBS_LOG_DISCARD_THRESHOLD:-1638}</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="FILE"/>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="ASYNC_CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </root>
+</included>

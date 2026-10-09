@@ -57,10 +57,11 @@ cho C0: đăng ký chỉ thu thứ cần để xác thực (email, mật khẩu)
 **2.5. Ai chặn việc gì.** Xác thực chỉ khẳng định "người này, vai này". Lời khẳng định đó được công bố thành một hợp đồng
 danh tính mà các BC khác tự đọc, không gọi lại Xác thực ở mỗi yêu cầu. Việc cho hay không cho làm một thao tác thuộc BC
 sở hữu thao tác đó (UI §5: quyền thật do BC kiểm, ẩn nút không thay cho kiểm quyền). Ở C0 chưa có BC nào có thao tác cần
-chặn và chưa có BC nào đọc hợp đồng ngoài giao diện, nên vai chỉ được ghi nhận. Chặn theo vai đến cùng BC đầu tiên cần nó
-(roadmap xếp phân quyền ở C1b).
+chặn và chưa có BC nào đọc hợp đồng ngoài giao diện, nên vai chỉ được ghi nhận, trừ một việc của chính Xác thực: vai quyết
+định tài khoản vào được **portal** nào (người dùng vào portal Cửa hàng, vai nội bộ vào portal Vận hành). Chặn theo vai ở các
+thao tác của BC khác đến cùng BC đầu tiên cần nó (roadmap xếp phân quyền ở C1b).
 
-> **Chốt:** C0 chỉ ghi nhận vai, không chặn. → `analysis.md` ghi hợp đồng danh tính (nội dung, độ tươi, khóa chủ sở hữu)
+> **Chốt:** C0 ghi nhận vai và dùng nó để quyết vào portal nào, không chặn thao tác của BC khác. → `analysis.md` ghi hợp đồng danh tính (nội dung, độ tươi, khóa chủ sở hữu)
 > như điểm nối cho các BC sau; phân quyền để mức tên, ghi "C1b".
 
 **2.6. Điều gì có thể sai.** Mỗi hành vi dưới đây cần một điều được bảo đảm. Phát biểu chính thức, kèm lý do, nằm ở
@@ -75,8 +76,9 @@ chặn và chưa có BC nào đọc hợp đồng ngoài giao diện, nên vai c
 | Đăng xuất khi phiên đã hết hạn | R5. Đăng xuất luôn thành công |
 | Vai ngoài tập quy định, hoặc người đăng ký tự chọn vai quản trị | R6. Mỗi tài khoản có đúng một vai thuộc tập đã quy định; người đăng ký công khai không chọn được vai |
 | Người ngoài đăng ký bằng email trông như của nội bộ để giả mạo | R7. Email thuộc miền nội bộ chỉ dành cho tài khoản nội bộ |
+| Người dùng thường cố vào portal Vận hành, hoặc tài khoản nội bộ vào portal Cửa hàng; hoặc một portal quên kiểm vai | R8. Phiên portal chỉ được cấp cho tài khoản có vai được phép vào portal đó |
 
-> **Chốt:** bảy điều cần bảo đảm. → `analysis.md` nâng chúng thành INV kèm lý do và bổ sung đường lỗi chi tiết. INV là đầu
+> **Chốt:** tám điều cần bảo đảm. → `analysis.md` nâng chúng thành INV kèm lý do và bổ sung đường lỗi chi tiết. INV là đầu
 > vào của aggregate ở `service.md` (bước 3) và của test (bước 6).
 
 ## 3. Hành vi và BC
@@ -121,11 +123,12 @@ Mỗi kịch bản là một cách chứng minh hành vi hoặc điều cần b�
 | S3 | Đăng nhập sai email và đăng nhập sai mật khẩu nhận cùng một thông báo | R3 |
 | S4 | Đăng nhập bằng tài khoản Quản trị có sẵn, hệ thống nhận ra vai Quản trị; tài khoản vừa tự đăng ký có vai khác Quản trị, kể cả khi yêu cầu đăng ký gửi kèm vai quản trị | H2, H6, R6 |
 | S5 | Đăng xuất khi phiên đã hết hạn vẫn đưa người dùng về trạng thái chưa đăng nhập | R5 |
+| S6 | Tài khoản Người dùng vào portal Vận hành: đăng nhập thành công nhưng thấy "không có quyền" và không có phiên portal; nút quay lại Cửa hàng đưa vào được mà không hỏi lại mật khẩu. Tài khoản Quản trị vào Cửa hàng cũng vậy | R8 |
 
 R2 không có kịch bản nghiệp vụ vì không quan sát được từ ngoài; nó kiểm bằng test ở bước thiết kế. Tương tự, việc phiên hết
 hạn và việc đăng xuất cắt cả hai tầng phiên kiểm bằng test từ bất biến của `analysis.md`.
 
-> **Chốt:** năm kịch bản (cùng bảy điều cần bảo đảm, trừ R2 kiểm bằng test) là điều kiện "xong" của phần nghiệp vụ. →
+> **Chốt:** sáu kịch bản (cùng tám điều cần bảo đảm, trừ R2 kiểm bằng test) là điều kiện "xong" của phần nghiệp vụ. →
 > `analysis.md` dùng chúng để kiểm tra mỗi năng lực có ít nhất một kịch bản chứng minh. Bước 4 dùng chúng để cắt feature
 > theo lát dọc; bước 6 viết test từ chúng.
 
@@ -136,8 +139,8 @@ C0 chỉ có một BC nên chưa có luồng xuyên BC. Ba luồng nằm trọn 
 | Luồng | Bước |
 |---|---|
 | Đăng ký | Khách vãng lai gửi email và mật khẩu → Xác thực kiểm email chưa dùng và không thuộc miền nội bộ (R1, R7) và mật khẩu hợp lệ → tạo tài khoản vai Người dùng, đang hoạt động → báo kết quả |
-| Đăng nhập | Người dùng gửi email và mật khẩu → Xác thực kiểm thông tin (R3) → phiên được tạo ở nơi xác thực và ở portal → người dùng vào hệ thống |
-| Đăng xuất | Người dùng yêu cầu → phiên ở nơi xác thực và ở portal bị hủy (R5) → người dùng về trạng thái chưa đăng nhập |
+| Đăng nhập | Người dùng vào một portal, gửi email và mật khẩu → Xác thực kiểm thông tin (R3), tạo phiên ở nơi xác thực → kiểm vai được vào portal đích (R8), tạo phiên portal → người dùng vào portal. Đã có phiên ở nơi xác thực thì vào portal khác không hỏi lại mật khẩu |
+| Đăng xuất | Người dùng yêu cầu → phiên ở nơi xác thực của lần đăng nhập này và các phiên portal bên dưới bị hủy (R5), lần đăng nhập ở thiết bị khác giữ nguyên → người dùng về trạng thái chưa đăng nhập |
 
 > **Chốt:** cả ba luồng nằm trong một BC, chưa có BC nào nhận kết quả. → `analysis.md` lấy ba luồng làm khung viết từng
 > năng lực. `service.md` ở C0 ghi sẵn các event "tài khoản đã đăng ký", "phiên được cấp", "phiên kết thúc" (chưa có bên

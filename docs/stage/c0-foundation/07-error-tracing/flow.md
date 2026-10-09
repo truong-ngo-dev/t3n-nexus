@@ -1,6 +1,6 @@
 # Feature 07: Truy vết lỗi
 
-> **Trạng thái:** đã thiết kế, chưa cài · **Chặng:** C0 · **Loại:** Kỹ thuật
+> **Trạng thái:** đã cài `2026-10-09`, còn nợ đo overhead (chờ feature 08) · **Chặng:** C0 · **Loại:** Kỹ thuật
 >
 > **Nguồn:** Roadmap C0 (quy ước phát triển: bắt lỗi, log; chuẩn xử lý lỗi và log), NFR mục 7 · **Kiểm chứng bằng:** Một yêu cầu lỗi lần ra nguyên nhân từ log
 
@@ -22,6 +22,21 @@ C0 chỉ có một BC nên tìm nguyên nhân trong log của một dịch vụ 
 - `oauth2-service` dùng mẫu log mặc định của Spring Boot. Mẫu này có ô mã tương quan nên mỗi dòng log trong một yêu cầu đã tự mang `traceId` và `spanId` khi trace đang hoạt động (đã thấy ở log chạy thật của `RegisterUser`). Đoạn Logstash trong `logback-spring.xml` đang comment.
 - Một số use case còn tự đọc `traceId` từ MDC để ghi vào nội dung dòng log (ví dụ `RegisterUser`); việc này thừa với ô mã tương quan và nên bỏ khi có quy ước log.
 - **Còn thiếu:** log chưa ở dạng cấu trúc (JSON) nên chưa sẵn sàng đưa vào Logstash; chưa có cơ chế che dữ liệu nhạy cảm; `GlobalExceptionHandler` đã ghi lỗi nghiệp vụ ở mức cảnh báo và lỗi chung ở mức lỗi kèm stack trace, nhưng chưa có quy ước chung cho nơi khác (consumer, bộ lọc).
+
+## Xử lý dữ liệu nhạy cảm trong log
+
+Hai lớp độc lập, mỗi lớp có phạm vi riêng. Quy ước ghi (code không đưa dữ liệu nhạy cảm vào log) vẫn là lớp phòng thủ thứ nhất; hai lớp dưới đây chỉ là lưới an toàn.
+
+| | Lớp 1: `BodySanitizer` | Lớp 2: `SecretScrubbingCustomizer` |
+|---|---|---|
+| Áp dụng cho | Nội dung yêu cầu đính kèm dòng hoàn tất (`http.request.body.content`) | Mọi dòng log: `message`, `error.message`, `error.stack_trace` |
+| Che theo tên trường (`password`, `token`, `secret`, `otp`...) | Có, mọi độ sâu; cả nội dung JSON hỏng hoặc bị cắt | **Không** |
+| Danh sách trường được phép (`@LogRequestFields`) | Có | Không áp dụng |
+| Che `Bearer …`, JWT, mã băm bcrypt trong giá trị | Có | Có (cùng bộ mẫu `SecretPatterns`) |
+| Cắt giá trị dài, mảng dài; chuỗi giống base64 chỉ ghi kích thước | Có | **Không** |
+| Bỏ ký tự điều khiển (chống giả dòng log) | Có, ở nhánh chữ | **Không** (JSON đã tự thoát ký tự điều khiển trong chuỗi) |
+
+**Giới hạn đã chấp nhận:** `password=abc` hay `"password":"abc"` nằm trong `message` hoặc stack trace sẽ **không** bị che, vì lớp 2 chỉ nhận ra ba mẫu token. Điều này an toàn chừng nào code tuân quy ước (không nối nội dung yêu cầu, mật khẩu hay đối tượng chứa chúng vào `message`; không ghi cả đối tượng bằng `toString`). Cả hai giới hạn này, và việc lớp 2 chỉ chạy ở đầu ra JSON (console dạng chữ không được quét), ghi ở `deferred.md`.
 
 ## Việc đã giao cho feature này
 

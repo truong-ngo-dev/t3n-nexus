@@ -1,1 +1,2 @@
-# EnvironmentPostProcessor is now registered via META-INF/spring/org.springframework.boot.env.EnvironmentPostProcessor.imports
+org.springframework.boot.EnvironmentPostProcessor=\
+vn.t3nexus.lib.observability.ObservabilityEnvironmentPostProcessor

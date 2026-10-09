@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Log JSON, ghi bất đồng bộ: cấu hình dùng chung của observability-starter -->
     <include resource="observability-logback.xml"/>
 </configuration>

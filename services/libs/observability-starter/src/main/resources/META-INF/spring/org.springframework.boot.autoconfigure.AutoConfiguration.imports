@@ -1,1 +1,2 @@
 vn.t3nexus.lib.observability.ObservabilityAutoConfiguration
+vn.t3nexus.lib.observability.http.RequestLoggingAutoConfiguration

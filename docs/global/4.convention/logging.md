@@ -104,31 +104,46 @@ phủ cả yêu cầu bị từ chối ở bước đầu (401, 429, JSON hỏng
 cho biết lúc bắt đầu, `trace.id` nối các dòng. Một dòng "vào" chỉ ở mức DEBUG (method, đường dẫn, kích thước, địa chỉ mạng), bật khi
 chẩn đoán yêu cầu treo.
 
-**Nội dung yêu cầu chỉ ghi khi lỗi.** Yêu cầu thành công không ghi nội dung. Khi trả 5xx, hoặc 4xx do kiểm đầu vào hay nghiệp vụ (trừ 401
-và 404), dòng hoàn tất kèm nội dung yêu cầu đã xử lý. Thao tác mà kết quả sai không phải lỗi (tính tiền, tồn kho, đặt hàng) ghi dấu vết
+**Nội dung yêu cầu chỉ ghi khi lỗi.** Yêu cầu thành công không ghi nội dung. Khi trả 5xx, hoặc 4xx do kiểm đầu vào hay nghiệp vụ (trừ 401, 403,
+404, 405, 429: danh sách `noBodyStatuses` cấu hình được), dòng hoàn tất kèm nội dung yêu cầu đã xử lý. Thao tác mà kết quả sai không phải lỗi (tính tiền, tồn kho, đặt hàng) ghi dấu vết
 đầy đủ vào nhật ký kiểm toán riêng (B25), không vào log ứng dụng. Phản hồi chỉ cần `error.code` ở dòng hoàn tất. Header mặc định không ghi;
 `Authorization`, `Cookie`, `Set-Cookie` không bao giờ.
+
+**Danh sách trường được phép** khai báo bằng chú thích `@LogRequestFields("email")` trên method của controller. Nội dung không phân tích được (JSON
+hỏng hoặc bị cắt) mà đường dẫn có danh sách trường được phép thì chỉ ghi kích thước, vì danh sách không áp dụng được; đường dẫn không có danh sách thì vẫn
+che giá trị của cặp `tên: giá trị` có tên nhạy cảm trong chuỗi.
 
 **Xử lý nội dung trước khi ghi**, theo thứ tự: chỉ JSON hoặc chữ (tệp, nhị phân chỉ ghi loại và kích thước); đệm tối đa khoảng 4 KB; che
 trường có tên nhạy cảm ở mọi độ sâu (`password`, `token`, `accessToken`, `refreshToken`, `otp`, `secret`, `authorization`, `cardNumber`...);
 đường dẫn nhạy cảm chỉ giữ các trường được phép; quét mẫu bí mật (`Bearer …`, JWT, mã băm) trên giá trị còn lại; cắt giá trị dài; đóng gói thành
 **một chuỗi**, không trải khóa của nội dung thành trường (tránh bùng nổ số trường ở Elasticsearch). Lỗi khi xử lý không bao giờ làm hỏng yêu cầu.
 
-Ghi log chạy bất đồng bộ qua hàng đợi giới hạn để không chặn luồng xử lý; đầy thì bỏ dòng mức thấp. Ước lượng overhead dưới nửa mili-giây
-cho một yêu cầu, cần đo bằng điểm cuối rỗng của bộ đo nền.
+Ghi log chạy bất đồng bộ qua hàng đợi giới hạn để không chặn luồng xử lý; đầy thì bỏ dòng mức thấp. Mỗi dịch vụ dùng cấu hình dùng chung bằng
+`logback-spring.xml` chỉ gồm `<include resource="observability-logback.xml"/>`; console luôn ra chữ, file JSON cho Filebeat luôn được ghi (xem mục 7). Overhead
+dự kiến dưới nửa mili-giây mỗi yêu cầu (Chỉ thiết kế), cần đo bằng điểm cuối rỗng của bộ đo nền (feature 08).
+
+**Cổng quản trị riêng.** Các endpoint vận hành (`health`, `info`, `metrics`, `prometheus`, `loggers`) nằm ở cổng quản trị = cổng ứng dụng + 10000, chỉ nghe
+`127.0.0.1`, không ở cổng công khai. Đổi mức log một lớp lúc chạy: `POST /actuator/loggers/<tên lớp>` với `{"configuredLevel":"DEBUG"}`, không khởi động lại.
 
 ## 7. Định dạng log
 
-Mỗi dòng là một đối tượng JSON, tên trường theo ECS (chữ thường, dấu chấm).
+Console luôn là dạng chữ mặc định của Spring Boot để dev đọc bằng mắt (JSON khó đọc, nên không có công tắc đổi console sang JSON). Mục đích của JSON là đẩy lên ELK, nên **luôn có file JSON**. Ứng dụng không đẩy thẳng sang Logstash: Filebeat đọc file rồi gửi đi, nên Logstash chậm hay chết không ảnh hưởng ứng dụng.
+
+| Đầu ra | Định dạng |
+|---|---|
+| Console | Luôn chữ |
+| File `logs/<tên ứng dụng>.json` (đổi bằng `logging.file.name`) | Luôn JSON theo ECS, xoay vòng theo ngày và kích thước, giữ 7 ngày; Filebeat đọc file này rồi gửi vào ELK (roadmap C2a). Thư mục `logs/` đã có trong `.gitignore` |
+
+Mỗi dòng JSON trong file là một đối tượng JSON, tên trường theo ECS (chữ thường, dấu chấm). Bảng dưới là cấu trúc của dòng JSON.
 
 | Nhóm | Trường |
 |---|---|
 | Mọi dòng | `@timestamp` (giờ sự kiện), `log.level`, `log.logger`, `message`, `process.thread.name`, `service.name`, `service.environment` |
 | Truy vết | `trace.id`, `span.id` (tự gắn từ ngữ cảnh trace) |
-| Người dùng | `user.id` (mã tài khoản), `user.email` khi cần |
+| Người dùng | `user.id` (mã tài khoản) do code đặt bằng `LogContext.user(...)` khi biết người dùng; chưa tự lấy từ danh tính đã xác thực |
 | Lỗi | `error.type`, `error.message`, `error.stack_trace`; `error.code` là mã lỗi chữ ổn định |
 | Khóa nghiệp vụ | `labels.<khóa>`, kiểu `keyword`, ví dụ `labels.orderId`, `labels.eventId`, `labels.eventType` |
-| Dòng hoàn tất | `event.dataset=http.request`, `http.request.method`, `http.route` (khuôn đường dẫn), `url.path`, `http.response.status_code`, `event.duration` (nano-giây), `http.request.body.bytes`, `http.response.body.bytes`, `client.ip`; khi lỗi thêm `http.request.body.content` |
+| Dòng hoàn tất | `event.dataset=http.request`, `http.request.method`, `http.route` (khuôn đường dẫn), `url.path`, `http.response.status_code`, `event.duration` (nano-giây), `http.request.body.bytes`, `http.response.body.bytes` (chỉ khi phản hồi có `Content-Length`), `client.ip` (địa chỉ kết nối; địa chỉ thật của client do cổng cấp, xem feature cổng truy cập); khi lỗi thêm `error.code` và `http.request.body.content` |
 
 Quy tắc:
 - Dev dùng `log.info`, `log.warn`, `log.error(…, ex)` của SLF4J bình thường; bộ tiện ích không bọc `Logger`.
@@ -137,14 +152,17 @@ Quy tắc:
 - **Tên thao tác (`labels.operation`) không tự có**: dev gọi `LogContext.operation("tênMethod")` một lần ở đầu method khi cần, từ đó mọi dòng log
   trong khối mang trường này. Use case chỉ dựa vào `log.logger`. Không dùng thông tin người gọi của logback (`%M`, `%L`) ở production vì đắt.
 - **Khóa nghiệp vụ do dev tự thêm bằng hàm dùng chung** (`LogContext.put("orderId", …)`) ở nơi đã biết giá trị; hàm đưa vào MDC, ra JSON có
-  tiền tố `labels.`, và xuất hiện ở cả dòng ứng dụng lẫn dòng hoàn tất. Bộ lọc dọn ở `finally`. Chỉ khóa tra cứu dạng chuỗi (khoảng 10 khóa, `camelCase`);
+  tiền tố `labels.`, và xuất hiện ở cả dòng ứng dụng lẫn dòng hoàn tất. Bộ lọc khôi phục MDC về trạng thái đầu yêu cầu ở `finally` (sau khi ghi dòng hoàn tất). Chỉ khóa tra cứu dạng chuỗi (khoảng 10 khóa, `camelCase`);
   số đo cần cộng hay so sánh thuộc về số đo (metric). Danh sách khóa dùng chung giữa các dịch vụ ghi ở đây để mọi nơi viết giống nhau.
 - `traceId`, `spanId` ra JSON là `traceId`, `spanId`; cần đặt `logging.structured.json.rename.traceId=trace.id` và `…spanId=span.id` để thành tên ECS (đã kiểm).
 - Khóa MDC có dấu chấm ra thành đối tượng lồng (`labels.orderId` thành `"labels":{"orderId":…}`); khóa không dấu chấm ra cấp cao. Bộ ghi console tự khai
   báo trong `logback-spring.xml` làm mất định dạng có cấu trúc, nên các file đó phải bỏ hoặc `include` bản có cấu trúc (đã kiểm).
 - MDC gắn với luồng xử lý: khi chuyển việc sang luồng khác, khóa không tự theo sang.
 - Không có trong dòng log: `event.original`, header, token, các trường nội bộ của bộ ghi (`endOfBatch`, `loggerFqcn`, `threadPriority`, `@version`).
-- Phản hồi lỗi cho client trả thêm `traceId` để người dùng đọc lại cho bên rà log.
+- Phản hồi lỗi cho client trả thêm `traceId` (lấy từ MDC) để người dùng đọc lại cho bên rà log, và `code` chữ ổn định; `GlobalExceptionHandler` đặt mã lỗi vào thuộc tính
+  `error.code` của yêu cầu để dòng hoàn tất mang mã. Lỗi nghiệp vụ ghi INFO, lỗi hệ thống ghi ERROR kèm stack trace; nội dung không đọc được là 400 `MALFORMED_REQUEST`;
+  lỗi framework có sẵn mã trạng thái (405, 415...) là `HTTP_<mã>`, không phải 500.
+- Bộ quét ở đầu ra che `Bearer …`, JWT, mã băm trong `message`, `error.message` và `error.stack_trace` (lưới an toàn cuối).
 
 ## 8. Áp dụng với mã có từ trước
 

@@ -2,12 +2,12 @@ package vn.t3nexus.oauth2.application.user_account.register_user;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 // OUT-OF-SCOPE (hộp thư event, bật khi chặng có bên nhận event cần đến): import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.service.IdGenerator;
+import vn.t3nexus.lib.observability.logging.LogContext;
 import vn.t3nexus.oauth2.domain.user_account.Email;
 import vn.t3nexus.oauth2.domain.user_account.PasswordHash;
 import vn.t3nexus.oauth2.domain.user_account.PasswordHasher;
@@ -57,7 +57,8 @@ public class RegisterUser implements CommandHandler<RegisterUser.Command, Regist
         // OUT-OF-SCOPE (hộp thư event cùng giao dịch, bật khi chặng có bên nhận event cần đến):
         // eventDispatcher.dispatchAll(account.getDomainEvents());
 
-        log.info("[RegisterUser] registered: userAccountId={}, traceId={}", id, MDC.get("traceId"));
+        LogContext.user(id.getValueAsString());
+        log.info("registered userAccountId={}", id);
 
         return new Result(id.getValueAsString());
     }

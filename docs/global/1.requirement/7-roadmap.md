@@ -252,7 +252,7 @@ phần được hoàn thiện ở chặng nào (nếu có).
 | Có diễn tập triển khai lên cloud sớm trước C8 không? | **Không; chỉ triển khai ở cuối dự án (C8)** | Dự án một người, kiến thức triển khai còn yếu: gom vào cuối để không làm chậm lõi |
 | C1 (Tìm kiếm) trước C2 (Giỏ, Đơn), hay làm đường mua hàng trước? | C1 trước | Có sản phẩm mới đặt được; Tìm kiếm cần thời gian cho C6 |
 | Chặng C0 có cần riêng, hay gộp vào C1? | Giữ riêng | Frontend là chỗ yếu nhất; gộp thì C1 thành XL |
-| Giao diện chia thế nào | Bốn portal: Cửa hàng, Người bán, Nội bộ (nhân viên kho và quản trị), Shipper di động | `5-ui-analysis.md` |
+| Giao diện chia thế nào | Bốn portal: Cửa hàng, Người bán, Vận hành (nhân viên kho và quản trị), Shipper di động | `5-ui-analysis.md` |
 | Có tách các chặng lớn thành đường mỏng và hoàn thiện không? | Có: C1, C2, C3, C6 mỗi chặng tách thành nửa a (đường mỏng nhất) và nửa b (hoàn thiện) | Mỗi chặng chạy được ở mức tối giản rồi hoàn thiện dần; chặng nhỏ hơn thì dễ hiệu chỉnh bằng tốc độ thật |
 | COD ở bản tối giản xử lý thế nào? | Shipper xác nhận giao thì đơn "đã thanh toán"; chưa có công nợ, nộp tiền, đối soát (xếp vào cắt tạm, kéo vào cùng Sổ cái) | Bản tối giản đã chạy hết kịch bản chính; công nợ chỉ có nghĩa khi có Sổ cái. Event "đã giao" vẫn mang số tiền và mã shipper để dựng lại sau |
 | Điều phối kèm bù trừ khi đặt hàng | C2a chỉ bản đơn giản (lỗi giữa chừng thì trả chỗ); bản đầy đủ ở C2b cùng Lập lịch | Bản đầy đủ cần Lập lịch (C2b); bản đơn giản đủ cho đường đặt hàng chính |

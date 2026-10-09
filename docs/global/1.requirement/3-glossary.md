@@ -53,8 +53,8 @@ Bảng này cố định nghĩa của các thuật ngữ dùng từ context map 
 | Ký quỹ | Giữ tiền trả trước đến khi giao thành công |
 | Sổ cái, bút toán | Sổ ghi mọi biến động tiền; mỗi bút toán có đối ứng và chỉ bù, không sửa |
 | Đối soát | So khớp số tiền hai bên (thu và nộp, thu và chi trả) |
-| Portal | Một ứng dụng giao diện cho một nhóm bên tham gia (Cửa hàng, Người bán, Nội bộ, Shipper) |
-| Nội bộ | Portal của Quản trị và Nhân viên kho |
+| Portal | Một ứng dụng giao diện cho một nhóm bên tham gia (Cửa hàng, Người bán, Vận hành, Shipper) |
+| Vận hành | Portal của Quản trị và Nhân viên kho: nghiệp vụ vận hành sàn (duyệt, phân xử, điều phối shipper, nhận hàng ở kho). Không chứa nghiệp vụ nhân sự hay kế toán |
 | Người chạy thử | Chính người làm dự án khi dùng công cụ Giả lập; không phải bên tham gia của nền tảng |
 
 ## 4. Kỹ thuật
