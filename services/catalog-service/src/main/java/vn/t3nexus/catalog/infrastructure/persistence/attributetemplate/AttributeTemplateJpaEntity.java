@@ -30,9 +30,19 @@ public class AttributeTemplateJpaEntity {
     @Column(name = "input_type", nullable = false, updatable = false)
     private InputType inputType;
 
+    @Column(name = "hint", length = 200)
+    private String hint;
+
+    @Column(name = "unit", length = 20, updatable = false)
+    private String unit;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private AttributeTemplateStatus status;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

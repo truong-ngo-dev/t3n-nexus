@@ -21,6 +21,9 @@ public class RouteConfiguration {
     @Value("${webgateway.routes.catalog-service.uri}")
     private String catalogServiceUri;
 
+    @Value("${webgateway.routes.order-service.uri}")
+    private String orderServiceUri;
+
     /**
      * "(/web)?" ở đầu regex — chấp nhận cả 2 dạng path:
      *   /api/{service}/**       khi gọi thẳng web-gateway (không qua api-gateway)
@@ -70,6 +73,15 @@ public class RouteConfiguration {
                                 .dedupeResponseHeader("Access-Control-Allow-Origin", "RETAIN_FIRST")
                                 .dedupeResponseHeader("Access-Control-Allow-Credentials", "RETAIN_FIRST"))
                         .uri(catalogServiceUri))
+                .route("order-service", rs -> rs
+                        .path("/api/order/**", "/web/api/order/**")
+                        .filters(f -> f
+                                .tokenRelay()
+                                .saveSession()
+                                .rewritePath("(/web)?/api/order/(?<segment>.*)", "/api/${segment}")
+                                .dedupeResponseHeader("Access-Control-Allow-Origin", "RETAIN_FIRST")
+                                .dedupeResponseHeader("Access-Control-Allow-Credentials", "RETAIN_FIRST"))
+                        .uri(orderServiceUri))
                 .build();
     }
 }

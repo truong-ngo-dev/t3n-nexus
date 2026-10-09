@@ -29,7 +29,7 @@ public class UpdateAttributeTemplate
         AttributeTemplate template = templateRepository.findById(AttributeTemplateId.of(command.id()))
                 .orElseThrow(() -> new DomainException(AttributeTemplateErrorCode.TEMPLATE_NOT_FOUND));
 
-        template.updateDisplayName(command.displayName());
+        template.updateDetails(command.displayName(), command.hint());
         templateRepository.save(template);
 
         log.info("[UpdateAttributeTemplate] updated: templateId={}, traceId={}", command.id(), MDC.get("traceId"));
@@ -37,7 +37,7 @@ public class UpdateAttributeTemplate
         return new Result(command.id());
     }
 
-    public record Command(String id, String displayName) {}
+    public record Command(String id, String displayName, String hint) {}
 
     public record Result(String id) {}
 }

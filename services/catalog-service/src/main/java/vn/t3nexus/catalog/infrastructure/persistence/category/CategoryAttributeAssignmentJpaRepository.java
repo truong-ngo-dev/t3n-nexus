@@ -10,7 +10,6 @@ public interface CategoryAttributeAssignmentJpaRepository
 
     List<CategoryAttributeAssignmentJpaEntity> findByCategoryId(String categoryId);
 
-    boolean existsByTemplateIdAndRequiredTrue(String templateId);
 
     @Transactional
     void deleteByCategoryId(String categoryId);

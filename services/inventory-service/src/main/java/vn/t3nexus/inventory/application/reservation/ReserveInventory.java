@@ -12,6 +12,7 @@ import vn.t3nexus.inventory.domain.reservation.ReservationId;
 import vn.t3nexus.inventory.domain.reservation.ReservationItem;
 import vn.t3nexus.inventory.domain.reservation.ReservationItemId;
 import vn.t3nexus.inventory.domain.reservation.ReservationRepository;
+import vn.t3nexus.inventory.domain.reservation.ReservationTimeoutIndex;
 import vn.t3nexus.inventory.domain.stock.Stock;
 import vn.t3nexus.inventory.domain.stock.StockException;
 import vn.t3nexus.inventory.domain.stock.StockRepository;
@@ -30,6 +31,7 @@ public class ReserveInventory {
 
     private final StockRepository stockRepository;
     private final ReservationRepository reservationRepository;
+    private final ReservationTimeoutIndex reservationTimeoutIndex;
     private final EventDispatcher eventDispatcher;
     private final ULIDGenerator ulidGenerator;
 
@@ -77,6 +79,7 @@ public class ReserveInventory {
         }
         eventDispatcher.dispatchAll(reservation.getDomainEvents());
         reservation.clearDomainEvents();
+        reservationTimeoutIndex.add(command.orderId(), reservation.getExpiresAt());
 
         log.info("[ReserveInventory] reserved: reservationId={}, orderId={}, items={}, traceId={}",
                 id.getValue(), command.orderId(), reservationItems.size(), MDC.get("traceId"));

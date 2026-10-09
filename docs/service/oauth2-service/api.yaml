@@ -1,0 +1,91 @@
+openapi: 3.0.3
+info:
+  title: Xác thực
+  version: 0.1.0
+  description: |
+    Sống. Đã làm: `POST /register` (feature 01). Lỗi 429 do cổng truy cập trả (feature 06), chưa làm.
+    Công khai qua cổng truy cập dưới tiền tố `/auth`.
+servers:
+  - url: /auth
+paths:
+  /register:
+    post:
+      summary: Đăng ký tài khoản (vai Người dùng)
+      description: |
+        Tạo tài khoản đăng nhập vai Người dùng, trạng thái hoạt động. Vai không phải đầu vào: trường lạ gửi kèm bị bỏ qua.
+        Không tạo phiên; người dùng đăng nhập ở bước sau.
+      operationId: registerAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Đã tạo tài khoản
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+        '400':
+          description: Đầu vào không hợp lệ (`EMAIL_INVALID`, `EMAIL_RESERVED`, `PASSWORD_INVALID`, hoặc thiếu trường: `VALIDATION_FAILED`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Email đã có tài khoản (`EMAIL_TAKEN`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Vượt giới hạn tần suất (`TOO_MANY_REQUESTS`)
+          headers:
+            Retry-After:
+              description: Số giây nên chờ
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          maxLength: 254
+          description: Được chuẩn hóa (cắt khoảng trắng, chữ thường) trước khi lưu
+        password:
+          type: string
+          minLength: 8
+          maxLength: 64
+          pattern: '^[A-Za-z0-9@$]+$'
+          description: Từ 8 đến 64 ký tự, chỉ gồm chữ A-Z a-z, số 0-9 và hai ký tự `@` `$`; có ít nhất một chữ cái và một chữ số (luật "Mật khẩu hợp lệ" ở analysis). Dấu cách, emoji, chữ có dấu bị từ chối
+    RegisterResponse:
+      description: Khung phản hồi chung của mọi endpoint (success, data); dữ liệu là mã tài khoản
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data:
+          type: object
+          required: [userAccountId]
+          properties:
+            userAccountId:
+              type: string
+              format: uuid
+              description: Mã tài khoản (UUID v7)
+    Error:
+      description: Khung phản hồi lỗi chung; `code` chữ ổn định để giao diện dịch hoặc rẽ nhánh
+      type: object
+      required: [success, message, code]
+      properties:
+        success: { type: boolean, enum: [false] }
+        code:
+          type: string
+          description: "Mã lỗi chữ ổn định: EMAIL_INVALID, EMAIL_RESERVED, PASSWORD_INVALID, EMAIL_TAKEN, VALIDATION_FAILED, TOO_MANY_REQUESTS, INTERNAL_ERROR"
+        message: { type: string, description: "Tiếng Việt, nêu lý do" }
+        errors:
+          type: array
+          items: { type: string }
+          description: Chi tiết từng trường khi `code` là VALIDATION_FAILED

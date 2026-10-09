@@ -13,7 +13,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriUtils;
-import vn.t3nexus.oauth2.application.user_credential.publish_login_failed.PublishLoginFailed;
+import vn.t3nexus.oauth2.application.user_account.publish_login_failed.PublishLoginFailed;
 import vn.t3nexus.oauth2.infrastructure.cross_cutting.utils.IpAddressExtractor;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ public class DeviceAwareAuthenticationFailureHandler implements AuthenticationFa
         publishLoginFailed.publish(username, resolveResult(exception), deviceHash, acceptLanguage, ipAddress, userAgent, "LOCAL");
 
         // LockedException (accountNonLocked=false, bị khóa thật) và DisabledException (enabled=false,
-        // UserCredential.status=PENDING — chưa verify email) là 2 exception TÁCH SẴN bởi Spring
+        // UserAccount.status=PENDING — chưa verify email) là 2 exception TÁCH SẴN bởi Spring
         // Security (OAuth2UserDetailsService.mapToUserDetails() map đúng 2 field khác nhau) — trước
         // đây bị gộp chung "?locked" khiến user chưa verify thấy nhầm "tài khoản bị khóa, liên hệ hỗ
         // trợ" trong khi chỉ cần tự bấm link email. Tách riêng "?unverified" kèm email để trang login

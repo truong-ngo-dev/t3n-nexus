@@ -9,8 +9,6 @@ public interface AttributeTemplateRepository extends Repository<AttributeTemplat
 
     boolean existsByName(String name);
 
-    List<AttributeTemplate> findAll();
-
     /**
      * Batch load theo id — dùng bởi {@code AttributeTemplateDomainService#validateProductAttributes}
      * để lấy đúng 1 round-trip cho toàn bộ attribute submit cùng lúc (bất kể submit bao nhiêu attribute),
@@ -19,10 +17,17 @@ public interface AttributeTemplateRepository extends Repository<AttributeTemplat
     List<AttributeTemplate> findAllByIds(Collection<AttributeTemplateId> ids);
 
     /**
-     * Bump {@code usageCount} của các option — dùng bởi {@code AddVariant} mỗi khi 1 optionId được đưa
-     * vào {@code combination}. Cố tình KHÔNG đi qua load-modify-{@link #save}: {@code save} xoá-hết-rồi-
-     * insert-lại TOÀN BỘ option của template, quá đắt cho việc chỉ bump 1 counter mỗi lần tạo Variant
-     * (write path rất thường xuyên) — implementation phải là bulk update trực tiếp trên đúng các option.
+     * Danh sách quản trị: mọi trạng thái, lọc theo từ khoá ({@code name}/{@code displayName}, không phân biệt hoa/thường),
+     * {@code inputType}, {@code status}; tham số null = không lọc. {@code page} bắt đầu từ 0.
      */
-    void incrementOptionUsage(Collection<AttributeOptionId> optionIds);
+    List<AttributeTemplate> search(String keyword, InputType inputType, AttributeTemplateStatus status,
+                                   int page, int size);
+
+    long count(String keyword, InputType inputType, AttributeTemplateStatus status);
+
+    /** Thuộc tính không bao giờ bị xoá — chỉ tắt/bật (sản phẩm cũ còn tham chiếu). */
+    @Override
+    default void delete(AttributeTemplateId id) {
+        throw new UnsupportedOperationException("AttributeTemplate is never deleted — deactivate instead");
+    }
 }

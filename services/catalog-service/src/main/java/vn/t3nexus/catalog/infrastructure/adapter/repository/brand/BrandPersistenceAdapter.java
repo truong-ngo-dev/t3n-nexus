@@ -1,6 +1,7 @@
 package vn.t3nexus.catalog.infrastructure.adapter.repository.brand;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandId;
@@ -30,19 +31,29 @@ public class BrandPersistenceAdapter implements BrandRepository {
     }
 
     @Override
-    public List<Brand> findAllByStatus(BrandStatus status) {
-        return jpaRepository.findAllByStatus(status).stream()
+    public boolean existsByName(String name) {
+        return jpaRepository.existsByNameIgnoreCase(name);
+    }
+
+    @Override
+    public boolean existsByNameExcludingId(String name, BrandId excludingId) {
+        return jpaRepository.existsByNameIgnoreCaseAndIdNot(name, excludingId.getValue());
+    }
+
+    @Override
+    public List<Brand> search(String keyword, BrandStatus status, int page, int size) {
+        return jpaRepository.search(keyword, status, PageRequest.of(page, size)).stream()
                 .map(BrandMapper::toDomain)
                 .toList();
     }
 
     @Override
-    public void save(Brand brand) {
-        jpaRepository.save(BrandMapper.toJpaEntity(brand));
+    public long count(String keyword, BrandStatus status) {
+        return jpaRepository.countSearch(keyword, status);
     }
 
     @Override
-    public void delete(BrandId id) {
-        jpaRepository.deleteById(id.getValue());
+    public void save(Brand brand) {
+        jpaRepository.save(BrandMapper.toJpaEntity(brand));
     }
 }

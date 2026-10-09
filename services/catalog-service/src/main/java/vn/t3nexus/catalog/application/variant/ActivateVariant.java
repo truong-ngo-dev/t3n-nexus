@@ -1,6 +1,7 @@
 package vn.t3nexus.catalog.application.variant;
 
 import lombok.RequiredArgsConstructor;
+import vn.t3nexus.catalog.application.product.search_sync.PublishProductSearchSnapshot;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.cache.annotation.CacheEvict;
@@ -28,6 +29,7 @@ public class ActivateVariant implements CommandHandler<ActivateVariant.Command, 
     private final ProductRepository productRepository;
     private final VariantRepository variantRepository;
     private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final PublishProductSearchSnapshot publishProductSearchSnapshot;
     private final EventDispatcher eventDispatcher;
 
     @Override
@@ -39,16 +41,20 @@ public class ActivateVariant implements CommandHandler<ActivateVariant.Command, 
     public Result handle(Command command) {
         Product product = productRepository.findById(ProductId.of(command.productId()))
                 .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
-        if (product.isAdminBlocked()) throw new DomainException(ProductErrorCode.PRODUCT_BLOCKED);
+        product.assertOwnedBy(command.sellerId());
 
         Variant variant = variantRepository.findById(VariantId.of(command.skuId()))
                 .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        if (!variant.getProductId().equals(command.productId())) {
+            throw new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND);
+        }
 
         variant.activate();
         variantRepository.save(variant);
         eventDispatcher.dispatchAll(variant.getDomainEvents());
         variant.clearDomainEvents();
 
+        publishProductSearchSnapshot.publish(command.productId());
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT_VARIANTS, command.productId());
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT, command.productId());
 
@@ -58,7 +64,7 @@ public class ActivateVariant implements CommandHandler<ActivateVariant.Command, 
         return new Result();
     }
 
-    public record Command(String productId, String skuId) {}
+    public record Command(String sellerId, String productId, String skuId) {}
 
     public record Result() {}
 }

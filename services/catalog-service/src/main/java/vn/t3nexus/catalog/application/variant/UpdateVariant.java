@@ -1,12 +1,16 @@
 package vn.t3nexus.catalog.application.variant;
 
 import lombok.RequiredArgsConstructor;
+import vn.t3nexus.catalog.application.product.search_sync.PublishProductSearchSnapshot;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.t3nexus.catalog.domain.product.Product;
 import vn.t3nexus.catalog.domain.product.ProductErrorCode;
+import vn.t3nexus.catalog.domain.product.ProductId;
+import vn.t3nexus.catalog.domain.product.ProductRepository;
 import vn.t3nexus.catalog.domain.variant.Variant;
 import vn.t3nexus.catalog.domain.variant.VariantId;
 import vn.t3nexus.catalog.domain.variant.VariantRepository;
@@ -21,16 +25,25 @@ import vn.t3nexus.lib.common.domain.exception.DomainException;
 @RequiredArgsConstructor
 public class UpdateVariant implements CommandHandler<UpdateVariant.Command, UpdateVariant.Result> {
 
+    private final ProductRepository productRepository;
     private final VariantRepository variantRepository;
     private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final PublishProductSearchSnapshot publishProductSearchSnapshot;
     private final EventDispatcher eventDispatcher;
 
     @Override
     @Transactional
     @CacheEvict(value = CacheNames.PRODUCT_VARIANTS, key = "#command.productId()")
     public Result handle(Command command) {
+        Product product = productRepository.findById(ProductId.of(command.productId()))
+                .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        product.assertOwnedBy(command.sellerId());
+
         Variant variant = variantRepository.findById(VariantId.of(command.skuId()))
                 .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        if (!variant.getProductId().equals(command.productId())) {
+            throw new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND);
+        }
 
         if (command.price() != variant.getPrice()) {
             variant.changePrice(command.price());
@@ -42,6 +55,7 @@ public class UpdateVariant implements CommandHandler<UpdateVariant.Command, Upda
         variantRepository.save(variant);
         eventDispatcher.dispatchAll(variant.getDomainEvents());
         variant.clearDomainEvents();
+        publishProductSearchSnapshot.publish(command.productId());
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT_VARIANTS, command.productId());
 
         log.info("[UpdateVariant] updated: skuId={}, productId={}, traceId={}",
@@ -50,7 +64,7 @@ public class UpdateVariant implements CommandHandler<UpdateVariant.Command, Upda
         return new Result();
     }
 
-    public record Command(String productId, String skuId, long price, String skuCode) {}
+    public record Command(String sellerId, String productId, String skuId, long price, String skuCode) {}
 
     public record Result() {}
 }

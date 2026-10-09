@@ -29,6 +29,7 @@ public class SecurityConfig {
                                 PathPatternRequestMatcher.withDefaults().matcher("/api/products/*"),
                                 PathPatternRequestMatcher.withDefaults().matcher("/api/products/*/variants")))
                         .permitAll()
+                        // Chưa kiểm role cho /api/admin/**, /api/seller/** — chờ hệ phân quyền riêng (service.md TQ-12)
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .build();

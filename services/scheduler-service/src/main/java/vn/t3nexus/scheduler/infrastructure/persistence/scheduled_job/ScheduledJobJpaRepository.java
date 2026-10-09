@@ -42,16 +42,22 @@ public interface ScheduledJobJpaRepository extends JpaRepository<ScheduledJobJpa
      * <p>{@code jobName} lọc kiểu <b>substring, case-insensitive</b> ({@code LOWER()+LIKE}, JPQL thuần —
      * không dùng {@code ILIKE} của Postgres để giữ portable) — khác {@code status}/{@code taskType}
      * (exact match). Xem javadoc {@code ScheduledJobQueryFilter}.
+     *
+     * <p><b>{@code CAST(:jobName AS string)}</b> — bắt buộc, không phải thừa: khi {@code jobName=null}
+     * (không lọc theo tên), Hibernate/pgjdbc không suy được kiểu SQL của tham số {@code ?} bên trong
+     * {@code CONCAT(...)} (dịch sang {@code '%'||?||'%'} ở Postgres) → server tự chọn nhầm {@code bytea}
+     * cho tham số chưa rõ kiểu → {@code lower(bytea) does not exist}. Ép kiểu tường minh loại bỏ mơ hồ
+     * này, không đổi hành vi filter khi {@code jobName} có giá trị thật.
      */
     @Query("SELECT e FROM ScheduledJobJpaEntity e " +
-           "WHERE (:jobName IS NULL OR LOWER(e.jobName) LIKE LOWER(CONCAT('%', :jobName, '%'))) " +
+           "WHERE (:jobName IS NULL OR LOWER(e.jobName) LIKE LOWER(CONCAT('%', CAST(:jobName AS string), '%'))) " +
            "AND (:status IS NULL OR e.status = :status) " +
            "AND (:taskType IS NULL OR e.taskType = :taskType)")
     Page<ScheduledJobJpaEntity> search(@Param("jobName") String jobName, @Param("status") String status,
                                        @Param("taskType") String taskType, Pageable pageable);
 
     @Query("SELECT COUNT(e) FROM ScheduledJobJpaEntity e " +
-           "WHERE (:jobName IS NULL OR LOWER(e.jobName) LIKE LOWER(CONCAT('%', :jobName, '%'))) " +
+           "WHERE (:jobName IS NULL OR LOWER(e.jobName) LIKE LOWER(CONCAT('%', CAST(:jobName AS string), '%'))) " +
            "AND (:status IS NULL OR e.status = :status) " +
            "AND (:taskType IS NULL OR e.taskType = :taskType)")
     long countSearch(@Param("jobName") String jobName, @Param("status") String status,

@@ -10,19 +10,21 @@ import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplate;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateErrorCode;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateRepository;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateStatus;
+import vn.t3nexus.catalog.domain.category.AttributeConstraints;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryAttributeAssignment;
 import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
 import vn.t3nexus.catalog.domain.category.CategoryId;
-import vn.t3nexus.catalog.domain.category.CategoryLevel;
 import vn.t3nexus.catalog.domain.category.CategoryRepository;
+import vn.t3nexus.catalog.domain.category.Discovery;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
+import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -39,6 +41,7 @@ public class ReplaceCategoryAttributeAssignments
 
     private final CategoryRepository categoryRepository;
     private final AttributeTemplateRepository attributeTemplateRepository;
+    private final EventDispatcher eventDispatcher;
 
     @Override
     @Transactional
@@ -47,11 +50,11 @@ public class ReplaceCategoryAttributeAssignments
         Category category = categoryRepository.findById(CategoryId.of(command.categoryId()))
                 .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
 
-        // Chỉ leaf (L3) mới được assign attribute — không có kế thừa giữa các level,
-        // xem service.md § Attribute Value Model.
-        if (category.getLevel() != CategoryLevel.L3) {
-            throw new DomainException(CategoryErrorCode.ATTRIBUTE_ASSIGNMENT_REQUIRES_LEAF);
-        }
+        // INV-CAT-93: chỉ thuộc tính MỚI gán phải đang dùng được; thuộc tính đã gán mà nay đã tắt vẫn giữ/sửa được
+        // (sửa cái đã có, không phải chọn mới — analysis.md AGG-CAT-03). "Chỉ danh mục lá" kiểm trong aggregate.
+        Set<String> currentlyAssignedIds = category.getAssignments().stream()
+                .map(a -> a.getAttributeTemplateId().getValue())
+                .collect(Collectors.toSet());
 
         List<AttributeTemplateId> templateIds = command.assignments().stream()
                 .map(item -> AttributeTemplateId.of(item.templateId()))
@@ -65,17 +68,20 @@ public class ReplaceCategoryAttributeAssignments
                     if (template == null) {
                         throw new DomainException(AttributeTemplateErrorCode.TEMPLATE_NOT_FOUND);
                     }
-                    if (template.getStatus() == AttributeTemplateStatus.INACTIVE) {
+                    boolean isNew = !currentlyAssignedIds.contains(item.templateId());
+                    if (isNew && !template.isUsable()) {
                         throw new DomainException(AttributeTemplateErrorCode.TEMPLATE_INACTIVE);
                     }
-                    return new CategoryAttributeAssignment(
-                            template.getId(), item.required(), item.filterable(), item.searchable(),
-                            item.displayOrder());
+                    return CategoryAttributeAssignment.create(
+                            template.getId(), template.getInputType(), item.required(), item.displayOrder(),
+                            item.constraints(), item.discovery());
                 })
                 .toList();
 
         category.replaceAssignments(assignments);
         categoryRepository.save(category);
+        eventDispatcher.dispatchAll(category.getDomainEvents());
+        category.clearDomainEvents();
 
         log.info("[ReplaceCategoryAttributeAssignments] replaced: categoryId={}, count={}, traceId={}",
                 command.categoryId(), assignments.size(), MDC.get("traceId"));
@@ -88,9 +94,9 @@ public class ReplaceCategoryAttributeAssignments
     public record AttributeAssignmentItem(
             String templateId,
             boolean required,
-            boolean filterable,
-            boolean searchable,
-            int displayOrder
+            int displayOrder,
+            AttributeConstraints constraints,
+            Discovery discovery
     ) {}
 
     public record Result() {}

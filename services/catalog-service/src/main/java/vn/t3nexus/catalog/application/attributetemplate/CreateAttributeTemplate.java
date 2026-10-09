@@ -28,7 +28,7 @@ public class CreateAttributeTemplate
 
         AttributeTemplateId id = AttributeTemplateId.of(ulidGenerator.generate());
         AttributeTemplate template = AttributeTemplate.create(
-                id, command.name(), command.displayName(), command.inputType());
+                id, command.name(), command.displayName(), command.hint(), command.inputType(), command.unit());
         templateRepository.save(template);
 
         log.info("[CreateAttributeTemplate] created: templateId={}, name={}, traceId={}",
@@ -37,7 +37,7 @@ public class CreateAttributeTemplate
         return new Result(id.getValue());
     }
 
-    public record Command(String name, String displayName, InputType inputType) {}
+    public record Command(String name, String displayName, String hint, InputType inputType, String unit) {}
 
     public record Result(String id) {}
 }

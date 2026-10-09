@@ -60,6 +60,7 @@ public final class ProductMapper {
                 entity.isAdminBlocked(),
                 attributeValues,
                 images,
+                entity.getPublishedAt(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
@@ -75,6 +76,7 @@ public final class ProductMapper {
         entity.setDescription(product.getDescription());
         entity.setStatus(product.getStatus());
         entity.setAdminBlocked(product.isAdminBlocked());
+        entity.setPublishedAt(product.getPublishedAt());
         entity.setCreatedAt(product.getCreatedAt());
         entity.setUpdatedAt(product.getUpdatedAt());
 

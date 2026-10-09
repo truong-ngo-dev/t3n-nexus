@@ -1,23 +1,26 @@
 package vn.t3nexus.catalog.domain.category;
 
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.lib.common.domain.service.Repository;
 
 import java.util.List;
 
 public interface CategoryRepository extends Repository<Category, CategoryId> {
 
-    boolean existsBySlug(String slug);
 
     boolean existsByParentId(CategoryId parentId);
 
     boolean hasProductReference(CategoryId categoryId);
 
-    List<Category> findAll();
+    /** {@code parentId} null nghĩa là root (L1) — so trùng tên trong đúng phạm vi anh em, không toàn sàn. */
+    boolean existsByParentAndNameIgnoreCase(CategoryId parentId, String name);
 
-    /**
-     * Dùng bởi {@code AttributeTemplateDomainService} để chặn deactivate 1 template đang {@code required}
-     * ở bất kỳ category nào — tránh deadlock (category đòi hỏi bắt buộc 1 attribute không còn dùng được).
-     */
-    boolean existsRequiredAssignmentByTemplateId(AttributeTemplateId templateId);
+    boolean existsByParentAndNameIgnoreCaseExcludingId(CategoryId parentId, String name, CategoryId excludingId);
+
+    /** Có tổ tiên (không tính bản thân) đang INACTIVE không — "dùng được" = ACTIVE + mọi tổ tiên ACTIVE (AGG-CAT-03). */
+    boolean hasInactiveAncestor(CategoryId id);
+
+    /** Mọi anh em cùng cha ({@code parentId} null = root), theo {@code sortOrder}. Dùng tính sortOrder mới và validate reorder. */
+    List<Category> findSiblings(CategoryId parentId);
+
+    List<Category> findAll();
 }

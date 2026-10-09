@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>vn.t3nexus</groupId>
+        <artifactId>services</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>inapp-worker</artifactId>
+    <packaging>jar</packaging>
+    <name>inapp-worker</name>
+    <description>In-app delivery worker — consume CDC inapp dispatch topic, relay to Redis Pub/Sub cho websocket-gateway</description>
+
+    <dependencies>
+        <!-- Actuator — health/readiness probes, no REST layer needed -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Kafka consumer -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+
+        <!-- Json serial -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jackson</artifactId>
+        </dependency>
+
+        <!-- Redis Pub/Sub — publish tới channel user:{userId}:inapp, websocket-gateway subscribe -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- Internal libs -->
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>observability-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--
+            idempotency-support: Redis-backed guard — check key before publish, set after success.
+            Key pattern: "inapp:{notification_log_id}", TTL 72h. Cùng lib + convention email-worker đang dùng.
+        -->
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>idempotency-support</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

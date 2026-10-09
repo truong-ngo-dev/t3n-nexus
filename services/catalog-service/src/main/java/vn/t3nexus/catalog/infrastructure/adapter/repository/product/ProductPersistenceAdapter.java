@@ -24,15 +24,22 @@ public class ProductPersistenceAdapter implements ProductRepository {
     private final ProductImageJpaRepository imageRepository;
 
     @Override
+    public Optional<Product> findByIdForUpdate(ProductId id) {
+        return jpaRepository.findByIdForUpdate(id.getValue()).map(this::toDomain);
+    }
+
+    @Override
     public Optional<Product> findById(ProductId id) {
-        String rawId = id.getValue();
-        return jpaRepository.findById(rawId).map(entity -> {
-            List<ProductAttributeValueJpaEntity> attrs = attributeValueRepository.findByProductId(rawId);
-            List<ProductVariantDefiningAttributeJpaEntity> variantDefining =
-                    variantDefiningAttributeRepository.findByProductId(rawId);
-            List<ProductImageJpaEntity> images = imageRepository.findByProductId(rawId);
-            return ProductMapper.toDomain(entity, attrs, variantDefining, images);
-        });
+        return jpaRepository.findById(id.getValue()).map(this::toDomain);
+    }
+
+    private Product toDomain(ProductJpaEntity entity) {
+        String rawId = entity.getId();
+        List<ProductAttributeValueJpaEntity> attrs = attributeValueRepository.findByProductId(rawId);
+        List<ProductVariantDefiningAttributeJpaEntity> variantDefining =
+                variantDefiningAttributeRepository.findByProductId(rawId);
+        List<ProductImageJpaEntity> images = imageRepository.findByProductId(rawId);
+        return ProductMapper.toDomain(entity, attrs, variantDefining, images);
     }
 
     @Override

@@ -9,6 +9,7 @@ import vn.t3nexus.order.domain.order.OrderException;
 import vn.t3nexus.order.domain.order.OrderId;
 import vn.t3nexus.order.domain.order.OrderInventoryTimeoutIndex;
 import vn.t3nexus.order.domain.order.OrderRepository;
+import vn.t3nexus.order.domain.order.OrderStatus;
 import vn.t3nexus.order.domain.order.PaymentMethod;
 
 /**
@@ -33,7 +34,17 @@ public class ConfirmOrderOnCodCreated implements CommandHandler<ConfirmOrderOnCo
             return new Result();
         }
 
-        if (!order.canProcess()) return new Result(); // late/duplicate reply — already resolved, no-op
+        if (!order.canProcess()) {
+            // Late reply — Reservation đã được inventory-service tạo thật (khác OUT_OF_STOCK, không tạo
+            // gì), nếu order đã bị timeout-cancel thì phải re-publish để trigger release, không thì
+            // Reservation mồ côi giữ stock vĩnh viễn.
+            if (order.getStatus() == OrderStatus.CANCELLED) {
+                order.republishCancellation();
+                orderRepository.save(order);
+                log.info("[ConfirmOrderOnCodCreated] late reply — order đã CANCELLED trước đó, re-publish OrderCancelled để inventory-service release Reservation vừa tạo muộn. orderId={}", command.orderId());
+            }
+            return new Result();
+        }
         order.confirm();
         orderRepository.save(order);
         inventoryTimeoutIndex.remove(command.orderId()); // dọn sớm — order đã resolved, không cần chờ quét

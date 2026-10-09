@@ -1,6 +1,7 @@
 package vn.t3nexus.catalog.application.product;
 
 import lombok.RequiredArgsConstructor;
+import vn.t3nexus.catalog.application.product.search_sync.PublishProductSearchSnapshot;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.cache.annotation.CacheEvict;
@@ -32,6 +33,7 @@ public class PublishProduct implements CommandHandler<PublishProduct.Command, Pu
     private final VariantRepository variantRepository;
     private final BrandRepository brandRepository;
     private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final PublishProductSearchSnapshot publishProductSearchSnapshot;
     private final EventDispatcher eventDispatcher;
 
     @Override
@@ -40,6 +42,7 @@ public class PublishProduct implements CommandHandler<PublishProduct.Command, Pu
     public Result handle(Command command) {
         Product product = productRepository.findById(ProductId.of(command.productId()))
                 .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        product.assertOwnedBy(command.sellerId());
 
         if (!variantRepository.existsActiveByProductId(command.productId())) {
             throw new DomainException(ProductErrorCode.PUBLISH_REQUIRES_ACTIVE_VARIANT);
@@ -57,6 +60,7 @@ public class PublishProduct implements CommandHandler<PublishProduct.Command, Pu
         productRepository.save(product);
         eventDispatcher.dispatchAll(product.getDomainEvents());
         product.clearDomainEvents();
+        publishProductSearchSnapshot.publish(command.productId());
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT, command.productId());
 
         log.info("[PublishProduct] published: productId={}, traceId={}", command.productId(), MDC.get("traceId"));
@@ -64,7 +68,7 @@ public class PublishProduct implements CommandHandler<PublishProduct.Command, Pu
         return new Result();
     }
 
-    public record Command(String productId) {}
+    public record Command(String sellerId, String productId) {}
 
     public record Result() {}
 }

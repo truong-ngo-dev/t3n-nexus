@@ -24,6 +24,7 @@ public final class OrderMapper {
         Order order = Order.reconstitute(
                 OrderId.of(e.getId()),
                 e.getCustomerId(),
+                e.getCustomerEmail(),
                 e.getSellerId(),
                 JsonUtils.fromJson(e.getItemsJson(), new TypeReference<List<OrderLineItem>>() {}),
                 PaymentMethod.valueOf(e.getPaymentMethod()),
@@ -42,6 +43,7 @@ public final class OrderMapper {
         OrderJpaEntity e = new OrderJpaEntity();
         e.setId(order.getId().getValue());
         e.setCustomerId(order.getCustomerId());
+        e.setCustomerEmail(order.getCustomerEmail());
         e.setSellerId(order.getSellerId());
         e.setItemsJson(JsonUtils.toJson(order.getItems()));
         e.setPaymentMethod(order.getPaymentMethod().name());

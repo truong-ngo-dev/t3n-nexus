@@ -29,8 +29,13 @@ public class UpdateCategory implements CommandHandler<UpdateCategory.Command, Up
     @Transactional
     @CacheEvict(value = CacheNames.CATEGORY_TREE, allEntries = true)
     public Result handle(Command command) {
-        Category category = categoryRepository.findById(CategoryId.of(command.id()))
+        CategoryId id = CategoryId.of(command.id());
+        Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+
+        if (categoryRepository.existsByParentAndNameIgnoreCaseExcludingId(category.getParentId(), command.name(), id)) {
+            throw new DomainException(CategoryErrorCode.CATEGORY_NAME_EXISTS_IN_PARENT);
+        }
 
         category.update(command.name(), command.imageUrl());
         categoryRepository.save(category);

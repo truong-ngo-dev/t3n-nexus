@@ -6,5 +6,6 @@ public record AttributeOptionResponse(
         String id,
         String value,
         String displayValue,
-        AttributeOptionStatus status
+        AttributeOptionStatus status,
+        int sortOrder
 ) {}

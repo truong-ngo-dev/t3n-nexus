@@ -1,6 +1,6 @@
 # Design: Place Order
 
-**UC gốc**: Buyer đặt hàng (`../../global/1.requirement/requirement.md`)
+**UC gốc**: Buyer đặt hàng (`../../global/1.requirement/old/requirement.md`)
 **Implementation plan**: [`implementation.md`](implementation.md)
 **Status**: Draft (nhánh COD đã implement — xem `implementation.md`; nhánh Prepaid vẫn Draft)
 
@@ -381,6 +381,6 @@ Catalog đã liệt kê `notification-service` là consumer của `OrderConfirme
 
 ## ADR liên quan
 
-- [`adr/004-saga-choreography.md`](../../global/2.architecture/adr/004-saga-choreography.md)
-- [`adr/005-outbox-pattern.md`](../../global/2.architecture/adr/005-outbox-pattern.md)
-- [`adr/010-order-crud-not-event-sourcing.md`](../../global/2.architecture/adr/010-order-crud-not-event-sourcing.md) — `Order` build ban đầu bằng Event Sourcing, revert sang CRUD khi làm `CREATED`-timeout (Phase 5), xem lịch sử đầy đủ ở `implementation.md`
+- [`adr/004-saga-choreography.md`](../../global/2.architecture/adr/old/004-saga-choreography.md)
+- [`adr/005-outbox-pattern.md`](../../global/2.architecture/adr/old/005-outbox-pattern.md)
+- [`adr/010-order-crud-not-event-sourcing.md`](../../global/2.architecture/adr/old/010-order-crud-not-event-sourcing.md) — `Order` build ban đầu bằng Event Sourcing, revert sang CRUD khi làm `CREATED`-timeout (Phase 5), xem lịch sử đầy đủ ở `implementation.md`

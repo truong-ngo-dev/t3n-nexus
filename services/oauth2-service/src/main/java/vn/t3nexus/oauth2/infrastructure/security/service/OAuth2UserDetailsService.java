@@ -9,8 +9,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import vn.t3nexus.oauth2.domain.user_credential.UserCredential;
-import vn.t3nexus.oauth2.domain.user_credential.UserCredentialRepository;
+import vn.t3nexus.oauth2.domain.user_account.UserAccount;
+import vn.t3nexus.oauth2.domain.user_account.UserAccountRepository;
 
 import java.util.List;
 
@@ -24,14 +24,14 @@ import java.util.List;
  * method này trong tương lai. Rate-limit brute-force password đặt riêng ở LoginRateLimitFilter
  * (chỉ chặn đúng POST /login), xem infrastructure/security/LoginRateLimitFilter.java.
  *
- * TODO [business]: adapt mapToUserDetails() theo model UserCredential của t3n-nexus.
+ * TODO [business]: adapt mapToUserDetails() theo model UserAccount của t3n-nexus.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OAuth2UserDetailsService implements UserDetailsService {
 
-    private final UserCredentialRepository userCredentialRepository;
+    private final UserAccountRepository userAccountRepository;
 
     @Override
     public @NotNull UserDetails loadUserByUsername(@NotNull String email) throws UsernameNotFoundException {
@@ -40,8 +40,8 @@ public class OAuth2UserDetailsService implements UserDetailsService {
         }
 
         try {
-            // TODO [business]: UserCredentialRepository chưa có findByEmail — thêm method vào interface
-            UserCredential credential = userCredentialRepository.findByEmail(email)
+            // TODO [business]: UserAccountRepository chưa có findByEmail — thêm method vào interface
+            UserAccount credential = userAccountRepository.findByEmail(email)
                     .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
             return mapToUserDetails(credential);
@@ -54,12 +54,12 @@ public class OAuth2UserDetailsService implements UserDetailsService {
         }
     }
 
-    private static UserDetails mapToUserDetails(UserCredential credential) {
-        // TODO [business]: adapt theo trạng thái isActive/isLocked của UserCredential
-        return new UserCredentialDetails(
+    private static UserDetails mapToUserDetails(UserAccount credential) {
+        // TODO [business]: adapt theo trạng thái isActive/isLocked của UserAccount
+        return new UserAccountDetails(
                 credential.getId().getValueAsString(),                              // userId → principal name → JWT sub
-                credential.getEmail(),
-                credential.getPassword() != null ? credential.getPassword().getHashedValue() : "",
+                credential.getEmail().value(),
+                credential.getPasswordHash() != null ? credential.getPasswordHash().getHashedValue() : "",
                 credential.isActive(),                                              // enabled
                 true,                                                               // accountNonExpired
                 true,                                                               // credentialsNonExpired

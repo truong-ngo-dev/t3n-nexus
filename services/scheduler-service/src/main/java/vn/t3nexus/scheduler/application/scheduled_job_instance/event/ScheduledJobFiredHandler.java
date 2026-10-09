@@ -1,9 +1,11 @@
 package vn.t3nexus.scheduler.application.scheduled_job_instance.event;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import vn.t3nexus.lib.common.domain.service.EventHandler;
+import vn.t3nexus.lib.outbox.OutboxEventStore;
 import vn.t3nexus.scheduler.domain.scheduled_job_instance.ScheduledJobFiredEvent;
 
 /**
@@ -22,20 +24,26 @@ import vn.t3nexus.scheduler.domain.scheduled_job_instance.ScheduledJobFiredEvent
  * <p><b>KHÔNG phải điểm publish Kafka thật.</b> Event chỉ thực sự rời process qua Outbox + Debezium CDC
  * (Outbox Pattern, ADR-005) — {@code log.info} ở đây không thay thế bước đó.
  *
- * <p><b>TODO khi bật publish thật</b>: đổi thân {@link #handle} thành {@code outboxEventStore.store(event);}
- * (inject {@code vn.t3nexus.lib.outbox.OutboxEventStore}, xem {@code ProductPublishedHandler} bên
- * catalog-service làm mẫu) — ghi outbox cùng transaction với {@code save()} đang gọi
- * {@code dispatchAll()} (business state + outbox row atomic, đúng Outbox Pattern).
+ * <p><b>2026-09-22</b>: đã inject sẵn {@code outboxEventStore}, thân {@code handle()} đã viết đúng dạng
+ * {@code ProductPublishedHandler} (catalog-service) bên dưới — nhưng lệnh gọi thật vẫn đang
+ * <b>comment</b>, chỉ log, cho tới khi test với đủ component (2 {@code ScheduledJob} của order-service
+ * đăng ký + verify fire đúng nhịp, và {@code order-service.ScheduledJobFiredConsumer} sẵn sàng bật
+ * {@code @KafkaListener} — xem {@code feature/07-place-order/implementation.md} Phase 5). Bỏ comment
+ * dòng {@code outboxEventStore.store(event)} (và có thể bỏ luôn {@code log.info}) khi tới lúc.
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ScheduledJobFiredHandler implements EventHandler<ScheduledJobFiredEvent> {
+
+    private final OutboxEventStore outboxEventStore;
 
     @Override
     public void handle(ScheduledJobFiredEvent event) {
         log.info("[ScheduledJobFiredHandler] fired (log-only, chưa outbox): instanceId={}, scheduledJobId={}, " +
                         "taskType={}, payload={}, traceId={}",
                 event.instanceId(), event.scheduledJobId(), event.taskType(), event.payload(), MDC.get("traceId"));
+        // outboxEventStore.store(event);
     }
 
     @Override

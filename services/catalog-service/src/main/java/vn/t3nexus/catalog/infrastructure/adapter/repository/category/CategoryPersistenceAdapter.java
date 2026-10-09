@@ -3,10 +3,10 @@ package vn.t3nexus.catalog.infrastructure.adapter.repository.category;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryId;
 import vn.t3nexus.catalog.domain.category.CategoryRepository;
+import vn.t3nexus.catalog.domain.category.CategoryStatus;
 import vn.t3nexus.catalog.infrastructure.persistence.category.*;
 import vn.t3nexus.catalog.infrastructure.persistence.product.ProductJpaRepository;
 
@@ -34,11 +34,6 @@ public class CategoryPersistenceAdapter implements CategoryRepository {
     }
 
     @Override
-    public boolean existsBySlug(String slug) {
-        return jpaRepository.existsBySlug(slug);
-    }
-
-    @Override
     public boolean existsByParentId(CategoryId parentId) {
         return jpaRepository.existsByParentId(parentId.getValue());
     }
@@ -49,8 +44,39 @@ public class CategoryPersistenceAdapter implements CategoryRepository {
     }
 
     @Override
-    public boolean existsRequiredAssignmentByTemplateId(AttributeTemplateId templateId) {
-        return assignmentRepository.existsByTemplateIdAndRequiredTrue(templateId.getValue());
+    public boolean existsByParentAndNameIgnoreCase(CategoryId parentId, String name) {
+        return findSiblingEntities(parentId).stream()
+                .anyMatch(e -> e.getName().equalsIgnoreCase(name));
+    }
+
+    @Override
+    public boolean existsByParentAndNameIgnoreCaseExcludingId(CategoryId parentId, String name, CategoryId excludingId) {
+        return findSiblingEntities(parentId).stream()
+                .anyMatch(e -> e.getName().equalsIgnoreCase(name) && !e.getId().equals(excludingId.getValue()));
+    }
+
+    @Override
+    public boolean hasInactiveAncestor(CategoryId id) {
+        List<String> ancestorIds = closureRepository.findByDescendantId(id.getValue()).stream()
+                .filter(c -> c.getDepth() > 0)
+                .map(CategoryClosureJpaEntity::getAncestorId)
+                .toList();
+        if (ancestorIds.isEmpty()) return false;
+        return jpaRepository.findAllById(ancestorIds).stream()
+                .anyMatch(e -> e.getStatus() != CategoryStatus.ACTIVE);
+    }
+
+    @Override
+    public List<Category> findSiblings(CategoryId parentId) {
+        return findSiblingEntities(parentId).stream()
+                .map(entity -> CategoryMapper.toDomain(entity, assignmentRepository.findByCategoryId(entity.getId())))
+                .toList();
+    }
+
+    private List<CategoryJpaEntity> findSiblingEntities(CategoryId parentId) {
+        return parentId == null
+                ? jpaRepository.findByParentIdIsNullOrderBySortOrder()
+                : jpaRepository.findByParentIdOrderBySortOrder(parentId.getValue());
     }
 
     @Override

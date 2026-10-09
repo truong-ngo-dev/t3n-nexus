@@ -1,29 +1,41 @@
 package vn.t3nexus.catalog.infrastructure.persistence.attributetemplate;
 
+import org.springframework.util.ReflectionUtils;
 import vn.t3nexus.catalog.domain.attributetemplate.*;
 
+import java.lang.reflect.Field;
 import java.util.List;
 
 public final class AttributeTemplateMapper {
 
     private AttributeTemplateMapper() {}
 
+    // version nằm ở AbstractAggregateRoot (không có setter công khai) — cùng cách StockMapper (inventory-service).
+    private static final Field VERSION_FIELD = ReflectionUtils.findField(AttributeTemplate.class, "version");
+    static {
+        ReflectionUtils.makeAccessible(VERSION_FIELD);
+    }
+
     public static AttributeTemplate toDomain(AttributeTemplateJpaEntity entity,
-                                              List<AttributeOptionJpaEntity> optionEntities) {
+                                             List<AttributeOptionJpaEntity> optionEntities) {
         List<AttributeOption> options = optionEntities.stream()
                 .map(AttributeTemplateMapper::toOptionDomain)
                 .toList();
 
-        return AttributeTemplate.reconstitute(
+        AttributeTemplate template = AttributeTemplate.reconstitute(
                 AttributeTemplateId.of(entity.getId()),
                 entity.getName(),
                 entity.getDisplayName(),
+                entity.getHint(),
                 entity.getInputType(),
+                entity.getUnit(),
                 entity.getStatus(),
                 options,
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
+        ReflectionUtils.setField(VERSION_FIELD, template, entity.getVersion());
+        return template;
     }
 
     public static AttributeTemplateJpaEntity toJpaEntity(AttributeTemplate template) {
@@ -31,8 +43,11 @@ public final class AttributeTemplateMapper {
         entity.setId(template.getId().getValue());
         entity.setName(template.getName());
         entity.setDisplayName(template.getDisplayName());
+        entity.setHint(template.getHint());
         entity.setInputType(template.getInputType());
+        entity.setUnit(template.getUnit());
         entity.setStatus(template.getStatus());
+        entity.setVersion((Long) ReflectionUtils.getField(VERSION_FIELD, template));
         entity.setCreatedAt(template.getCreatedAt());
         entity.setUpdatedAt(template.getUpdatedAt());
         return entity;
@@ -51,7 +66,7 @@ public final class AttributeTemplateMapper {
                 entity.getValue(),
                 entity.getDisplayValue(),
                 entity.getStatus(),
-                entity.getUsageCount(),
+                entity.getSortOrder(),
                 entity.getCreatedAt()
         );
     }
@@ -63,7 +78,7 @@ public final class AttributeTemplateMapper {
         entity.setValue(option.getValue());
         entity.setDisplayValue(option.getDisplayValue());
         entity.setStatus(option.getStatus());
-        entity.setUsageCount(option.getUsageCount());
+        entity.setSortOrder(option.getSortOrder());
         entity.setCreatedAt(option.getCreatedAt());
         return entity;
     }

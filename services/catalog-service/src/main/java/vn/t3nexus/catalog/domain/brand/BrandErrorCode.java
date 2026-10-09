@@ -5,7 +5,12 @@ import vn.t3nexus.lib.common.domain.exception.ErrorCode;
 public enum BrandErrorCode implements ErrorCode {
 
     BRAND_NOT_FOUND          ("20001", "Brand not found",                 "error.brand.not_found",           404),
-    BRAND_SLUG_ALREADY_EXISTS("20002", "Brand slug already exists",       "error.brand.slug_already_exists", 409);
+    BRAND_SLUG_ALREADY_EXISTS("20002", "Brand slug already exists",       "error.brand.slug_already_exists", 409),
+    BRAND_NAME_ALREADY_EXISTS("20003", "Brand name already exists",       "error.brand.name_already_exists", 409),
+    BRAND_SLUG_INVALID       ("20004", "Brand slug must be lowercase letters, digits and single hyphens",
+                                                                          "error.brand.slug_invalid",        400),
+    BRAND_INACTIVE           ("20005", "Brand is inactive and cannot be chosen for a new product",
+                                                                          "error.brand.inactive",            422);
 
     private final String code;
     private final String defaultMessage;

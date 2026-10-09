@@ -3,14 +3,12 @@ package vn.t3nexus.catalog.application.brand;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 
@@ -23,15 +21,12 @@ public class DeactivateBrand implements CommandHandler<DeactivateBrand.Command, 
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheNames.BRANDS_ACTIVE, allEntries = true)
     public Result handle(Command command) {
         Brand brand = brandRepository.findById(BrandId.of(command.id()))
                 .orElseThrow(() -> new DomainException(BrandErrorCode.BRAND_NOT_FOUND));
 
-        // Soft toggle điều hướng/hiển thị (ẩn khỏi ListActiveBrands) — KHÔNG khoá toàn vẹn dữ liệu, nên
-        // KHÔNG guard theo "đang có Product dùng hay không" (đã sửa — trước đây chặn ngược, xem
-        // service.md § Category lifecycle cho nguyên tắc đầy đủ). Product cũ tham chiếu brand đã
-        // deactivate vẫn resolve bình thường (GetProduct không lọc theo status).
+        // Không guard theo "đang có Product dùng hay không": tắt chỉ chặn chọn mới (analysis.md AGG-CAT-02).
+        // Product cũ tham chiếu brand đã tắt vẫn hiển thị tên bình thường.
         brand.deactivate();
         brandRepository.save(brand);
 

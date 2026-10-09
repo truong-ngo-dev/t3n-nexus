@@ -17,15 +17,15 @@ public class GetProductImageUploadUrl
     private final ProductRepository productRepository;
     private final ObjectStoragePort objectStoragePort;
 
-    // Key theo productId (không phải sellerId) — sellerId hiện lấy từ header không đáng tin cậy
-    // (xem docs/feature/catalogue_feature/deferred.md #1). 20 lần/giờ đủ rộng cho 1 phiên sửa
+    // Key theo productId — sellerId còn lấy từ header client tự gửi (service.md TQ-08), chưa đáng tin để làm key. 20 lần/giờ đủ rộng cho 1 phiên sửa
     // nhiều ảnh, đủ hẹp để chặn spam tạo object-key/orphan upload lên MinIO.
     @Override
     @RateLimit(key = "'catalog_image_upload_url:' + #query.productId()", limit = 20, windowSeconds = 3600,
             message = "Too many upload URL requests, please try again later")
     public Result handle(Query query) {
         productRepository.findById(ProductId.of(query.productId()))
-                .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+                .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND))
+                .assertOwnedBy(query.sellerId());
 
         String objectKey = "products/" + query.productId() + "/" + java.util.UUID.randomUUID();
         String uploadUrl = objectStoragePort.generatePresignedPutUrl(objectKey, PRESIGNED_URL_TTL_SECONDS);
@@ -33,7 +33,7 @@ public class GetProductImageUploadUrl
         return new Result(uploadUrl, objectKey, PRESIGNED_URL_TTL_SECONDS);
     }
 
-    public record Query(String productId) {}
+    public record Query(String sellerId, String productId) {}
 
     public record Result(String uploadUrl, String objectKey, int ttlSeconds) {}
 }

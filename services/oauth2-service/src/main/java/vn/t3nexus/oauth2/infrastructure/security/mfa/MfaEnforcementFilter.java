@@ -11,7 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.web.filter.OncePerRequestFilter;
-import vn.t3nexus.oauth2.infrastructure.security.service.UserCredentialDetails;
+import vn.t3nexus.oauth2.infrastructure.security.service.UserAccountDetails;
 
 import java.io.IOException;
 
@@ -56,7 +56,7 @@ public class MfaEnforcementFilter extends OncePerRequestFilter {
         if (auth == null || !auth.isAuthenticated()) return false;
 
         boolean mfaEnabled;
-        if (auth.getPrincipal() instanceof UserCredentialDetails userDetails) {
+        if (auth.getPrincipal() instanceof UserAccountDetails userDetails) {
             mfaEnabled = userDetails.isMfaEnabled();
         } else if (auth.getPrincipal() instanceof OidcUser oidcUser) {
             mfaEnabled = Boolean.TRUE.equals(oidcUser.getClaim("app_mfa_enabled"));

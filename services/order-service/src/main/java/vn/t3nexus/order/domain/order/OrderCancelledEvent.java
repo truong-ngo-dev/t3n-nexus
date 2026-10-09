@@ -8,11 +8,13 @@ import java.util.UUID;
 public class OrderCancelledEvent extends AbstractDomainEvent {
 
     private final String customerId;
+    private final String customerEmail;
     private final OrderCancelReason reason;
 
-    public OrderCancelledEvent(String orderId, String customerId, OrderCancelReason reason) {
+    public OrderCancelledEvent(String orderId, String customerId, String customerEmail, OrderCancelReason reason) {
         super(UUID.randomUUID().toString(), Instant.now(), orderId, "Order");
         this.customerId = customerId;
+        this.customerEmail = customerEmail;
         this.reason = reason;
     }
 
@@ -20,9 +22,9 @@ public class OrderCancelledEvent extends AbstractDomainEvent {
     public String getRoutingKey() { return "order.order.cancelled"; }
 
     @Override
-    public Object getPayload() { return new Payload(getAggregateId(), customerId, reason); }
+    public Object getPayload() { return new Payload(getAggregateId(), customerId, customerEmail, reason); }
 
     public OrderCancelReason reason() { return reason; }
 
-    public record Payload(String orderId, String customerId, OrderCancelReason reason) {}
+    public record Payload(String orderId, String customerId, String customerEmail, OrderCancelReason reason) {}
 }

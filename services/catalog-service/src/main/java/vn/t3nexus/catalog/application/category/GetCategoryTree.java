@@ -45,7 +45,7 @@ public class GetCategoryTree implements QueryHandler<GetCategoryTree.Query, GetC
         }
 
         List<CategoryTreeNode> tree = roots.stream()
-                .sorted(Comparator.comparing(Category::getName))
+                .sorted(Comparator.comparingInt(Category::getSortOrder))
                 .map(c -> buildNode(c, childrenByParent))
                 .toList();
 
@@ -57,7 +57,7 @@ public class GetCategoryTree implements QueryHandler<GetCategoryTree.Query, GetC
                 .getOrDefault(category.getId().getValue(), List.of());
 
         List<CategoryTreeNode> children = childCategories.stream()
-                .sorted(Comparator.comparing(Category::getName))
+                .sorted(Comparator.comparingInt(Category::getSortOrder))
                 .map(child -> buildNode(child, childrenByParent))
                 .toList();
 

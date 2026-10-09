@@ -25,14 +25,14 @@ public class CreateOrder implements CommandHandler<CreateOrder.Command, CreateOr
     @Override
     public Result handle(Command command) {
         OrderId id = OrderId.of(ulidGenerator.generate());
-        Order order = Order.create(id, command.customerId(), command.sellerId(), command.items(),
-                command.paymentMethod(), command.address());
+        Order order = Order.create(id, command.customerId(), command.customerEmail(), command.sellerId(),
+                command.items(), command.paymentMethod(), command.address());
         orderRepository.save(order);
         inventoryTimeoutIndex.add(id.getValue(), order.getInventoryReplyDeadline());
         return new Result(id.getValue(), order.getStatus().name());
     }
 
-    public record Command(String customerId, String sellerId, List<OrderLineItem> items,
+    public record Command(String customerId, String customerEmail, String sellerId, List<OrderLineItem> items,
                           PaymentMethod paymentMethod, ShippingAddress address) {}
 
     public record Result(String orderId, String status) {}

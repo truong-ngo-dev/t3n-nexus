@@ -22,7 +22,7 @@ public class CategoryJpaEntity {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(name = "slug", nullable = false, unique = true, updatable = false)
+    @Column(name = "slug", nullable = false)
     private String slug;
 
     @Column(name = "parent_id")
@@ -33,6 +33,9 @@ public class CategoryJpaEntity {
 
     @Column(name = "image_url")
     private String imageUrl;
+
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

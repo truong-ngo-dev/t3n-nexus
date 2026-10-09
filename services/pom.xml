@@ -28,6 +28,7 @@
 		<module>customer-service</module>
         <module>notification-service</module>
         <module>email-worker</module>
+        <module>inapp-worker</module>
         <module>web-gateway</module>
         <module>api-gateway</module>
         <module>catalog-service</module>

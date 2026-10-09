@@ -1,6 +1,7 @@
 package vn.t3nexus.catalog.application.product;
 
 import lombok.RequiredArgsConstructor;
+import vn.t3nexus.catalog.application.product.search_sync.PublishProductSearchSnapshot;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.cache.annotation.CacheEvict;
@@ -20,6 +21,7 @@ public class UnblockProduct implements CommandHandler<UnblockProduct.Command, Un
 
     private final ProductRepository productRepository;
     private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final PublishProductSearchSnapshot publishProductSearchSnapshot;
     private final EventDispatcher eventDispatcher;
 
     @Override
@@ -33,6 +35,7 @@ public class UnblockProduct implements CommandHandler<UnblockProduct.Command, Un
         productRepository.save(product);
         eventDispatcher.dispatchAll(product.getDomainEvents());
         product.clearDomainEvents();
+        publishProductSearchSnapshot.publish(command.productId());
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT, command.productId());
 
         log.info("[UnblockProduct] unblocked: productId={}, traceId={}", command.productId(), MDC.get("traceId"));

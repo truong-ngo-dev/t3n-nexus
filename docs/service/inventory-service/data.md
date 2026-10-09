@@ -51,18 +51,20 @@ Một row per Order. `order_id` là business key — dùng để dedup khi `Orde
 
 | Column       | Type          | Nullable | Notes                                                   |
 |--------------|---------------|----------|---------------------------------------------------------|
-| `id`         | `uuid`        | NO       | PK                                                      |
-| `order_id`   | `uuid`        | NO       | UNIQUE                                                  |
-| `status`     | `varchar(20)` | NO       | `PENDING` \| `RELEASED` \| `CANCELLED`                  |
-| `expires_at` | `timestamp`   | NO       | TTL khớp với order auto-cancel window của order-service |
-| `created_at` | `timestamp`   | NO       |                                                         |
-| `updated_at` | `timestamp`   | NO       |                                                         |
+| `id`         | `varchar(26)` | NO       | PK, ULID                                                |
+| `order_id`   | `varchar(26)` | NO       | UNIQUE                                                  |
+| `status`     | `varchar(20)` | NO       | `PENDING` \| `COMMITTED` \| `RELEASED` \| `CANCELLED`   |
+| `expires_at` | `timestamptz` | YES      | TTL self-guard (5 phút, hạ từ 10 phút — 2026-09-23) — `NULL` cho reservation `CANCELLED` (T2, chưa từng PENDING) |
+| `created_at` | `timestamptz` | NO       |                                                         |
+| `updated_at` | `timestamptz` | NO       |                                                         |
 
 **Indexes:**
 - `uk_reservation_order_id` UNIQUE on `(order_id)` — Saga lookup + idempotency guard
-- `idx_reservation_status_expires` on `(status, expires_at)` — Scheduler query: tìm PENDING đã quá TTL
+- `idx_reservation_pending_expires_at` partial index on `(expires_at) WHERE status='PENDING'` — TTL Lớp 2 backstop query
 
-> `ReserveInventory.handle()` check `existsByOrderId()` trước khi insert (fast pre-check, không phải nguồn bảo vệ chính) — data integrity thật sự do `UNIQUE(order_id)` ở DB đảm bảo, insert trùng sẽ fail ở tầng DB nếu 2 transaction race qua được check-then-act. Gap hiện tại: exception vi phạm constraint chưa được catch riêng để xử lý "graceful — coi như duplicate, skip" mà rơi vào nhánh lỗi chung (`OrderCreatedConsumer` release Redis guard rồi rethrow → Kafka retry) — không mất data integrity, chỉ chưa tối ưu retry path.
+**2026-09-22 — đảo ngược lần 2**: `expires_at` từng bị `V5` xoá hẳn (comment gốc: TTL sweep ngây thơ sẽ release nhầm cả đơn đã confirm, vì lúc đó `ReservationStatus` chưa có state chung cuộc — mọi reservation thành công đều nằm mãi `PENDING`). `V6` thêm lại **sau khi** bổ sung `COMMITTED` (chuyển từ `OrderConfirmedConsumer`, xem service.md) — điều kiện an toàn mà `V5` từng thiếu nay đã có, nên TTL sweep chỉ còn chạm đúng reservation thực sự bị bỏ quên (`PENDING` quá hạn), không đụng tới đơn đã confirm.
+
+> `ReserveInventory.handle()` check `existsByOrderId()` trước khi insert (fast pre-check, không phải nguồn bảo vệ chính) — data integrity thật sự do `UNIQUE(order_id)` ở DB đảm bảo.
 
 ---
 

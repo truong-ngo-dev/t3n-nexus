@@ -14,7 +14,7 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
-import vn.t3nexus.oauth2.application.user_credential.resolve_social_user.ResolveSocialUser;
+import vn.t3nexus.oauth2.application.user_account.resolve_social_user.ResolveSocialUser;
 
 import java.time.Instant;
 import java.util.ArrayList;

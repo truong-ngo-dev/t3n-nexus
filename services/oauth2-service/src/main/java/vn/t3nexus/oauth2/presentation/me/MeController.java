@@ -19,9 +19,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
 import vn.t3nexus.oauth2.application.session.revoke_session.RevokeSession;
-import vn.t3nexus.oauth2.application.user_credential.change_password.ChangePassword;
-import vn.t3nexus.oauth2.application.user_credential.get_password_status.GetPasswordStatus;
-import vn.t3nexus.oauth2.application.user_credential.request_password_setup.RequestPasswordSetup;
+import vn.t3nexus.oauth2.application.user_account.change_password.ChangePassword;
+import vn.t3nexus.oauth2.application.user_account.get_password_status.GetPasswordStatus;
+import vn.t3nexus.oauth2.application.user_account.request_password_setup.RequestPasswordSetup;
 
 @RestController
 @RequestMapping("/api/v1/me")

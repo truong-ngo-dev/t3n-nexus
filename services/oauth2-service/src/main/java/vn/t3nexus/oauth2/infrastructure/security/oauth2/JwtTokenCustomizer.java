@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.server.authorization.token.JwtEncodin
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.stereotype.Component;
 import vn.t3nexus.oauth2.infrastructure.security.key.RsaKeyPairRepository;
+import vn.t3nexus.oauth2.infrastructure.security.service.UserAccountDetails;
 // TODO [business]: import vn.t3nexus.oauth2.infrastructure.api.http.internal.SomeServiceClient;
 // TODO [business]: import vn.t3nexus.oauth2.infrastructure.security.service.AdminUserDetails;
 
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 /**
  * Single OAuth2TokenCustomizer cho toàn bộ JWT customization:
  * - kid header — xác định RSA key pair dùng để ký
- * - ACCESS_TOKEN: sid (session id), roles
+ * - ACCESS_TOKEN: sid (session id), roles, email
  * - TODO [business]: contexts claim — gọi internal service để lấy context per user
  * - ID_TOKEN: copy third-party claims từ OidcUser
  */
@@ -60,6 +61,14 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
                     .map(GrantedAuthority::getAuthority)
                     .collect(Collectors.toList());
             context.getClaims().claim("roles", roles);
+
+            // email — username hiện tại là email, nhưng sub JWT lại là userId (UserAccountDetails.getUsername()
+            // trả userId, không phải email) nên downstream service không tự suy ra email từ sub được, phải thêm
+            // claim riêng. Social login (OidcUser/OAuth2User) cũng có sẵn "email" trong claims/attributes gốc.
+            String email = extractEmail(context.getPrincipal());
+            if (email != null) {
+                context.getClaims().claim("email", email);
+            }
         }
 
         if (OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())) {
@@ -79,6 +88,19 @@ public class JwtTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingCont
                 existingClaims.putAll(thirdPartyClaims);
             });
         }
+    }
+
+    private String extractEmail(Authentication principal) {
+        Object p = principal.getPrincipal();
+        if (p instanceof UserAccountDetails ucd) {
+            return ucd.getEmail();
+        } else if (p instanceof OidcUser oidcUser) {
+            return oidcUser.getEmail();
+        } else if (p instanceof OAuth2User oauth2User) {
+            Object email = oauth2User.getAttributes().get("email");
+            return email != null ? email.toString() : null;
+        }
+        return null;
     }
 
     private Map<String, Object> extractClaims(Authentication principal) {

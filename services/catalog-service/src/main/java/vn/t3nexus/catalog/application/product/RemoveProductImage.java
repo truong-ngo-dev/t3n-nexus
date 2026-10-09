@@ -1,6 +1,7 @@
 package vn.t3nexus.catalog.application.product;
 
 import lombok.RequiredArgsConstructor;
+import vn.t3nexus.catalog.application.product.search_sync.PublishProductSearchSnapshot;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.cache.annotation.CacheEvict;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.catalog.domain.product.*;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheInvalidationPublisher;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
+import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 
@@ -19,6 +21,8 @@ public class RemoveProductImage implements CommandHandler<RemoveProductImage.Com
 
     private final ProductRepository productRepository;
     private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final PublishProductSearchSnapshot publishProductSearchSnapshot;
+    private final EventDispatcher eventDispatcher;
 
     @Override
     @Transactional
@@ -26,9 +30,13 @@ public class RemoveProductImage implements CommandHandler<RemoveProductImage.Com
     public Result handle(Command command) {
         Product product = productRepository.findById(ProductId.of(command.productId()))
                 .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        product.assertOwnedBy(command.sellerId());
 
         product.removeImage(ProductImageId.of(command.imageId()));
         productRepository.save(product);
+        eventDispatcher.dispatchAll(product.getDomainEvents());
+        product.clearDomainEvents();
+        publishProductSearchSnapshot.publish(command.productId());
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT, command.productId());
 
         log.info("[RemoveProductImage] removed: productId={}, imageId={}, traceId={}",
@@ -37,7 +45,7 @@ public class RemoveProductImage implements CommandHandler<RemoveProductImage.Com
         return new Result();
     }
 
-    public record Command(String productId, String imageId) {}
+    public record Command(String sellerId, String productId, String imageId) {}
 
     public record Result() {}
 }

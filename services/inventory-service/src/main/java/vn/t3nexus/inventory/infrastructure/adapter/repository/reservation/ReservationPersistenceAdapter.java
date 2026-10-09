@@ -11,6 +11,9 @@ import vn.t3nexus.inventory.infrastructure.persistence.reservation.ReservationIt
 import vn.t3nexus.inventory.infrastructure.persistence.reservation.ReservationJpaRepository;
 import vn.t3nexus.inventory.infrastructure.persistence.reservation.ReservationMapper;
 
+import org.springframework.data.domain.Limit;
+
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -75,5 +78,10 @@ public class ReservationPersistenceAdapter implements ReservationRepository {
     @Override
     public void delete(ReservationId id) {
         jpaRepository.deleteById(id.getValue());
+    }
+
+    @Override
+    public List<String> findOrderIdsPendingWithExpiredDeadline(Instant asOf, int limit) {
+        return jpaRepository.findOrderIdsPendingWithExpiredDeadline(asOf, Limit.of(limit));
     }
 }

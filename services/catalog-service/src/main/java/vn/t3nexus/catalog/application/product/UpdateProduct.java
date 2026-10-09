@@ -1,6 +1,7 @@
 package vn.t3nexus.catalog.application.product;
 
 import lombok.RequiredArgsConstructor;
+import vn.t3nexus.catalog.application.product.search_sync.PublishProductSearchSnapshot;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.cache.annotation.CacheEvict;
@@ -31,14 +32,16 @@ public class UpdateProduct implements CommandHandler<UpdateProduct.Command, Upda
     private final VariantRepository variantRepository;
     private final AttributeTemplateDomainService attributeTemplateDomainService;
     private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final PublishProductSearchSnapshot publishProductSearchSnapshot;
     private final EventDispatcher eventDispatcher;
 
     @Override
     @Transactional
     @CacheEvict(value = CacheNames.PRODUCT, key = "#command.productId()")
     public Result handle(Command command) {
-        Product product = productRepository.findById(ProductId.of(command.productId()))
+        Product product = productRepository.findByIdForUpdate(ProductId.of(command.productId()))
                 .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        product.assertOwnedBy(command.sellerId());
 
         List<ProductAttributeValue> attributeValues = command.attributeValues().stream()
                 .map(dto -> new ProductAttributeValue(
@@ -56,6 +59,7 @@ public class UpdateProduct implements CommandHandler<UpdateProduct.Command, Upda
         productRepository.save(product);
         eventDispatcher.dispatchAll(product.getDomainEvents());
         product.clearDomainEvents();
+        publishProductSearchSnapshot.publish(command.productId());
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT, command.productId());
 
         log.info("[UpdateProduct] updated: productId={}, traceId={}", command.productId(), MDC.get("traceId"));
@@ -88,8 +92,8 @@ public class UpdateProduct implements CommandHandler<UpdateProduct.Command, Upda
         }
 
         // Gỡ 1 giá trị mà Variant đang dùng sẽ làm SKU đó mồ côi (Product không còn "công nhận" đặc tính
-        // mà SKU vẫn khai) — không phân biệt Variant ACTIVE/INACTIVE, khớp usageCount không giảm khi
-        // deactivate (AttributeOption).
+        // mà SKU vẫn khai) — không phân biệt Variant ACTIVE/INACTIVE (SKU tắt vẫn tồn tại, vẫn
+        // tham chiếu giá trị đó).
         Map<String, List<String>> submittedByTemplate = submitted.stream()
                 .collect(Collectors.toMap(v -> v.templateId().getValue(), ProductAttributeValue::values));
 
@@ -112,6 +116,7 @@ public class UpdateProduct implements CommandHandler<UpdateProduct.Command, Upda
     }
 
     public record Command(
+            String sellerId,
             String productId,
             String name,
             String description,

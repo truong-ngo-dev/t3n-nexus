@@ -21,6 +21,7 @@
         <module name="observability-starter" />
         <module name="catalog-service" />
         <module name="common-utils" />
+        <module name="inapp-worker" />
         <module name="event-sourcing-starter" />
         <module name="reactive-rate-limiter-starter" />
         <module name="notification-service" />
@@ -57,6 +58,7 @@
       <module name="event-sourcing-starter" options="-parameters" />
       <module name="idempotency-support" options="-parameters" />
       <module name="identity-service" options="-parameters" />
+      <module name="inapp-worker" options="-parameters" />
       <module name="inventory-service" options="-parameters" />
       <module name="notification" options="-parameters" />
       <module name="notification-service" options="-parameters" />

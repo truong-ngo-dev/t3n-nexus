@@ -8,12 +8,14 @@ import java.util.UUID;
 public class OrderConfirmedEvent extends AbstractDomainEvent {
 
     private final String customerId;
+    private final String customerEmail;
     private final String sellerId;
     private final ShippingAddress shippingAddress;
 
-    public OrderConfirmedEvent(String orderId, String customerId, String sellerId, ShippingAddress shippingAddress) {
+    public OrderConfirmedEvent(String orderId, String customerId, String customerEmail, String sellerId, ShippingAddress shippingAddress) {
         super(UUID.randomUUID().toString(), Instant.now(), orderId, "Order");
         this.customerId = customerId;
+        this.customerEmail = customerEmail;
         this.sellerId = sellerId;
         this.shippingAddress = shippingAddress;
     }
@@ -23,8 +25,8 @@ public class OrderConfirmedEvent extends AbstractDomainEvent {
 
     @Override
     public Object getPayload() {
-        return new Payload(getAggregateId(), customerId, sellerId, shippingAddress);
+        return new Payload(getAggregateId(), customerId, customerEmail, sellerId, shippingAddress);
     }
 
-    public record Payload(String orderId, String customerId, String sellerId, ShippingAddress shippingAddress) {}
+    public record Payload(String orderId, String customerId, String customerEmail, String sellerId, ShippingAddress shippingAddress) {}
 }

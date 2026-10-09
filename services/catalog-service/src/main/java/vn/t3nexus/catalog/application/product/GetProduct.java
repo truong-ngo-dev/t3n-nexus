@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplate;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateRepository;
-import vn.t3nexus.catalog.domain.attributetemplate.InputType;
 import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
@@ -88,6 +87,8 @@ public class GetProduct implements QueryHandler<GetProduct.Query, GetProduct.Res
                 product.getName(),
                 product.getDescription(),
                 product.getStatus().name(),
+                product.isAdminBlocked(),
+                product.isPubliclyVisible(),
                 warrantyDto,
                 attrDtos,
                 imageDtos
@@ -100,7 +101,7 @@ public class GetProduct implements QueryHandler<GetProduct.Query, GetProduct.Res
     // option khớp (không nên xảy ra, data integrity) thì fallback trả raw stored, không throw lỗi — đây
     // là read path, không nên vỡ cả trang chỉ vì 1 label không resolve được.
     private static AttributeValueItemDto resolveItem(AttributeTemplate template, String stored) {
-        if (template == null || template.getInputType() != InputType.SELECT) {
+        if (template == null || !template.getInputType().isSelect()) {
             return new AttributeValueItemDto(stored, stored);
         }
         return template.getOptions().stream()
@@ -122,6 +123,9 @@ public class GetProduct implements QueryHandler<GetProduct.Query, GetProduct.Res
             String name,
             String description,
             String status,
+            boolean adminBlocked,
+            // INV-CAT-044 — tính từ Product.isPubliclyVisible(), không tự suy lại từ status ở nơi đọc.
+            boolean publiclyVisible,
             WarrantyDto warrantyInfo,
             List<AttributeValueDto> attributeValues,
             List<ImageDto> images

@@ -55,15 +55,6 @@ public class VariantPersistenceAdapter implements VariantRepository {
     }
 
     @Override
-    @Transactional
-    public void delete(VariantId id) {
-        String rawId = id.getValue();
-        skuImageRepository.deleteByVariantId(rawId);
-        combinationItemRepository.deleteByVariantId(rawId);
-        jpaRepository.deleteById(rawId);
-    }
-
-    @Override
     public boolean existsByProductId(String productId) {
         return jpaRepository.existsByProductId(productId);
     }

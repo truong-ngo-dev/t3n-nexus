@@ -2,6 +2,8 @@ package vn.t3nexus.inventory.domain.reservation;
 
 import vn.t3nexus.lib.common.domain.service.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface ReservationRepository extends Repository<Reservation, ReservationId> {
@@ -12,4 +14,7 @@ public interface ReservationRepository extends Repository<Reservation, Reservati
     Optional<Reservation> findByOrderIdForUpdate(String orderId);
 
     boolean existsByOrderId(String orderId);
+
+    /** Lớp 2 (backstop) của TTL — trả về orderId (khớp tham số {@code ReleaseReservation.Command}). */
+    List<String> findOrderIdsPendingWithExpiredDeadline(Instant asOf, int limit);
 }

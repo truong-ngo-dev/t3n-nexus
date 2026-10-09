@@ -28,8 +28,7 @@ public class DeactivateAttributeOption
         AttributeTemplate template = templateRepository.findById(AttributeTemplateId.of(command.templateId()))
                 .orElseThrow(() -> new DomainException(AttributeTemplateErrorCode.TEMPLATE_NOT_FOUND));
 
-        // Guard OPTION_IN_USE (usageCount > 0) chạy bên trong AttributeOption.deactivate() — không cần
-        // hỏi sang VariantRepository nữa, xem AttributeOption.java.
+        // Không guard: tắt chỉ chặn lựa chọn mới, sản phẩm/đơn vị bán được đang dùng option này không bị ảnh hưởng.
         template.deactivateOption(optionId);
         templateRepository.save(template);
 

@@ -29,7 +29,11 @@ Bắt đầu session → Tôi đang làm gì?
 | 3 | `global/2.architecture/5. event-catalog.md`    | Events đã có — không tạo duplicate            |
 | 4 | `global/2.architecture/4. communication.md`    | Quy tắc async/sync                            |
 | 5 | `global/4.convention/ddd-structure.md`         | Cấu trúc code bắt buộc                        |
-| 6 | `service/{each-service}/service.md`            | Domain model hiện tại của mỗi service sẽ chạm |
+| 6 | `service/{each-service}/analysis.md` *(nếu đã có)* | Nghiệp vụ đã chốt **kèm lý do** — nguồn của mọi quy tắc (INV), hành động (CMD), sự kiện (EVT), truy vấn (RM) |
+| 7 | `service/{each-service}/service.md`            | Cách hiện thực các phần tử trên (bám ID của analysis) — cơ chế, concurrency, tích hợp |
+
+> Service chưa có `analysis.md` thì `service.md` vẫn là nguồn duy nhất — chưa tách tầng. Mẫu và quan hệ giữa các
+> file: `doc-structure.md` §Tier 2.
 
 ### Đọc thêm nếu liên quan
 
@@ -78,8 +82,9 @@ Template: xem `doc-structure.md`.
 |---|----------------------------------------|------------------------------------------------------|
 | 1 | `feature/{name}/implementation.md`     | Tiến độ hiện tại — task nào done, task nào tiếp theo |
 | 2 | `feature/{name}/design.md`             | Re-orient: flow và business rules                    |
-| 3 | `service/{name}/service.md`            | Domain model của service sẽ làm session này          |
-| 4 | `global/4.convention/ddd-structure.md` | Cấu trúc code                                        |
+| 3 | `service/{name}/analysis.md` *(nếu đã có)* | Nghiệp vụ và lý do của service sẽ làm session này |
+| 4 | `service/{name}/service.md`            | Thiết kế kỹ thuật của service sẽ làm session này     |
+| 5 | `global/4.convention/ddd-structure.md` | Cấu trúc code                                        |
 
 ### Không cần đọc lại
 
@@ -93,8 +98,11 @@ Template: xem `doc-structure.md`.
 
 | # | Tài liệu                               | Mục đích                                 |
 |---|----------------------------------------|------------------------------------------|
-| 1 | `service/{name}/service.md`            | Domain model, business rules của service |
-| 2 | `global/4.convention/ddd-structure.md` | Cấu trúc code                            |
+| 1 | `service/{name}/analysis.md` *(nếu đã có)* | Quy tắc nghiệp vụ và lý do — bug thường là code lệch quy tắc ở đây |
+| 2 | `service/{name}/service.md`            | Thiết kế kỹ thuật, business rules của service |
+| 3 | `global/4.convention/ddd-structure.md` | Cấu trúc code                            |
+
+Với task nhỏ chỉ đọc phần liên quan (tra theo ID `INV-`/`CMD-`/`RM-` trong code hoặc lỗi) — không cần đọc cả file.
 
 ---
 
@@ -102,13 +110,19 @@ Template: xem `doc-structure.md`.
 
 Mỗi khi code thay đổi một trong những điều sau, **cập nhật doc ngay** — không để cuối session.
 
+**Thứ tự khi thay đổi lan qua nhiều tầng:** `analysis.md` → `service.md` → (`data.md`, `api.yaml`, code). Yêu cầu
+nghiệp vụ đổi thì sửa `analysis.md` **trước** (quy tắc + lý do + phương án bị loại), rồi mới tới `service.md`; lý do
+nghiệp vụ không viết vào `service.md`. `data.md`/`api.yaml` là hệ quả của `service.md` — không suy thiết kế từ chúng.
+
 | Thay đổi trong code                           | Tài liệu cần cập nhật                                                                  |
 |-----------------------------------------------|----------------------------------------------------------------------------------------|
-| Thêm domain event mới                         | `global/2.architecture/5. event-catalog.md` + `service/{name}/service.md` > Domain Events |
+| Quy tắc / hành vi / trạng thái nghiệp vụ đổi (INV, CMD, ma trận trạng thái, RM) | `service/{name}/analysis.md` trước, rồi `service.md` §3–§5 cho phần hiện thực |
+| Cơ chế kỹ thuật đổi (khoá, cache, idempotency, job, retry)  | `service/{name}/service.md` (§9–§12, §14)                                       |
+| Thêm domain event mới                         | `global/2.architecture/5. event-catalog.md` + `service/{name}/service.md` §7.1 Publishes (và `analysis.md` §8.1 nếu là sự kiện nghiệp vụ mới) |
 | Sửa payload của event                         | `global/2.architecture/5. event-catalog.md`                                            |
 | Thêm / sửa API endpoint                       | `service/{name}/api.yaml`                                                              |
 | Thêm / sửa table hoặc column                  | `service/{name}/data.md`                                                               |
-| Thêm dependency (gọi service khác, topic mới) | `service/{name}/service.md` > Integration Contract + Dependencies                      |
+| Thêm dependency (gọi service khác, topic mới) | `service/{name}/service.md` §7 Integration contract + §17 Dependencies                  |
 | Flow thực tế khác với design                  | `feature/{name}/design.md` (kể cả sequence diagram nhúng trong file)                   |
 | Phát sinh quyết định kiến trúc mới            | Tạo `global/2.architecture/adr/{n}-{slug}.md` — xem ADR rules                          |
 | Hoàn thành một task                           | Tick checkbox trong `feature/{name}/implementation.md`                                 |
@@ -139,6 +153,8 @@ Trước khi kết thúc, verify:
 
 - [ ] Mọi domain event mới đã có trong `event-catalog.md`
 - [ ] `service/{name}/service.md` phản ánh đúng state hiện tại
+- [ ] Nếu nghiệp vụ đổi: `analysis.md` đã sửa **trước** `service.md`; mọi INV/CMD/EVT/RM mới hoặc đổi có dòng ở `service.md`
+- [ ] Mục "Lệch giữa thiết kế và code" (§16 `service.md`) chỉ điền từ việc rà code thật — chưa rà thì để "Chưa rà code"
 - [ ] `feature/{name}/implementation.md` đã tick các task đã done
 - [ ] Không có TODO nào còn nằm trong code (chuyển thành task trong implementation.md)
 - [ ] Nếu flow thay đổi: `design.md` (kể cả sequence diagram nhúng) đã cập nhật

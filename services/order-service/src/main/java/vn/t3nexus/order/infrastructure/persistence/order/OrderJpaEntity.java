@@ -27,6 +27,9 @@ public class OrderJpaEntity {
     @Column(name = "customer_id", nullable = false, updatable = false, length = 26)
     private String customerId;
 
+    @Column(name = "customer_email", nullable = false, updatable = false, length = 255)
+    private String customerEmail;
+
     @Column(name = "seller_id", nullable = false, updatable = false, length = 26)
     private String sellerId;
 

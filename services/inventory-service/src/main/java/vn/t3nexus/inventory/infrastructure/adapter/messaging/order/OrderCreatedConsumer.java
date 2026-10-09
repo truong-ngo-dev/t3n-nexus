@@ -5,8 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
-import vn.t3nexus.inventory.application.reservation.RecordReservationFailure;
-import vn.t3nexus.inventory.application.reservation.ReserveInventory;
+import vn.t3nexus.inventory.application.reservation.HandleOrderCreated;
 import vn.t3nexus.lib.events.EventEnvelopeDecoder;
 import vn.t3nexus.lib.events.EventEnvelopeMdcPropagator;
 import vn.t3nexus.lib.events.OutboxEventData;
@@ -21,6 +20,10 @@ import java.util.List;
  * {@code UNIQUE(order_id)} + catch {@code DataIntegrityViolationException} (race thật) —
  * {@code RecordReservationFailure.handle()} cùng cơ chế UNIQUE constraint. Không có "khoá" nào
  * có thể rò rỉ.
+ *
+ * <p>Rẽ nhánh T1/T2 nằm ở {@link HandleOrderCreated} (application layer) — consumer chỉ decode +
+ * delegate, đúng convention (2026-09-22, cùng lý do đã tách {@code HandleInventoryReserved} bên
+ * order-service).</p>
  */
 @Slf4j
 @Component
@@ -29,8 +32,7 @@ public class OrderCreatedConsumer {
 
     private final ObjectMapper objectMapper;
     private final EventEnvelopeDecoder decoder;
-    private final ReserveInventory reserveInventory;
-    private final RecordReservationFailure recordReservationFailure;
+    private final HandleOrderCreated handleOrderCreated;
 
     @KafkaListener(
             topics  = "${app.kafka.topic.order-created}",
@@ -42,25 +44,11 @@ public class OrderCreatedConsumer {
 
         try {
             Payload payload = decoder.decode(event, Payload.class);
-            ReserveInventory.Command command = new ReserveInventory.Command(
+            handleOrderCreated.handle(new HandleOrderCreated.Command(
                     payload.orderId(),
                     payload.items().stream()
-                            .map(item -> new ReserveInventory.Command.Item(item.skuId(), item.qty()))
-                            .toList());
-
-            try {
-                reserveInventory.handle(command);
-            } catch (ReserveInventory.ReservationFailedException e) {
-                log.warn("[OrderCreatedConsumer] reservation failed orderId={}, failedSkuId={}, reason={}",
-                        payload.orderId(), e.getFailedSkuId(), e.getReason());
-                recordReservationFailure.handle(new RecordReservationFailure.Command(
-                        payload.orderId(),
-                        payload.items().stream()
-                                .map(item -> new RecordReservationFailure.Command.Item(item.skuId(), item.qty()))
-                                .toList(),
-                        e.getFailedSkuId(),
-                        e.getReason()));
-            }
+                            .map(item -> new HandleOrderCreated.Command.Item(item.skuId(), item.qty()))
+                            .toList()));
         } catch (Exception e) {
             log.error("[OrderCreatedConsumer] failed to process eventId={}", event.payload().eventId(), e);
             throw e;

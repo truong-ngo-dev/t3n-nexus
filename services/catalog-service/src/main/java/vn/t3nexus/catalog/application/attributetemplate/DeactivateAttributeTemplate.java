@@ -7,7 +7,6 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplate;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateDomainService;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateErrorCode;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateRepository;
@@ -22,7 +21,6 @@ public class DeactivateAttributeTemplate
         implements CommandHandler<DeactivateAttributeTemplate.Command, DeactivateAttributeTemplate.Result> {
 
     private final AttributeTemplateRepository templateRepository;
-    private final AttributeTemplateDomainService domainService;
 
     @Override
     @Transactional
@@ -32,7 +30,8 @@ public class DeactivateAttributeTemplate
         AttributeTemplate template = templateRepository.findById(id)
                 .orElseThrow(() -> new DomainException(AttributeTemplateErrorCode.TEMPLATE_NOT_FOUND));
 
-        domainService.validateTemplateDeactivatable(id);
+        // Không guard: tắt chỉ chặn lựa chọn mới; "bắt buộc có hiệu lực" bỏ qua template không dùng được nên không
+        // còn trạng thái "bắt buộc nhưng không chọn được" (analysis.md AGG-CAT-01).
 
         template.deactivate();
         templateRepository.save(template);

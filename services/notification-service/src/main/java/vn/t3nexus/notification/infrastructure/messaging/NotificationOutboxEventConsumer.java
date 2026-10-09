@@ -26,7 +26,9 @@ public class NotificationOutboxEventConsumer {
                        "${app.kafka.topic.device-trust-otp-requested}",
                        "${app.kafka.topic.email-verification-requested}",
                        "${app.kafka.topic.email-verification-reissued}",
-                       "${app.kafka.topic.email-verification-verified}"},
+                       "${app.kafka.topic.email-verification-verified}",
+                       "${app.kafka.topic.order-confirmed}",
+                       "${app.kafka.topic.order-cancelled}"},
             groupId = "${app.kafka.consumer-group}"
     )
     public void consume(String message) {

@@ -3,6 +3,8 @@ package vn.t3nexus.order.presentation.order;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
 import vn.t3nexus.order.application.order.CreateOrder;
@@ -23,9 +25,10 @@ public class OrderController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<OrderResponse> create(@Valid @RequestBody CreateOrderRequest request) {
+    public ApiResponse<OrderResponse> create(@AuthenticationPrincipal Jwt jwt,
+                                              @Valid @RequestBody CreateOrderRequest request) {
         CreateOrder.Result result = createOrder.handle(new CreateOrder.Command(
-                request.customerId(), request.sellerId(),
+                jwt.getSubject(), jwt.getClaimAsString("email"), request.sellerId(),
                 request.items().stream()
                         .map(item -> new OrderLineItem(item.skuId(), item.qty(), item.unitPrice()))
                         .toList(),

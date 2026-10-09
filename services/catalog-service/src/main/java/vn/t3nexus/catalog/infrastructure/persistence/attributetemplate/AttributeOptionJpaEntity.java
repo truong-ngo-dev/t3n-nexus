@@ -32,8 +32,8 @@ public class AttributeOptionJpaEntity {
     @Column(name = "status", nullable = false)
     private AttributeOptionStatus status;
 
-    @Column(name = "usage_count", nullable = false)
-    private int usageCount;
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

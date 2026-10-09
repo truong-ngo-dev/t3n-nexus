@@ -6,8 +6,9 @@ import org.springframework.stereotype.Service;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplate;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateRepository;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateStatus;
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeOption;
 import vn.t3nexus.catalog.domain.attributetemplate.InputType;
+import vn.t3nexus.catalog.domain.category.AttributeConstraints;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryAttributeAssignment;
 import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
@@ -21,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/** Dùng cho form seller/buyer — chỉ template DÙNG ĐƯỢC, kèm {@code constraints} (ràng buộc phải nhập theo).
+ *  KHÔNG kèm {@code discovery} (thuần cấu hình tìm kiếm — search-service đọc qua snapshot, không qua đây). */
 @Service
 @RequiredArgsConstructor
 public class GetCategoryAttributes
@@ -43,11 +46,13 @@ public class GetCategoryAttributes
         Map<String, AttributeTemplate> templatesById = attributeTemplateRepository.findAllByIds(templateIds).stream()
                 .collect(Collectors.toMap(t -> t.getId().getValue(), t -> t));
 
-        // Lọc bỏ assignment trỏ tới template đã INACTIVE — Seller-facing UI không nên hiện field
-        // không còn dùng được nữa (Product submit cho template inactive sẽ bị TEMPLATE_INACTIVE).
+        // Chỉ template DÙNG ĐƯỢC (ACTIVE, và SELECT còn ≥ 1 option ACTIVE) — seller không thấy thứ họ không được chọn.
+        // Option: chỉ ACTIVE, theo thứ tự chuẩn.
         List<Attribute> attributes = assignments.stream()
-                .filter(a -> templatesById.get(a.getAttributeTemplateId().getValue()).getStatus()
-                        == AttributeTemplateStatus.ACTIVE)
+                .filter(a -> {
+                    AttributeTemplate t = templatesById.get(a.getAttributeTemplateId().getValue());
+                    return t != null && t.isUsable();
+                })
                 .sorted((a, b) -> Integer.compare(a.getDisplayOrder(), b.getDisplayOrder()))
                 .map(assignment -> {
                     AttributeTemplate template = templatesById.get(assignment.getAttributeTemplateId().getValue());
@@ -55,11 +60,16 @@ public class GetCategoryAttributes
                             template.getId().getValue(),
                             template.getName(),
                             template.getDisplayName(),
+                            template.getHint(),
                             template.getInputType(),
+                            template.getUnit(),
                             assignment.isRequired(),
-                            assignment.isFilterable(),
-                            assignment.isSearchable(),
-                            assignment.getDisplayOrder()
+                            assignment.getConstraints(),
+                            assignment.getDisplayOrder(),
+                            template.getOptionsInOrder().stream()
+                                    .filter(AttributeOption::isActive)
+                                    .map(o -> new Option(o.getId().getValue(), o.getValue(), o.getDisplayValue()))
+                                    .toList()
                     );
                 })
                 .toList();
@@ -75,10 +85,14 @@ public class GetCategoryAttributes
             String templateId,
             String name,
             String displayName,
+            String hint,
             InputType inputType,
+            String unit,
             boolean required,
-            boolean filterable,
-            boolean searchable,
-            int displayOrder
+            AttributeConstraints constraints,
+            int displayOrder,
+            List<Option> options
     ) {}
+
+    public record Option(String id, String value, String displayValue) {}
 }

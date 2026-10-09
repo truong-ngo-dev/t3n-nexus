@@ -37,7 +37,14 @@ public class    GlobalExceptionHandler {
         // bug. Vẫn cần log vì trước đây MỌI domain exception ở MỌI service dùng lib này im lặng
         // hoàn toàn — không cách nào biết qua log ai đang bị 409 email trùng, 404 token sai...
         log.warn("[GlobalExceptionHandler] {} ({}): {}", ex.getErrorCode(), ex.getErrorCode().httpStatus(), ex.getMessage());
-        return ApiResponse.error(ex.getMessage());
+        return ApiResponse.error(ex.getMessage(), codeOf(ex));
+    }
+
+    /**
+     * Mã lỗi chữ ổn định cho client: tên hằng của enum mã lỗi (vd. EMAIL_TAKEN). Mã lỗi không phải enum thì dùng code() của nó.
+     */
+    private static String codeOf(DomainException ex) {
+        return ex.getErrorCode() instanceof Enum<?> named ? named.name() : ex.getErrorCode().code();
     }
 
     @ExceptionHandler(ResponseStatusException.class)
@@ -55,6 +62,6 @@ public class    GlobalExceptionHandler {
         // Client chỉ nên thấy message chung chung (không rò rỉ chi tiết nội bộ), nhưng server
         // luôn phải có stack trace để debug.
         log.error("[GlobalExceptionHandler] Unhandled exception", ex);
-        return ApiResponse.error("An unexpected error occurred");
+        return ApiResponse.error("An unexpected error occurred", "INTERNAL_ERROR");
     }
 }

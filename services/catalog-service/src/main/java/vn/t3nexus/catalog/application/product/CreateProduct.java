@@ -7,9 +7,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateDomainService;
+import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
+import vn.t3nexus.catalog.domain.brand.BrandStatus;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
 import vn.t3nexus.catalog.domain.category.CategoryId;
@@ -46,13 +48,18 @@ public class CreateProduct implements CommandHandler<CreateProduct.Command, Crea
             throw new DomainException(CategoryErrorCode.CATEGORY_NOT_LEAF);
         }
 
-        // Category deactivate = ngừng cho tạo sản phẩm MỚI dưới nó — không ảnh hưởng Product cũ đã tồn tại.
-        if (category.getStatus() != CategoryStatus.ACTIVE) {
+        // "Dùng được" = bản thân ACTIVE và MỌI tổ tiên ACTIVE — tổ tiên tắt thì nhánh con không còn đường
+        // vào trên cây, nhận sản phẩm mới vào đó là vô nghĩa (analysis.md AGG-CAT-03). Không ảnh hưởng Product cũ.
+        if (category.getStatus() != CategoryStatus.ACTIVE || categoryRepository.hasInactiveAncestor(category.getId())) {
             throw new DomainException(CategoryErrorCode.CATEGORY_INACTIVE);
         }
 
-        brandRepository.findById(BrandId.of(command.brandId()))
+        // INV-CAT-95 — chọn thương hiệu là "chọn mới": phải đang dùng. Sản phẩm cũ giữ thương hiệu đã tắt thì không sao.
+        Brand brand = brandRepository.findById(BrandId.of(command.brandId()))
                 .orElseThrow(() -> new DomainException(BrandErrorCode.BRAND_NOT_FOUND));
+        if (brand.getStatus() != BrandStatus.ACTIVE) {
+            throw new DomainException(BrandErrorCode.BRAND_INACTIVE);
+        }
 
         List<ProductAttributeValue> attributeValues = command.attributeValues().stream()
                 .map(dto -> new ProductAttributeValue(

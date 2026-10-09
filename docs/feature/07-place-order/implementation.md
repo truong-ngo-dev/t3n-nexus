@@ -13,13 +13,13 @@
 ## Điểm chưa chốt
 
 - ~~Shape của `address`~~ — đã chốt, xem ghi chú ở Phase 1.
-- Cơ chế lấy `customerId` từ authenticated principal ở `order-service` — xem caveat ở Phase 1, cần giải quyết trước/trong Phase 7-8.
+- ~~Cơ chế lấy `customerId` từ authenticated principal~~ — đã giải quyết (2026-09-22, xem caveat Phase 1) — `order-service` giờ có `spring-boot-starter-oauth2-resource-server`, `OrderController.create()` lấy `customerId` (=`jwt.getSubject()`) và `customerEmail` (=`jwt.getClaimAsString("email")`, claim mới thêm ở `oauth2-service.JwtTokenCustomizer`) trực tiếp từ JWT, không nhận từ request body nữa. Route qua `web-gateway` (Phase 8, đăng ký route) vẫn chưa làm — đây chỉ là phần resource-server phía `order-service`.
 
 ---
 
 ## Quyết định kiến trúc — `Order` đổi từ Event Sourcing sang CRUD
 
-**Đã ghi thành ADR chính thức**: [ADR-010](../../global/2.architecture/adr/010-order-crud-not-event-sourcing.md) — đây là bản tóm tắt tại chỗ, xem ADR để có context + consequences đầy đủ và danh sách doc liên quan cần đọc kèm.
+**Đã ghi thành ADR chính thức**: [ADR-010](../../global/2.architecture/adr/old/010-order-crud-not-event-sourcing.md) — đây là bản tóm tắt tại chỗ, xem ADR để có context + consequences đầy đủ và danh sách doc liên quan cần đọc kèm.
 
 **Bối cảnh**: `Order` được build ở Phase 1 dùng `event-sourcing-starter` (đã có sẵn lib trong hệ thống). Khi thiết kế `CREATED`-timeout (Phase 5) mới phát hiện: Event Sourcing thuần không query được kiểu "tìm mọi order status=X" — bắt buộc phải bolt-on thêm 1 bảng projection riêng chỉ để làm được 1 việc tầm thường.
 
@@ -112,7 +112,7 @@ dù code phía `ReserveInventory`/`ConfirmOrderOnCodCreated` đều đúng 100% 
 
 **Đã verify**: `mvn compile` sạch.
 
-**Ghi chú caveat (chưa giải quyết trong phase này)**: `customerId`/`sellerId` hiện nhận thẳng từ request body, chưa có cơ chế lấy từ authenticated principal (order-service chưa có resource-server/JWT parsing như `inventory-service`) — sẽ cần giải quyết ở Phase 7/8 khi nối FE thật qua `web-gateway` (tokenRelay), không phải lỗi riêng của order-service.
+**Ghi chú caveat — đã giải quyết (2026-09-22)**: `customerId` (`sub`) và `customerEmail` (claim `email`) giờ lấy từ JWT (`OrderController.create()`, `@AuthenticationPrincipal Jwt`). `sellerId` **vẫn** nhận từ request body — đúng, không phải gap: seller không phải người gọi API này (buyer đặt hàng), `sellerId` là dữ liệu của đơn hàng (ai fulfill), không phải danh tính người gọi — xem phân tích Phase 8 caveat bên dưới, đây là 2 vấn đề khác nhau.
 
 ---
 
@@ -205,9 +205,30 @@ Thay vào đó dùng đúng 2 lớp đều DB, không có "khoá" nào có thể
 - [x] `ScanDbInventoryTimeout` (application/order) — `OrderRepository.findCreatedWithExpiredDeadline()` (dùng partial index `idx_orders_inventory_timeout`), cùng gọi `CancelOrder.handle(INVENTORY_TIMEOUT)`
 - [x] Lớp 3 (cancel action, dùng chung cho cả 2 nhánh): **KHÔNG raw SQL CAS** — cả 2 handler trên gọi đúng `CancelOrder.handle()`, tận dụng `canProcess()` + `ObjectOptimisticLockingFailureException` đã có ở Phase 3.
 - [x] `ScheduledJobFiredConsumer` (infra/adapter/messaging/scheduler) — decode `{instanceId, taskType}`, rẽ nhánh theo `taskType` gọi 2 handler trên. **`@KafkaListener` + `app.kafka.topic.scheduler-job-fired` đang comment** (cả trong class lẫn `application.properties`) — bật lại khi 2 `ScheduledJob` đã đăng ký + verify fire đúng nhịp ở lượt 1, tránh consumer chạy trước khi có gì để consume.
-- [ ] **Quan trọng — quay lại sửa Phase 3**: `InventoryReservedConsumer`/`InventoryReservationFailedConsumer` khi `canProcess()==false` hiện chỉ log skip. Nếu Order đã bị timeout-cancel ở đây, còn `InventoryReserved` tới muộn do inventory-service chỉ CHẬM (không phải mất hẳn) — inventory-service **sẽ vẫn tạo Reservation thật** cho order đã cancelled (vì `OrderCreated` gốc vẫn còn trong Kafka, chưa từng bị huỷ), và `OrderCancelledConsumer` bên inventory đã chạy trước đó thấy "chưa có reservation, no-op" — **không ai release lại**, tạo Reservation mồ côi giữ stock vĩnh viễn. Xử lý theo đúng pattern "late reply" trong `saga-dlq-integration.md`: khi `canProcess()==false` VÀ order đang `CANCELLED`, phải **re-publish `OrderCancelled` với `eventId` mới** để trigger `OrderCancelledConsumer` chạy lại, lần này release đúng.
+- [x] **Quay lại sửa Phase 3 (2026-09-22)** — `Order.republishCancellation()` (mới, không mutate state, chỉ re-raise `OrderCancelledEvent` với `eventId` mới) + gọi trong `ConfirmOrderOnCodCreated.handle()` khi `canProcess()==false && status==CANCELLED`. **Cố tình chỉ sửa path này, không sửa `CancelOrder.handle()`** — phân tích: `InventoryReservationFailedEvent` (OUT_OF_STOCK) nghĩa là **chưa từng tạo Reservation**, nên dù `InventoryReservationFailedConsumer` gọi `CancelOrder` muộn, `canProcess()==false` no-op là đủ, không có gì để release; chỉ `InventoryReservedEvent` (Reservation **đã tạo thật**) đến muộn sau khi order đã timeout-cancel mới cần re-publish. Không guard chống republish lặp nếu `InventoryReserved` tự redeliver nhiều lần — chấp nhận được vì `ReleaseReservation` bên inventory-service đã idempotent (defense-in-depth, không đặt cược vào producer publish đúng 1 lần).
+  - **Đánh giá batch cho auto-cancel job (theo yêu cầu, không đổi code)**: `ScanRedisInventoryTimeout`/`ScanDbInventoryTimeout` loop gọi `CancelOrder.handle()` **từng order, mỗi order 1 transaction riêng** — giữ nguyên, không chuyển sang bulk SQL. Lý do: (1) bulk `UPDATE ... WHERE id IN (...)` bỏ qua tầng aggregate + Outbox, vi phạm quyết định "KHÔNG raw SQL CAS" đã chốt ở trên; (2) đúng pattern đã có sẵn `scheduler-service.IndexPoller` (1 transaction/id, "1 job lỗi không kéo các id đã claim khác"); (3) perf: `BATCH_LIMIT=100` × (~vài ms/order) dưới 1s, thừa margin so với chu kỳ quét 5s/3 phút — không phải bottleneck ở quy mô này.
 - [ ] (Tuỳ chọn, không block correctness) Publish callback outcome về `scheduler-service` sau mỗi lần xử lý xong 1 batch quét — theo đúng contract §Callback của `scheduler-service`; bỏ qua nếu không cần audit `ScheduledJobInstance` cho 2 job này ở giai đoạn đầu.
-- [ ] Bật `@KafkaListener` + property trong `ScheduledJobFiredConsumer`/`application.properties` sau khi verify lượt 1.
+- [x] Bật `@KafkaListener` + property trong `ScheduledJobFiredConsumer`/`application.properties` sau khi verify lượt 1 — **2 job `order-service` đã đăng ký qua Admin API** (2026-09-22, `status=PENDING`, chờ `start()`), chưa bật listener.
+
+### Phase R — `inventory-service`: TTL self-guard trên `Reservation` (2026-09-22, mirror Phase 5)
+
+**Bối cảnh**: `republishCancellation` (trên) chỉ là compensate — phụ thuộc chuỗi 3 message phải cùng tới (`OrderCancelled(1)` → `InventoryReserved` quay lại → `OrderCancelled(2)`). Đối chiếu với nghiên cứu thực tế (Tiki/Arcturus 2-phase reserve/confirm-reverse, AppScale "Reservation-Then-Commit" — *"compensation is best-effort, not load-bearing"*, Stripe Authorize/Cancel Race — cùng khuyến nghị TTL tự guard là cơ chế chính) — bổ sung lớp tự guard độc lập ngay trên `Reservation`, không phụ thuộc `order-service` báo lại đúng/đủ/đúng lúc.
+
+**Đảo ngược lần 2 của `V5__drop_reservation_expires_at.sql`**: cột `expires_at` từng bị xoá vì lúc đó chưa có state chung cuộc (`ReservationStatus` chỉ `PENDING/RELEASED/CANCELLED` — mọi reservation thành công nằm mãi `PENDING`, TTL sweep ngây thơ sẽ release nhầm đơn đã confirm). Đã bổ sung `COMMITTED` trước khi làm lại — điều kiện an toàn `V5` từng thiếu nay đã có.
+
+- [x] `ReservationStatus` thêm `COMMITTED`
+- [x] `Reservation`: thêm `expiresAt` (set `now+5 phút` — hạ từ 10 phút, 2026-09-23, xem lý do trong `service/inventory-service/service.md` §TTL self-guard), method `commit()` (`PENDING → COMMITTED`, guard chỉ từ `PENDING`)
+- [x] Migration `V6__reservation_ttl_guard.sql` — thêm lại `expires_at` (nullable) + partial index `WHERE status='PENDING'`
+- [x] Lớp 1 (Redis ZSET) — `ReservationTimeoutIndex` (domain) + `ReservationTimeoutIndexAdapter` (infra, key `delayed:reservation-timeout`, key theo `orderId`, atomic Lua pop giống `OrderInventoryTimeoutIndexAdapter`). `add()` trong `ReserveInventory.handle()`, `remove()` trong `ReleaseReservation.handle()` và `CommitReservation.handle()`
+- [x] `OrderConfirmedConsumer` (mới) + `CommitReservation` (application, mới) — consume `order.order.confirmed` (topic đã tồn tại, chỉ thêm consumer group mới phía inventory), idempotent qua `isPending()`
+- [x] Lớp 2 (DB backstop) — `ReservationRepository.findOrderIdsPendingWithExpiredDeadline()` (partial index) + `ScanRedisReservationTimeout`/`ScanDbReservationTimeout` (application, mới) — pop/query rồi gọi `ReleaseReservation.handle()` (tái dùng nguyên, không viết lại logic release)
+- [x] `ScheduledJobFiredConsumer` (mới, `inventory-service`) — decode `{instanceId, taskType}`, rẽ `RESERVATION_TIMEOUT_REDIS_SCAN`/`RESERVATION_TIMEOUT_DB_SCAN`. **`@KafkaListener` đang comment** (cùng `application.properties`) — đúng convention đã áp cho order-service, chờ đăng ký 2 job qua Admin API + verify trước khi bật
+- [ ] Đăng ký 2 `ScheduledJob` mới (`RESERVATION_TIMEOUT_REDIS_SCAN` cron `*/5 * * * * *`, `RESERVATION_TIMEOUT_DB_SCAN` cron `0 */3 * * * *`) qua Admin API + verify fire đúng nhịp (thao tác vận hành)
+- [ ] Bật `@KafkaListener` (2 phía: `inventory-service.ScheduledJobFiredConsumer` + `scheduler-service.ScheduledJobFiredHandler` — outbox thật) sau khi verify
+
+**Vai trò `republishCancellation` sau Phase R**: hạ xuống lớp tối ưu (dọn sớm hơn TTL khi phát hiện late-reply) — không còn là chỗ dựa duy nhất cho correctness.
+
+**Verify**: tạo Order COD, mô phỏng `order-service` không bao giờ publish được `OrderConfirmed`/`OrderCancelled` (tắt hẳn outbox connector phía order) → sau ~5 phút `Reservation` tự `RELEASED` qua TTL, không phụ thuộc gì vào `order-service`. Xác nhận order confirm bình thường → `Reservation` chuyển `COMMITTED`, không bao giờ bị TTL sweep nhầm dù để quá 5 phút.
 
 **Verify**: tạo Order, giả lập inventory-service không phản hồi → sau ~3 phút thấy `Order` tự `CANCELLED` (`INVENTORY_TIMEOUT`) qua Lớp 1 (Redis, nhanh, đánh thức bởi `ORDER_INVENTORY_TIMEOUT_REDIS_SCAN`) hoặc Lớp 2 (Postgres, backstop nếu Redis miss, đánh thức bởi `ORDER_INVENTORY_TIMEOUT_DB_SCAN`). Giả lập inventory-service phản hồi **muộn** sau khi đã timeout-cancel → xác nhận `OrderCancelled` được re-publish, `ReleaseReservation` chạy đúng lần 2, không có Reservation mồ côi nào còn `PENDING`. Kiểm thêm: tắt hẳn `scheduler-service` → 2 nhánh quét không chạy, `Order` kẹt ở `CREATED` (đúng kỳ vọng — heartbeat phụ thuộc `scheduler-service` chạy, khác với state chính vẫn nằm ở `order-service`).
 
@@ -217,15 +238,20 @@ Thay vào đó dùng đúng 2 lớp đều DB, không có "khoá" nào có thể
 
 **Chặn bởi**: Phase 3 (cần event thật để test, có thể mock trong lúc chờ). Phần notify **seller** trong phase này bị chặn thêm bởi `seller-service` chưa tồn tại — xem [`deferred.md`](deferred.md) #1 trước khi implement.
 
-- [ ] `OrderConfirmedPayload` (record) — theo mẫu `LoginOtpRequestedPayload`
-- [ ] `OrderConfirmedHandler implements NotificationEventHandler<OrderConfirmedPayload>` — `application/handler/`:
-  - `supportedEventType()` = `"OrderConfirmedEvent"`
-  - Trả `NotificationResult.of(logs, inboxes)` — **cả EMAIL lẫn IN_APP** (khác với `LoginOtpRequestedHandler.emailOnly()`), khớp bảng Channel Routing trong `notification-service.md` (`OrderConfirmed`: Email T1 + In-App)
-- [ ] `OrderCancelledPayload` + `OrderCancelledHandler` — tương tự, Email T1 + In-App
-- [ ] Thêm 2 topic (`order.order.confirmed`, `order.order.cancelled`) vào `@KafkaListener(topics = {...})` của `NotificationOutboxEventConsumer` + property `app.kafka.topic.order-confirmed`/`order-cancelled`
-- [ ] Cập nhật `service/notification-service/service.md` — Events Consumed: `OrderConfirmed`/`OrderCancelled` từ "later" → "current"
+- [x] `OrderConfirmedPayload`/`OrderCancelledPayload` (record) — theo mẫu `LoginOtpRequestedPayload`, có thêm `customerEmail` (2026-09-22)
+- [x] `OrderConfirmedHandler`/`OrderCancelledHandler implements NotificationEventHandler<...>` — `application/handler/`: **chỉ IN_APP** (không phải Email + In-App như dự tính ban đầu — xem lý do dưới)
+- [x] Thêm 2 topic vào `@KafkaListener(topics = {...})` của `NotificationOutboxEventConsumer` (pool Tier1 chung — chỉ In-App, không có rủi ro SES nên dùng chung pool vẫn an toàn)
+- [x] Cập nhật `service/notification-service/service.md` — Events Consumed: `OrderConfirmed`/`OrderCancelled` từ "later" → "current" (In-App); Email vẫn "later"
 
-**Verify**: publish `OrderConfirmed` thật (từ Phase 3) → row mới trong `notification_log` (channel=IN_APP và EMAIL) + `notification_inbox`. CDC route đúng: `notification.inapp.dispatch` có message tương ứng (connector đã sẵn từ trước, không cần đổi).
+**Đảo ngược so với dự tính ban đầu (2026-09-22) — tách Email ra khỏi scope Phase 6 này**: `service/notification-service/service.md` §Channel Routing có sẵn "Open question — chưa quyết" (burst order-volume có thể vượt trần SES 14 msg/s + priority-inversion với Tier1 OTP nếu dùng chung pool). Làm thẳng Email + In-App chung 1 handler như dự tính ban đầu sẽ tái tạo đúng vấn đề đó. Xử lý:
+- [x] `SendOrderConfirmedEmail`/`SendOrderCancelledEmail` (application/handler/, **không** implement `NotificationEventHandler` — abstraction đó chỉ hỗ trợ 1 handler/eventType, không khớp nhu cầu 2 consumer group độc lập cho cùng 1 event)
+- [x] `OrderEmailOutboxEventConsumer` (mới) — consumer group riêng (`app.kafka.consumer-group.order-email`), tách khỏi Tier1. **`@KafkaListener` đang comment** — chờ quyết xong rate-limit/backpressure cho Email volume cao
+- [x] `customerEmail` snapshot vào `Order` (order-service) — capture từ JWT claim `email` lúc đặt hàng (`oauth2-service.JwtTokenCustomizer` mới thêm claim này), truyền qua `OrderConfirmedEvent`/`OrderCancelledEvent` — notification-service không cần tra cứu gì thêm
+- [ ] **TODO còn treo**: email cho seller (`OrderConfirmed`) — chưa có nguồn lấy email seller (không nằm trong request context lúc đặt hàng, khác customer). Ghi TODO thẳng trong `SendOrderConfirmedEmail`
+- [ ] Quyết định rate-limit/backpressure cho Email volume cao (bảng Channel Routing "Open question") — vẫn treo, chưa làm
+- [ ] Bật `@KafkaListener` ở `OrderEmailOutboxEventConsumer` sau khi 2 mục trên xong
+
+**Verify**: publish `OrderConfirmed`/`OrderCancelled` thật → row mới trong `notification_log` (channel=IN_APP) + `notification_inbox` qua pool Tier1 chung. Email chưa test được (consumer chưa bật).
 
 ---
 
@@ -233,29 +259,31 @@ Thay vào đó dùng đúng 2 lớp đều DB, không có "khoá" nào có thể
 
 **Chặn bởi**: Phase 6 (cần message thật trên `notification.inapp.dispatch` để test).
 
-- [ ] Scaffold service mới `services/inapp-worker/` — theo mẫu `email-worker` (`spring.main.web-application-type=none`, pure Kafka consumer)
-- [ ] `pom.xml`: `spring-boot-starter-kafka`, `spring-boot-starter-data-redis-reactive`, `observability-starter`, `common-events`
-- [ ] `InappDispatchConsumer` — consume `notification.inapp.dispatch`:
-  - Check Redis idempotency key `inapp:{notification_log_id}`, skip nếu tồn tại
-  - `Redis PUBLISH user:{userId}:inapp {payload}`
-  - `SET` idempotency key TTL 72h, commit offset
-  - Fail → propagate exception → Kafka retry → DLQ sau max retry
-- [ ] Thêm vào `services/pom.xml` (parent) làm module
+- [x] Scaffold service mới `services/inapp-worker/` — theo mẫu `email-worker` (`spring.main.web-application-type=none`, pure Kafka consumer)
+- [x] `pom.xml`: **đổi so với dự tính ban đầu** — dùng `spring-boot-starter-data-redis` (blocking) thay vì `-reactive`, và `idempotency-support` (lib có sẵn, đúng lib email-worker đang dùng) thay vì tự viết guard riêng; bỏ `common-events` (email-worker cũng không dùng, tự parse JSON qua `ObjectMapper`/`JsonNode` thay vì shared envelope class)
+- [x] `InappDispatchConsumer` — consume `notification.inapp.dispatch` (1 topic duy nhất, không tách tier1/tier2 như email vì in-app không có khái niệm TRANSACTIONAL/BULK riêng biệt ở tầng dispatch):
+  - `InappDispatchHandler` — check Redis idempotency key `inapp:{notification_log_id}` (`IdempotencyGuard.tryAcquire`), skip nếu trùng
+  - `InappPublisher.publish()` — `StringRedisTemplate.convertAndSend("user:{userId}:inapp", payload)`
+  - Lỗi → `release()` guard rồi rethrow → Kafka retry (`FixedBackOff` 2s×3, cùng cấu hình Tier1 email) → DLQ sau max retry
+- [x] Thêm vào `services/pom.xml` (parent) làm module
+- [ ] `service/inapp-worker/service.md` — tạo mới (dời sang Phase 10 theo kế hoạch gốc)
 
-**Verify**: publish message giả vào `notification.inapp.dispatch` → `redis-cli SUBSCRIBE user:{userId}:inapp` nhận đúng payload. Publish trùng `notification_log_id` → không publish lần 2 (check log "skip duplicate").
+**Chưa verify runtime** (cần Kafka/Redis/`notification-connector` chạy thật) — `mvn compile` sạch. Khi verify: publish message giả vào `notification.inapp.dispatch` → `redis-cli SUBSCRIBE user:{userId}:inapp` nhận đúng payload. Publish trùng `notification_log_id` → không publish lần 2 (check log "skip duplicate").
 
 ---
 
-### Phase 8 — Gateway routes
+### Phase 8 — Gateway routes + resource-server phía `order-service`
 
 **Chặn bởi**: Phase 1 (cần `OrderController` thật tồn tại để route tới).
 
-- [ ] `web-gateway/RouteConfiguration.java`: thêm route `order-service` theo đúng pattern các route hiện có (`path("/api/order/**", "/web/api/order/**")`, `rewritePath`, `tokenRelay`, `saveSession`)
-- [ ] `web-gateway/application.properties`: thêm `webgateway.routes.order-service.uri`
+- [x] **Resource-server phía `order-service` (2026-09-22)** — `spring-boot-starter-oauth2-resource-server` + `jwk-set-uri`, `OrderController.create()` lấy `customerId`/`customerEmail` từ JWT thay vì request body. Đây mới là phần "order-service tự parse token đúng" — chưa liên quan gì tới việc traffic có đi qua `web-gateway` hay chưa (2 việc độc lập, JWT verify được bất kể tới từ đâu miễn có Bearer token hợp lệ).
+- [x] `web-gateway/RouteConfiguration.java`: thêm route `order-service` theo đúng pattern các route hiện có (`path("/api/order/**", "/web/api/order/**")`, `rewritePath("(/web)?/api/order/(?<segment>.*)", "/api/${segment}")`, `tokenRelay`, `saveSession`)
+- [x] `web-gateway/application.properties`: thêm `webgateway.routes.order-service.uri=http://localhost:8007`
 - [ ] **Không cần** thêm route cho `websocket-gateway` ở `api-gateway`/`web-gateway` — theo `4. communication.md:49`, WS data-plane connect thẳng, chỉ mint ticket qua `web-gateway` (endpoint `/webgw/auth/ws-ticket` đã có sẵn, không đổi)
 - [ ] Verify path `ws-ticket` reachable qua `api-gateway` `/web/**` → `web-gateway` (đã có route `/web/**` generic, không cần thêm)
+- [ ] **Caveat còn treo (không phải gap kỹ thuật)**: `sellerId` trong `CreateOrder.Command` vẫn nhận từ request body, client tự khai — chưa verify với catalog-service (ai thật sự sở hữu SKU trong đơn). Khác bản chất với `customerId` (đã giải quyết ở trên) — đây là dữ liệu của đơn hàng, không phải danh tính người gọi, nên không giải quyết bằng JWT được. Ghi nhận là gap riêng, chưa xử lý.
 
-**Verify**: `curl -X POST http://api-gateway/web/api/order/api/orders ...` (qua cookie session thật) → tới được `order-service`. `GET .../webgw/auth/ws-ticket` → trả `{ticket}`.
+**Chưa verify runtime** (cần `web-gateway`/`api-gateway`/`order-service` chạy thật + session/token thật) — `mvn compile` sạch. Khi verify: `curl -X POST http://api-gateway/web/api/order/orders ...` (qua cookie session thật, `segment=orders` → rewrite thành `/api/orders`) → tới được `order-service`. `GET .../webgw/auth/ws-ticket` → trả `{ticket}`.
 
 ---
 

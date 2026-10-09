@@ -19,7 +19,6 @@ import org.springframework.data.redis.serializer.JacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import tools.jackson.databind.ObjectMapper;
-import vn.t3nexus.catalog.application.brand.ListActiveBrands;
 import vn.t3nexus.catalog.application.category.GetCategoryAttributes;
 import vn.t3nexus.catalog.application.category.GetCategoryTree;
 import vn.t3nexus.catalog.application.product.GetProduct;
@@ -90,12 +89,12 @@ public class CacheConfig {
                 .serializeKeysWith(SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(SerializationPair.fromSerializer(jsonSerializer));
 
+        // transactionAware: put/evict chạy trong transaction được hoãn tới SAU commit. Không có nó, @CacheEvict
+        // có thể chạy trước commit (thứ tự CacheInterceptor/TransactionInterceptor không cấu hình) — request
+        // đọc chen giữa evict và commit nạp lại bản cũ vào Redis, giữ tới hết TTL.
         return RedisCacheManager.builder(connectionFactory)
+                .transactionAware()
                 .cacheDefaults(base)
-                .withCacheConfiguration(CacheNames.BRANDS_ACTIVE,
-                        base.entryTtl(Duration.ofMinutes(30))
-                            .serializeValuesWith(SerializationPair.fromSerializer(
-                                    new JacksonJsonRedisSerializer<>(objectMapper, ListActiveBrands.Result.class))))
                 .withCacheConfiguration(CacheNames.CATEGORY_ATTRIBUTES,
                         base.entryTtl(Duration.ofHours(1))
                             .serializeValuesWith(SerializationPair.fromSerializer(

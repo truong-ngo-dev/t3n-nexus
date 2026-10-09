@@ -17,4 +17,10 @@ public interface VariantRepository extends Repository<Variant, VariantId> {
     // Chỉ dùng khi Product còn DRAFT (DeleteProduct) — Product/Variant chưa từng publish nên chắc chắn
     // chưa có Order/lịch sử nào tham chiếu, xoá cứng an toàn. Xem service.md § Product delete.
     void deleteByProductId(String productId);
+
+    /** Đơn vị bán được không bao giờ bị xoá riêng lẻ — chỉ tắt/bật (INV-CAT-052); xoá theo sản phẩm dùng {@link #deleteByProductId}. */
+    @Override
+    default void delete(VariantId id) {
+        throw new UnsupportedOperationException("Variant is never deleted individually — deactivate instead");
+    }
 }

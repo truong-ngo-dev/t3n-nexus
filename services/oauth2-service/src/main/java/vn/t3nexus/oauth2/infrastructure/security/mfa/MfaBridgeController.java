@@ -14,7 +14,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import vn.t3nexus.oauth2.infrastructure.security.service.UserCredentialDetails;
+import vn.t3nexus.oauth2.infrastructure.security.service.UserAccountDetails;
 
 import java.io.IOException;
 
@@ -34,7 +34,7 @@ public class MfaBridgeController {
     public void initiate(HttpServletRequest request, HttpServletResponse response,
             HttpSession session, Authentication authentication) throws IOException, ServletException {
         String email = (String) session.getAttribute("auth_email");
-        if (email == null && authentication.getPrincipal() instanceof UserCredentialDetails details) {
+        if (email == null && authentication.getPrincipal() instanceof UserAccountDetails details) {
             email = details.getEmail();
         }
 

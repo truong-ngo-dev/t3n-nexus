@@ -8,7 +8,7 @@ import tools.jackson.databind.ObjectMapper;
 import vn.t3nexus.lib.events.EventEnvelopeDecoder;
 import vn.t3nexus.lib.events.EventEnvelopeMdcPropagator;
 import vn.t3nexus.lib.events.OutboxEventData;
-import vn.t3nexus.oauth2.application.user_credential.activate_user_credential.ActivateUserCredential;
+import vn.t3nexus.oauth2.application.user_account.activate_user_account.ActivateUserAccount;
 
 @Slf4j
 @Component
@@ -17,7 +17,7 @@ public class UserActivatedConsumer {
 
     private final ObjectMapper           objectMapper;
     private final EventEnvelopeDecoder   decoder;
-    private final ActivateUserCredential activateUserCredential;
+    private final ActivateUserAccount activateUserAccount;
 
     @KafkaListener(
             topics  = "${app.kafka.topic.user-activated}",
@@ -28,7 +28,7 @@ public class UserActivatedConsumer {
         EventEnvelopeMdcPropagator.propagate(event.payload());
         try {
             UserActivatedPayload payload = decoder.decode(event, UserActivatedPayload.class);
-            activateUserCredential.handle(new ActivateUserCredential.Command(payload.userId()));
+            activateUserAccount.handle(new ActivateUserAccount.Command(payload.userId()));
         } finally {
             EventEnvelopeMdcPropagator.clear();
         }

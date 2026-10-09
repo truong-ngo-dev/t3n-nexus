@@ -10,7 +10,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
-import vn.t3nexus.oauth2.application.user_credential.publish_login_failed.PublishLoginFailed;
+import vn.t3nexus.oauth2.application.user_account.publish_login_failed.PublishLoginFailed;
 import vn.t3nexus.oauth2.infrastructure.cross_cutting.utils.IpAddressExtractor;
 
 import java.io.IOException;

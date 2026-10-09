@@ -11,11 +11,15 @@
 | Column       | Type        | Nullable | Notes              |
 |--------------|-------------|----------|--------------------|
 | `id`         | `uuid`      | NO       | PK                 |
-| `name`       | `varchar`   | NO       |                    |
+| `name`       | `varchar`   | NO       | UNIQUE (không phân biệt hoa/thường — `uq_brand_name` trên `LOWER(name)`, V17) |
 | `slug`       | `varchar`   | NO       | UNIQUE             |
 | `status`     | `varchar`   | NO       | `ACTIVE, INACTIVE` |
 | `created_at` | `timestamp` | NO       |                    |
 | `updated_at` | `timestamp` | NO       |                    |
+
+> Không có cột nào tham chiếu `category` — Brand không giới hạn theo danh mục (xem analysis.md §5.3.2 mục 5).
+> "Chính hãng"/đại lý ủy quyền là một khái niệm khác (seller ↔ brand, có thể kèm phạm vi), nếu làm sẽ là aggregate
+> riêng (`BrandAuthorization`), không sửa bảng này.
 
 ---
 
@@ -24,21 +28,21 @@
 | Column         | Type        | Nullable | Notes                                           |
 |----------------|-------------|----------|-------------------------------------------------|
 | `id`           | `uuid`      | NO       | PK                                              |
-| `name`         | `varchar`   | NO       | UNIQUE, immutable — machine key ổn định (cùng vai trò `Brand.slug`/`Category.slug`), không phải vì sợ vỡ tham chiếu (mọi nơi đều tham chiếu bằng ID, không bằng `name`) |
+| `name`         | `varchar`   | NO       | UNIQUE, immutable — machine key ổn định (mọi nơi tham chiếu bằng ID, không bằng `name`) |
 | `display_name` | `varchar`   | NO       |                                                 |
-| `input_type`   | `varchar`   | NO       | `SELECT, TEXT, NUMBER, BOOLEAN` — immutable vì lý do KỸ THUẬT thật (khác `name`): đổi SELECT↔TEXT sau khi đã có `AttributeOption`/dữ liệu tham chiếu sẽ làm sai lệch cấu trúc dữ liệu đã lưu |
-| `status`       | `varchar`   | NO       | `ACTIVE, INACTIVE` — soft-delete, cùng pattern Brand/Category/AttributeOption |
+| `hint`         | `varchar(200)` | YES   | Gợi ý cách nhập cho seller (V16) |
+| `input_type`   | `varchar`   | NO       | `SINGLE_SELECT, MULTI_SELECT, TEXT, NUMBER, BOOLEAN, DATE` (V16) — immutable |
+| `unit`         | `varchar(20)` | YES    | Chỉ khi `input_type = NUMBER` (CHECK `chk_attribute_template_unit`); immutable (V16) |
+| `status`       | `varchar`   | NO       | `ACTIVE, INACTIVE` — tắt/bật, không guard |
+| `version`      | `bigint`    | NO       | Optimistic lock (V16) — 2 Admin sửa cùng template: bên sau lỗi |
 | `created_at`   | `timestamp` | NO       |                                                 |
 | `updated_at`   | `timestamp` | NO       |                                                 |
 
-> **V8:** bỏ cột `scope` — không còn khái niệm GLOBAL/CATEGORY. AttributeTemplate là master data thuần,
-> phải được assign tường minh vào category (chỉ leaf/L3) mới có hiệu lực. Xem `service.md` § Attribute
-> Value Model.
+> **V8:** bỏ cột `scope` (không còn GLOBAL/CATEGORY). **V9:** thêm `status` (thay hard delete).
 >
-> **V9:** thêm cột `status` — thay cho hard delete (vốn không dùng được vì FK `ON DELETE RESTRICT` từ
-> `category_attribute_assignment`/`product_attribute_value`/`variant_combination_item`). Deactivate bị
-> chặn nếu template đang `required=true` ở bất kỳ category nào — xem `service.md` § AttributeTemplate
-> lifecycle.
+> **V16:** tách `SELECT` → `SINGLE_SELECT`/`MULTI_SELECT` (dữ liệu cũ: template có sản phẩm khai > 1 giá trị cho thuộc
+> tính không phải trục biến thể → `MULTI_SELECT`, còn lại `SINGLE_SELECT`), thêm `DATE`; thêm `unit`, `hint`, `version`.
+> Guard "không tắt template đang required" đã bỏ (xem `service.md` § AttributeTemplate — hành vi và guard).
 
 ### `attribute_option`
 
@@ -46,16 +50,18 @@
 |-----------------|-------------|----------|---------------------------|
 | `id`            | `uuid`      | NO       | PK                        |
 | `template_id`   | `uuid`      | NO       | FK → `attribute_template` |
-| `value`         | `varchar`   | NO       | Immutable — machine key ổn định (giống `AttributeTemplate.name`), không unique constraint (không kẹt tên khi reactivate) |
+| `value`         | `varchar`   | NO       | Immutable — machine key; **duy nhất trong template, không phân biệt hoa/thường** (unique index `uq_attribute_option_template_value` trên `(template_id, LOWER(value))`, V16) |
 | `display_value` | `varchar`   | NO       |                           |
-| `status`        | `varchar`   | NO       | `ACTIVE, INACTIVE`        |
-| `usage_count`   | `int`       | NO       | Số lần option xuất hiện trong `variant_combination_item`, bump bởi `AddVariant` cùng transaction — dùng để guard `OPTION_IN_USE` (thay cho query `existsByOptionId` full-scan, xem V10) |
+| `status`        | `varchar`   | NO       | `ACTIVE, INACTIVE` — tắt/bật, không guard |
+| `sort_order`    | `int`       | NO       | Thứ tự chuẩn trong template (V16; khởi tạo theo `created_at`) |
 | `created_at`    | `timestamp` | NO       |                           |
 
-> **V10:** thêm cột `usage_count` — thay cho `VariantCombinationItemJpaRepository.existsByOptionId`
-> (full scan `variant_combination_item`, bảng ghi liên tục qua mỗi `AddVariant` và không có index trên
-> `option_id` — Postgres không tự index cột FK). `AttributeOption.deactivate()` giờ chặn `OPTION_IN_USE`
-> bằng in-aggregate check (`usageCount > 0`), không cần query `VariantRepository` nữa.
+> **V10** từng thêm `usage_count` để guard "không tắt option đang được variant dùng"; **V16 bỏ** cột này cùng guard
+> (tắt chỉ chặn lựa chọn mới). V16 cũng đổi `value` của bản trùng trong dữ liệu cũ (`value || '_' || 6 ký tự cuối id`,
+> giữ bản tạo sớm nhất) trước khi tạo unique index — an toàn vì mọi tham chiếu dùng `id`.
+>
+> Option **không bao giờ bị xoá**: lưu template là upsert từng dòng option, không xoá-rồi-chèn-lại (dòng option đang được
+> `variant_combination_item` tham chiếu bằng FK).
 
 ---
 
@@ -64,12 +70,13 @@
 | Column       | Type        | Nullable | Notes                             |
 |--------------|-------------|----------|-----------------------------------|
 | `id`         | `uuid`      | NO       | PK                                |
-| `name`       | `varchar`   | NO       |                                   |
-| `slug`       | `varchar`   | NO       | UNIQUE                            |
+| `name`       | `varchar`   | NO       | Duy nhất trong cùng `parent_id` (không phân biệt hoa/thường) — kiểm ở application layer (V18), không unique index DB vì `parent_id NULL` (root) không so sánh bằng nhau được bằng index thường |
+| `slug`       | `varchar`   | NO       | Tự sinh từ tên, **không** unique, đổi theo tên — tra cứu theo `id` (V19 bỏ `uq_category_slug`; service.md T-10) |
 | `parent_id`  | `uuid`      | YES      | FK → `category` (nullable = root) |
 | `level`      | `smallint`  | NO       | 1, 2, 3                           |
 | `image_url`  | `varchar`   | YES      |                                   |
-| `status`     | `varchar`   | NO       | `ACTIVE, INACTIVE` — soft toggle điều hướng (ẩn khỏi `GetCategoryTree`, chặn `CreateProduct` mới), KHÔNG guard theo children/product reference (khác `DeleteCategory` hard-delete) |
+| `sort_order` | `int`       | NO       | Thứ tự giữa anh em cùng `parent_id` trên storefront (V18) — trước đó cây xếp theo tên |
+| `status`     | `varchar`   | NO       | `ACTIVE, INACTIVE` — soft toggle điều hướng (ẩn khỏi `GetCategoryTree`, chặn `CreateProduct` mới), KHÔNG guard theo children/product reference (khác `DeleteCategory` hard-delete). "Dùng được" = ACTIVE + mọi tổ tiên ACTIVE (tính qua `category_closure`, không lưu cột riêng) |
 | `created_at` | `timestamp` | NO       |                                   |
 | `updated_at` | `timestamp` | NO       |                                   |
 
@@ -101,17 +108,19 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 | `category_id`         | `uuid`    | NO       | PK (composite) — FK trỏ tới category phải có `level = 3` (enforce ở application layer, không phải DB constraint) |
 | `template_id`         | `uuid`    | NO       | PK (composite) |
 | `is_required`         | `boolean` | NO       |                |
-| `is_filterable`       | `boolean` | NO       |                |
-| `is_searchable`       | `boolean` | NO       | Default `false`. Catalog chỉ lưu + phát ra cho search-service tương lai đồng bộ (build full-text index) — catalog KHÔNG tự dùng flag này để query |
 | `display_order`       | `int`     | NO       |                |
+| `constraints`         | `jsonb`   | NO       | Ràng buộc theo ngành hàng — shape theo `inputType` của template (§5.3.1): TEXT{maxLength} \| NUMBER{min,max,integerOnly} \| MULTI_SELECT{maxSelections} \| DATE{inputPrecision,minDate,maxDate}. Không ràng buộc thêm = mọi field `null` |
+| `discovery`            | `jsonb`   | NO       | Cách tham gia tìm hàng: `{search, filter, sort}` — mỗi nhánh độc lập, `null` = tắt. Xem `analysis.md` §5.3.3 cho shape đầy đủ (`FilterConfig`/`SortConfig`) |
 
 > **V8:** bỏ cột `is_variant_defining` — không còn được khai báo trước ở đâu, chỉ là hệ quả của việc
 > attribute có xuất hiện trong `variant_combination_item` của Variant hay không. Đồng thời: chỉ category
 > leaf (`level = 3`) mới có row trong bảng này — không có kế thừa từ category cha (L1/L2 luôn rỗng).
 >
-> **V13:** thêm `is_searchable` — cùng nhóm quyết định curation của Admin với `is_required`/
-> `is_filterable` (per-category, không phải per-attribute-template — cùng 1 template có thể searchable ở
-> category này nhưng không ở category khác). Xem `service.md` § Attribute Value Model.
+> **V18:** `is_filterable`/`is_searchable` (2 cờ phẳng) → `constraints` + `discovery` (jsonb). Lý do: cách 1
+> thuộc tính tham gia tìm kiếm không còn là on/off đơn giản (trọng số search, kiểu filter SELECT/BOOLEAN/
+> RANGE, bucket, sort) và ràng buộc nhập liệu khác nhau hẳn theo `inputType` — ép vào cột quan hệ sẽ ra một
+> đống cột luôn NULL chéo nhau giữa các kiểu. Domain (`AttributeConstraints`/`Discovery`, record Java thuần)
+> validate shape đúng kiểu trước khi lưu; persistence chỉ serialize/deserialize, không tự diễn giải nội dung.
 
 ---
 
@@ -130,6 +139,8 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 | `warranty_months`   | `int`       | YES      |                                                                  |
 | `warranty_type`     | `varchar`   | YES      |                                                                  |
 | `warranty_coverage` | `varchar`   | YES      |                                                                  |
+| `published_at`      | `timestamptz` | YES    | Thời điểm publish **lần đầu** — giữ nguyên khi unpublish rồi publish lại. `NULL` = chưa từng publish → không phát `ProductSearchSnapshotEvent` (V15) |
+| `search_version`    | `bigint`    | NO       | Default 0. Version tăng đơn điệu của `ProductSearchSnapshotEvent` — tăng mỗi lần Product hoặc Variant của nó đổi. **Không map vào `ProductJpaEntity`** (mapper dựng entity mới mỗi lần save → merge sẽ ghi đè về 0); chỉ đọc/ghi qua native query (V15) |
 | `created_at`        | `timestamp` | NO       |                                                                  |
 | `updated_at`        | `timestamp` | NO       |                                                                  |
 
@@ -249,8 +260,8 @@ INSERT INTO category_closure (ancestor_id, descendant_id, depth)
 | `catalog:product:{id}:variants`      | 2 min  | 10 min | Variant add/update/activate/deactivate                                      |
 | `catalog:category:tree`              | 30 min | 1 hr   | `CategoryUpdatedEvent`                                                      |
 | `catalog:categories:{id}:attributes` | 30 min | 1 hr   | Admin sửa CategoryAttributeAssignment                                       |
-| `brands:active`                      | —      | 30 min | `CreateBrand`, `UpdateBrand`, `DeactivateBrand`                             |
 
 **Invalidation channel:** `catalog:cache:invalidate` (Redis pub/sub)
 
-> Brand không dùng L1 — không đủ hot path để justify per-instance cache. Redis TTL 30 min là acceptable.
+> Brand (`brands:active`) đã bỏ cache — danh sách công khai/droplist giờ có tìm kiếm + phân trang, luôn đọc
+> DB trực tiếp để đảm bảo tươi ngay sau khi admin sửa (đặc biệt sau khi thêm ràng buộc tên duy nhất).

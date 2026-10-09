@@ -4,7 +4,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 import vn.t3nexus.catalog.application.product.*;
 import vn.t3nexus.catalog.presentation.product.model.*;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
@@ -22,7 +21,8 @@ public class ProductController {
     private final UnpublishProduct unpublishProduct;
     private final BlockProduct blockProduct;
     private final UnblockProduct unblockProduct;
-    private final GetProduct getProduct;
+    private final GetPublishedProduct getPublishedProduct;
+    private final GetSellerProduct getSellerProduct;
     private final ListSellerProducts listSellerProducts;
     private final RemoveProductImage removeProductImage;
     private final GetProductImageUploadUrl getProductImageUploadUrl;
@@ -71,18 +71,20 @@ public class ProductController {
     public ApiResponse<ProductResponse> getSellerProduct(
             @RequestHeader("X-Seller-Id") String sellerId,
             @PathVariable String id) {
-        GetProduct.Result result = getProduct.handle(new GetProduct.Query(id));
+        GetProduct.Result result = getSellerProduct.handle(new GetSellerProduct.Query(sellerId, id));
         return ApiResponse.ok(toProductResponse(result));
     }
 
     @PutMapping("/api/seller/products/{id}")
     public ApiResponse<Void> updateProduct(
+            @RequestHeader("X-Seller-Id") String sellerId,
             @PathVariable String id,
             @Valid @RequestBody UpdateProductRequest request) {
         List<UpdateProduct.AttributeValueDto> attrDtos = request.attributeValues().stream()
                 .map(a -> new UpdateProduct.AttributeValueDto(a.templateId(), a.values(), a.isVariantDefining()))
                 .toList();
         updateProduct.handle(new UpdateProduct.Command(
+                sellerId,
                 id,
                 request.name(),
                 request.description(),
@@ -94,43 +96,45 @@ public class ProductController {
     }
 
     @DeleteMapping("/api/seller/products/{id}")
-    public ApiResponse<Void> deleteProduct(@PathVariable String id) {
-        deleteProduct.handle(new DeleteProduct.Command(id));
+    public ApiResponse<Void> deleteProduct(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id) {
+        deleteProduct.handle(new DeleteProduct.Command(sellerId, id));
         return ApiResponse.ok(null);
     }
 
     @PostMapping("/api/seller/products/{id}/publish")
-    public ApiResponse<Void> publishProduct(@PathVariable String id) {
-        publishProduct.handle(new PublishProduct.Command(id));
+    public ApiResponse<Void> publishProduct(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id) {
+        publishProduct.handle(new PublishProduct.Command(sellerId, id));
         return ApiResponse.ok(null);
     }
 
     @PostMapping("/api/seller/products/{id}/unpublish")
-    public ApiResponse<Void> unpublishProduct(@PathVariable String id) {
-        unpublishProduct.handle(new UnpublishProduct.Command(id));
+    public ApiResponse<Void> unpublishProduct(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id) {
+        unpublishProduct.handle(new UnpublishProduct.Command(sellerId, id));
         return ApiResponse.ok(null);
     }
 
     @PostMapping("/api/seller/products/{id}/images/upload-url")
-    public ApiResponse<UploadUrlResponse> getImageUploadUrl(@PathVariable String id) {
+    public ApiResponse<UploadUrlResponse> getImageUploadUrl(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id) {
         GetProductImageUploadUrl.Result result = getProductImageUploadUrl.handle(
-                new GetProductImageUploadUrl.Query(id));
+                new GetProductImageUploadUrl.Query(sellerId, id));
         return ApiResponse.ok(new UploadUrlResponse(result.uploadUrl(), result.objectKey(), result.ttlSeconds()));
     }
 
     @PostMapping("/api/seller/products/{id}/images/confirm")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<String> confirmImageUpload(
+            @RequestHeader("X-Seller-Id") String sellerId,
             @PathVariable String id,
             @Valid @RequestBody ConfirmImageUploadRequest request) {
         ConfirmProductImageUpload.Result result = confirmProductImageUpload.handle(
-                new ConfirmProductImageUpload.Command(id, request.objectKey()));
+                new ConfirmProductImageUpload.Command(sellerId, id, request.objectKey()));
         return ApiResponse.ok(result.imageId());
     }
 
     @DeleteMapping("/api/seller/products/{id}/images/{imageId}")
-    public ApiResponse<Void> removeImage(@PathVariable String id, @PathVariable String imageId) {
-        removeProductImage.handle(new RemoveProductImage.Command(id, imageId));
+    public ApiResponse<Void> removeImage(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id,
+                                     @PathVariable String imageId) {
+        removeProductImage.handle(new RemoveProductImage.Command(sellerId, id, imageId));
         return ApiResponse.ok(null);
     }
 
@@ -138,10 +142,7 @@ public class ProductController {
 
     @GetMapping("/api/products/{id}")
     public ApiResponse<ProductResponse> getPublishedProduct(@PathVariable String id) {
-        GetProduct.Result result = getProduct.handle(new GetProduct.Query(id));
-        if (!"PUBLISHED".equals(result.status())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
+        GetProduct.Result result = getPublishedProduct.handle(new GetPublishedProduct.Query(id));
         return ApiResponse.ok(toProductResponse(result));
     }
 

@@ -10,7 +10,6 @@ import vn.t3nexus.catalog.domain.product.Product;
 import vn.t3nexus.catalog.domain.product.ProductErrorCode;
 import vn.t3nexus.catalog.domain.product.ProductId;
 import vn.t3nexus.catalog.domain.product.ProductRepository;
-import vn.t3nexus.catalog.domain.product.ProductStatus;
 import vn.t3nexus.catalog.domain.variant.Variant;
 import vn.t3nexus.catalog.domain.variant.VariantDeletedEvent;
 import vn.t3nexus.catalog.domain.variant.VariantRepository;
@@ -45,15 +44,16 @@ public class DeleteProduct implements CommandHandler<DeleteProduct.Command, Dele
     public Result handle(Command command) {
         Product product = productRepository.findById(ProductId.of(command.productId()))
                 .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        product.assertOwnedBy(command.sellerId());
 
-        if (product.getStatus() != ProductStatus.DRAFT) {
-            throw new DomainException(ProductErrorCode.PRODUCT_NOT_DRAFT);
-        }
+        product.markDeleted(); // INV-CAT-043 — chỉ bản nháp; phát ProductDeleted (EVT-CAT-046)
 
         List<Variant> variants = variantRepository.findByProductId(command.productId());
 
         variantRepository.deleteByProductId(command.productId());
         productRepository.delete(product.getId());
+        eventDispatcher.dispatchAll(product.getDomainEvents());
+        product.clearDomainEvents();
 
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT, command.productId());
         cacheInvalidationPublisher.evict(CacheNames.PRODUCT_VARIANTS, command.productId());
@@ -67,7 +67,7 @@ public class DeleteProduct implements CommandHandler<DeleteProduct.Command, Dele
         return new Result();
     }
 
-    public record Command(String productId) {}
+    public record Command(String sellerId, String productId) {}
 
     public record Result() {}
 }

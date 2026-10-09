@@ -129,8 +129,8 @@ inapp-worker: PUBLISH "user:A:inapp" → Instance 1 nhận (2 sessions)
 | `LoginOtpRequested`                        | ✅ T1    | ❌      | User đang bị chặn giữa login flow, OTP TTL 300s       |
 | `VerificationEmailRequested`               | ✅ T1    | ❌      | User chưa có session, cần persistent link             |
 | `VerificationEmailReissued`                | ✅ T1    | ❌      | Như trên                                              |
-| `OrderConfirmed` ⚠️                        | ✅ T1    | ✅      | Critical — audit trail (email) + realtime UX (in-app) |
-| `OrderCancelled` ⚠️                        | ✅ T1    | ✅      | Critical — user cần biết ngay                         |
+| `OrderConfirmed` | 🚧 ⚠️ hoãn | ✅ **current** (2026-09-22) | Critical — audit trail (email, hoãn) + realtime UX (in-app, đã làm) |
+| `OrderCancelled` | 🚧 ⚠️ hoãn | ✅ **current** (2026-09-22) | Critical — user cần biết ngay (in-app); email hoãn cùng lý do        |
 | `RefundProcessed` ⚠️                       | ✅ T1    | ✅      | Financial — audit trail quan trọng                    |
 | `ShipmentPickedUp / InTransit / Delivered` ⚠️ | ✅ T1 | ✅      | Time-sensitive operational                            |
 | `ShipmentFailed` ⚠️                        | ✅ T1    | ✅      | Cần action từ user/seller                             |
@@ -143,7 +143,9 @@ inapp-worker: PUBLISH "user:A:inapp" → Instance 1 nhận (2 sessions)
 | `OrderCompleted`                           | ✅ T2    | ✅      | Invite review — không urgent                          |
 | `NewMessageReceived` (offline)             | ✅ T2    | ❌      | User offline — in-app vô nghĩa                        |
 
-> **⚠️ Open question — chưa quyết, cần xử lý trước khi implement các event đánh dấu trên (tất cả `later` phase):** các event này tỉ lệ thuận với **order volume**, khác về bản chất với 3 event Tier1 đang chạy thật (`LoginOtpRequested`/`VerificationEmailRequested`/`VerificationEmailReissued` — bị chặn bởi rate limit cá nhân per-IP/per-email, xem `3.technical/rate-limiting-layers.md`). `OrderConfirmed` không thể và không nên bị rate-limit theo kiểu đó — mọi đơn hàng thành công đều xứng đáng có email. Nhưng ở đúng kịch bản NFR flash sale (peak checkout ~8,000 req/s *sau rate limiting*, 15-30 phút), aggregate volume của nhóm event này có thể vượt xa trần SES 14 msg/s — trong khi Tier1 hiện tại (`FixedBackOff` 2s×3, fail-fast, không rate limiter, alert DLQ ngay lập tức) được thiết kế cho volume thấp/bounded, không có cơ chế nào chịu được burst này. Hệ quả nếu implement thẳng vào Tier1 pool hiện có: burst `OrderConfirmed` share cùng topic/consumer-group/SES-quota với OTP/verification → tái diễn đúng priority inversion mà kiến trúc Tier1/Tier2 sinh ra để giải quyết, chỉ là lồng bên trong Tier1. `SellerApproved/Rejected` không bị đánh dấu vì scale theo tốc độ onboarding seller (thấp, không theo order volume). Cần quyết trước khi build: tách riêng dispatch topic/consumer group cho nhóm "high-volume nhưng vẫn expected", hay thêm rate limiter riêng cho Tier1 (đánh đổi với latency fail-fast), hay hướng khác.
+> **⚠️ Open question — vẫn CHƯA quyết cho phần Email**, cần xử lý trước khi implement Email cho các event đánh dấu trên: các event này tỉ lệ thuận với **order volume**, khác về bản chất với 3 event Tier1 đang chạy thật (`LoginOtpRequested`/`VerificationEmailRequested`/`VerificationEmailReissued` — bị chặn bởi rate limit cá nhân per-IP/per-email, xem `3.technical/rate-limiting-layers.md`). `OrderConfirmed` không thể và không nên bị rate-limit theo kiểu đó — mọi đơn hàng thành công đều xứng đáng có email. Nhưng ở đúng kịch bản NFR flash sale (peak checkout ~8,000 req/s *sau rate limiting*, 15-30 phút), aggregate volume của nhóm event này có thể vượt xa trần SES 14 msg/s — trong khi Tier1 hiện tại (`FixedBackOff` 2s×3, fail-fast, không rate limiter, alert DLQ ngay lập tức) được thiết kế cho volume thấp/bounded, không có cơ chế nào chịu được burst này. Hệ quả nếu implement thẳng vào Tier1 pool hiện có: burst `OrderConfirmed` share cùng topic/consumer-group/SES-quota với OTP/verification → tái diễn đúng priority inversion mà kiến trúc Tier1/Tier2 sinh ra để giải quyết, chỉ là lồng bên trong Tier1. `SellerApproved/Rejected` không bị đánh dấu vì scale theo tốc độ onboarding seller (thấp, không theo order volume). Cần quyết trước khi build Email: tách riêng dispatch topic/consumer group cho nhóm "high-volume nhưng vẫn expected", hay thêm rate limiter riêng cho Tier1 (đánh đổi với latency fail-fast), hay hướng khác. Ngoài ra còn thiếu cơ chế resolve `customerId`/`sellerId` → email address (payload `OrderConfirmed`/`OrderCancelled` chỉ mang ID, không mang email).
+>
+> **2026-09-22 — đã làm phần In-App**: `OrderConfirmedHandler`/`OrderCancelledHandler` implement **chỉ In-App** — không vướng rủi ro SES/priority-inversion ở trên (In-App đi qua `notification.inapp.dispatch`/Redis Pub/Sub, không qua SES) và không cần resolve email (chỉ cần `userId` có sẵn trong payload). Email cho 2 event này **vẫn hoãn nguyên vẹn**, chờ quyết định ở trên.
 
 ---
 
@@ -409,8 +411,8 @@ Hai lý do kỹ thuật cụ thể, không phải convention:
 | `VerificationEmailRequested`   | `identity.email-verification.requested`       | T1   | Email          | current |
 | `VerificationReissuedEvent`    | `identity.email-verification.reissued`        | T1   | Email          | current |
 | `EmailVerifiedEvent`           | `identity.email-verification.verified`        | T1   | Email          | current |
-| `OrderConfirmed`               | `order.order.confirmed`             | T1   | Email + In-App | later   |
-| `OrderCancelled`               | `order.order.cancelled`             | T1   | Email + In-App | later   |
+| `OrderConfirmed`               | `order.order.confirmed`             | T1   | In-App (Email hoãn — xem §Channel Routing) | current (2026-09-22) |
+| `OrderCancelled`               | `order.order.cancelled`             | T1   | In-App (Email hoãn — xem §Channel Routing) | current (2026-09-22) |
 | `RefundProcessed`              | `payment.refund.processed`          | T1   | Email + In-App | later   |
 | `SellerPayoutCompleted`        | `payment.payout.completed`          | T1   | Email + In-App | later   |
 | `ShipmentAssigned`             | `fulfillment.shipment.assigned`     | T1   | Email + In-App | later   |

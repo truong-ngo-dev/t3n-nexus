@@ -15,12 +15,16 @@ import java.util.List;
 public class CategoryController {
 
     private final GetCategoryTree getCategoryTree;
+    private final GetAdminCategoryTree getAdminCategoryTree;
     private final GetCategoryAttributes getCategoryAttributes;
+    private final GetCategoryAttributeAssignments getCategoryAttributeAssignments;
+    private final ListAssignableAttributeTemplates listAssignableAttributeTemplates;
     private final CreateCategory createCategory;
     private final UpdateCategory updateCategory;
     private final DeleteCategory deleteCategory;
     private final DeactivateCategory deactivateCategory;
     private final ActivateCategory activateCategory;
+    private final ReorderCategories reorderCategories;
     private final ReplaceCategoryAttributeAssignments replaceCategoryAttributeAssignments;
 
     @GetMapping("/api/categories")
@@ -38,18 +42,52 @@ public class CategoryController {
                 getCategoryAttributes.handle(new GetCategoryAttributes.Query(id))
                         .attributes().stream()
                         .map(dto -> new CategoryAttributeResponse(
-                                dto.templateId(), dto.name(), dto.displayName(),
-                                dto.inputType(), dto.required(),
-                                dto.filterable(), dto.searchable(), dto.displayOrder()))
+                                dto.templateId(), dto.name(), dto.displayName(), dto.hint(),
+                                dto.inputType(), dto.unit(), dto.required(), dto.constraints(), dto.displayOrder(),
+                                dto.options().stream()
+                                        .map(o -> new CategoryAttributeResponse.Option(o.id(), o.value(), o.displayValue()))
+                                        .toList()))
                         .toList();
         return ApiResponse.ok(attributes);
+    }
+
+    @GetMapping("/api/admin/categories/tree")
+    public ApiResponse<List<CategoryAdminTreeResponse>> getAdminCategoryTree() {
+        List<CategoryAdminTreeResponse> roots = getAdminCategoryTree.handle(new GetAdminCategoryTree.Query())
+                .roots().stream()
+                .map(this::toAdminTreeResponse)
+                .toList();
+        return ApiResponse.ok(roots);
+    }
+
+    @GetMapping("/api/admin/categories/{id}/assignments")
+    public ApiResponse<List<CategoryAssignmentDetailResponse>> getCategoryAttributeAssignments(@PathVariable String id) {
+        List<CategoryAssignmentDetailResponse> items =
+                getCategoryAttributeAssignments.handle(new GetCategoryAttributeAssignments.Query(id))
+                        .items().stream()
+                        .map(d -> new CategoryAssignmentDetailResponse(
+                                d.templateId(), d.name(), d.displayName(), d.inputType(), d.templateStatus(),
+                                d.required(), d.displayOrder(), d.constraints(), d.discovery()))
+                        .toList();
+        return ApiResponse.ok(items);
+    }
+
+    @GetMapping("/api/admin/categories/{id}/assignable-templates")
+    public ApiResponse<AssignableAttributeTemplateResponse> listAssignableAttributeTemplates(
+            @PathVariable String id, @RequestParam(required = false) String keyword) {
+        List<AssignableAttributeTemplateResponse.Item> options =
+                listAssignableAttributeTemplates.handle(new ListAssignableAttributeTemplates.Query(id, keyword))
+                        .options().stream()
+                        .map(o -> new AssignableAttributeTemplateResponse.Item(o.id(), o.displayName(), o.inputType()))
+                        .toList();
+        return ApiResponse.ok(new AssignableAttributeTemplateResponse(options));
     }
 
     @PostMapping("/api/admin/categories")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<String> createCategory(@Valid @RequestBody CreateCategoryRequest request) {
         CreateCategory.Result result = createCategory.handle(
-                new CreateCategory.Command(request.name(), request.slug(), request.parentId()));
+                new CreateCategory.Command(request.name(), request.parentId()));
         return ApiResponse.ok(result.id());
     }
 
@@ -78,13 +116,19 @@ public class CategoryController {
         return ApiResponse.ok(null);
     }
 
+    @PutMapping("/api/admin/categories/reorder")
+    public ApiResponse<Void> reorderCategories(@Valid @RequestBody ReorderCategoriesRequest request) {
+        reorderCategories.handle(new ReorderCategories.Command(request.parentId(), request.categoryIds()));
+        return ApiResponse.ok(null);
+    }
+
     @PutMapping("/api/admin/categories/{id}/attributes")
     public ApiResponse<Void> replaceAttributes(
             @PathVariable String id,
             @Valid @RequestBody List<ReplaceCategoryAttributesRequest> request) {
         List<ReplaceCategoryAttributeAssignments.AttributeAssignmentItem> items = request.stream()
                 .map(r -> new ReplaceCategoryAttributeAssignments.AttributeAssignmentItem(
-                        r.templateId(), r.required(), r.filterable(), r.searchable(), r.displayOrder()))
+                        r.templateId(), r.required(), r.displayOrder(), r.constraints(), r.discovery()))
                 .toList();
         replaceCategoryAttributeAssignments.handle(
                 new ReplaceCategoryAttributeAssignments.Command(id, items));
@@ -98,5 +142,14 @@ public class CategoryController {
         return new CategoryTreeResponse(
                 node.id(), node.name(), node.slug(),
                 node.level(), node.imageUrl(), children);
+    }
+
+    private CategoryAdminTreeResponse toAdminTreeResponse(GetAdminCategoryTree.CategoryTreeNode node) {
+        List<CategoryAdminTreeResponse> children = node.children().stream()
+                .map(this::toAdminTreeResponse)
+                .toList();
+        return new CategoryAdminTreeResponse(
+                node.id(), node.name(), node.slug(),
+                node.level(), node.imageUrl(), node.status(), children);
     }
 }

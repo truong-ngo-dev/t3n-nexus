@@ -66,6 +66,9 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
 > **Lưu ý**: hiện `ScheduledJobFiredHandler` (`scheduler-service`) mới chỉ `log.info`, CHƯA ghi vào
 > `outbox_events` (xem `implementation.md` Phase 4 TODO) — đăng ký connector này trước là chuẩn bị hạ
 > tầng, chưa có event nào chảy qua cho tới khi handler đó đổi sang `outboxEventStore.store(event)`.
+> **2026-09-22**: dòng đó đã viết sẵn nhưng đang comment (cùng nhịp với `order-service`'s
+> `ScheduledJobFiredConsumer` cũng đang comment `@KafkaListener`) — bật cả 2 phía cùng lúc khi test
+> full component (2 `ScheduledJob` `ORDER_INVENTORY_TIMEOUT_*` cho `feature/07-place-order`).
 
 ### Đăng ký inventory-outbox-connector
 
@@ -79,6 +82,46 @@ im ở `Order.CREATED` vĩnh viễn dù toàn bộ code phía sau đúng — cù
 
 ```bash
 curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-inventory-outbox.json
+```
+
+### Đăng ký catalog-outbox-connector
+
+Đọc WAL của `catalog_db.public.outbox_events`, route theo `routing_key` → topic tương ứng. Cần cho
+search-service (`catalog.*.search-snapshot`) và inventory-service (`catalog.product.*`, `catalog.variant.*`).
+
+```bash
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-catalog-outbox.json
+```
+
+---
+
+## Elasticsearch (search-service)
+
+| Service         | Port   | Ghi chú                                              |
+|-----------------|--------|------------------------------------------------------|
+| `elasticsearch` | `9200` | 1 node, tắt security (chỉ dùng cho dev), heap 512MB |
+| `kibana`        | `5601` | Tuỳ chọn — xem index/document qua Dev Tools          |
+
+```bash
+# Kiểm tra cluster
+curl http://localhost:9200/_cluster/health?pretty
+
+# Liệt kê index (search-service tự tạo index + alias lúc khởi động)
+curl "http://localhost:9200/_cat/indices?v"
+curl "http://localhost:9200/_cat/aliases?v"
+```
+
+**Analyzer tiếng Việt** — không cần plugin, khai báo trong settings của từng index (search-service):
+field chính dùng `standard` + `lowercase`; sub-field `.folded` thêm `asciifolding` để có dấu/không dấu
+khớp nhau. Kiểm tra nhanh:
+
+```bash
+curl -X POST http://localhost:9200/_analyze -H "Content-Type: application/json" -d '{
+  "tokenizer": "standard",
+  "filter": ["lowercase", "asciifolding"],
+  "text": "Điện thoại màu Đỏ"
+}'
+# → dien, thoai, mau, do
 ```
 
 ---
@@ -95,6 +138,7 @@ curl http://localhost:8083/connectors/notification-connector/status
 curl http://localhost:8083/connectors/order-outbox-connector/status
 curl http://localhost:8083/connectors/scheduler-outbox-connector/status
 curl http://localhost:8083/connectors/inventory-outbox-connector/status
+curl http://localhost:8083/connectors/catalog-outbox-connector/status
 ```
 
 Kết quả mong đợi — connector và task đều `RUNNING`:

@@ -2,6 +2,7 @@ package vn.t3nexus.order.application.order;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.order.domain.order.Order;
 import vn.t3nexus.order.domain.order.OrderCancelReason;
@@ -18,6 +19,7 @@ public class CancelOrder implements CommandHandler<CancelOrder.Command, CancelOr
     private final OrderInventoryTimeoutIndex inventoryTimeoutIndex;
 
     @Override
+    @Transactional
     public Result handle(Command command) {
         Order order = orderRepository.findById(OrderId.of(command.orderId()))
                 .orElseThrow(OrderException::notFound);

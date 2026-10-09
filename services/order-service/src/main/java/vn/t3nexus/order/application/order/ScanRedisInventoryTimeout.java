@@ -3,6 +3,7 @@ package vn.t3nexus.order.application.order;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.order.domain.order.OrderCancelReason;
 import vn.t3nexus.order.domain.order.OrderInventoryTimeoutIndex;
@@ -27,6 +28,7 @@ public class ScanRedisInventoryTimeout implements CommandHandler<ScanRedisInvent
     private final CancelOrder cancelOrder;
 
     @Override
+    @Transactional
     public Result handle(Command command) {
         List<String> dueOrderIds = inventoryTimeoutIndex.pollDue(Instant.now(), BATCH_LIMIT);
         dueOrderIds.forEach(orderId ->

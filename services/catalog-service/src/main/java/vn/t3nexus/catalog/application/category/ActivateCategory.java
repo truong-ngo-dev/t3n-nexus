@@ -10,7 +10,9 @@ import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
 import vn.t3nexus.catalog.domain.category.CategoryId;
 import vn.t3nexus.catalog.domain.category.CategoryRepository;
+import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheInvalidationPublisher;
 import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
+import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 
@@ -21,19 +23,23 @@ public class ActivateCategory
         implements CommandHandler<ActivateCategory.Command, ActivateCategory.Result> {
 
     private final CategoryRepository categoryRepository;
+    private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final EventDispatcher eventDispatcher;
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheNames.CATEGORY_TREE, key = "'all'")
+    @CacheEvict(value = CacheNames.CATEGORY_TREE, allEntries = true)
     public Result handle(Command command) {
         Category category = categoryRepository.findById(CategoryId.of(command.id()))
                 .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
 
         category.activate();
         categoryRepository.save(category);
+        eventDispatcher.dispatchAll(category.getDomainEvents());
+        category.clearDomainEvents();
+        cacheInvalidationPublisher.clear(CacheNames.CATEGORY_TREE);
 
-        log.info("[ActivateCategory] activated: categoryId={}, traceId={}",
-                command.id(), MDC.get("traceId"));
+        log.info("[ActivateCategory] activated: categoryId={}, traceId={}", command.id(), MDC.get("traceId"));
 
         return new Result();
     }

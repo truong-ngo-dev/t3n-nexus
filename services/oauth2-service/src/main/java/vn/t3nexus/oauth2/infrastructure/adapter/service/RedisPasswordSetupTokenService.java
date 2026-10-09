@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import vn.t3nexus.oauth2.domain.user_credential.PasswordSetupTokenService;
-import vn.t3nexus.oauth2.domain.user_credential.UserCredentialException;
+import vn.t3nexus.oauth2.domain.user_account.PasswordSetupTokenService;
+import vn.t3nexus.oauth2.domain.user_account.UserAccountException;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -43,7 +43,7 @@ public class RedisPasswordSetupTokenService implements PasswordSetupTokenService
     @Override
     public String generateForResend(String userId) {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(COOLDOWN_KEY_PREFIX + userId))) {
-            throw UserCredentialException.setupRateLimited();
+            throw UserAccountException.setupRateLimited();
         }
         String token = doGenerate(userId);
         redisTemplate.opsForValue().set(COOLDOWN_KEY_PREFIX + userId, "1", cooldownSeconds, TimeUnit.SECONDS);
@@ -55,12 +55,12 @@ public class RedisPasswordSetupTokenService implements PasswordSetupTokenService
         TokenPayload payload = parseAndVerify(token);
 
         if (Instant.now().getEpochSecond() > payload.exp()) {
-            throw UserCredentialException.setupTokenInvalid();
+            throw UserAccountException.setupTokenInvalid();
         }
 
         String storedNonce = redisTemplate.opsForValue().get(NONCE_KEY_PREFIX + payload.userId());
         if (storedNonce == null || !storedNonce.equals(payload.nonce())) {
-            throw UserCredentialException.setupTokenInvalid();
+            throw UserAccountException.setupTokenInvalid();
         }
 
         redisTemplate.delete(NONCE_KEY_PREFIX + payload.userId());
@@ -87,18 +87,18 @@ public class RedisPasswordSetupTokenService implements PasswordSetupTokenService
 
     private TokenPayload parseAndVerify(String token) {
         String[] parts = token.split("\\.", 2);
-        if (parts.length != 2) throw UserCredentialException.setupTokenInvalid();
+        if (parts.length != 2) throw UserAccountException.setupTokenInvalid();
 
         String payloadB64 = parts[0];
         String signature  = parts[1];
 
         if (!sign(payloadB64).equals(signature)) {
-            throw UserCredentialException.setupTokenInvalid();
+            throw UserAccountException.setupTokenInvalid();
         }
 
         String   decoded = new String(Base64.getUrlDecoder().decode(payloadB64), StandardCharsets.UTF_8);
         String[] fields  = decoded.split("\\|", 3);
-        if (fields.length != 3) throw UserCredentialException.setupTokenInvalid();
+        if (fields.length != 3) throw UserAccountException.setupTokenInvalid();
 
         return new TokenPayload(fields[0], fields[1], Long.parseLong(fields[2]));
     }

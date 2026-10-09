@@ -1,5 +1,7 @@
 package vn.t3nexus.catalog.domain.variant;
 
+import vn.t3nexus.catalog.domain.product.ProductErrorCode;
+import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.common.domain.model.AbstractAggregateRoot;
 import vn.t3nexus.lib.common.domain.model.AggregateRoot;
 
@@ -43,6 +45,7 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
                                  VariantCombination combination,
                                  String skuCode,
                                  long price) {
+        guardPrice(price);
         Instant now = Instant.now();
         return new Variant(id, productId, combination, skuCode, price,
                 VariantStatus.ACTIVE, List.of(), now, now);
@@ -62,6 +65,7 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
     }
 
     public void changePrice(long newPrice) {
+        guardPrice(newPrice);
         this.price     = newPrice;
         this.updatedAt = Instant.now();
         addDomainEvent(new VariantPriceChangedEvent(getId().getValue(), productId, newPrice));
@@ -94,6 +98,11 @@ public class Variant extends AbstractAggregateRoot<VariantId> implements Aggrega
     public void removeImage(SkuImageId imageId) {
         images.removeIf(img -> img.getId().equals(imageId));
         this.updatedAt = Instant.now();
+    }
+
+    // INV-CAT-054 — giá niêm yết luôn dương; giá 0 (tặng kèm, khuyến mãi) là việc của pricing/promotion, không phải giá gốc.
+    private static void guardPrice(long price) {
+        if (price <= 0) throw new DomainException(ProductErrorCode.VARIANT_PRICE_INVALID);
     }
 
     public boolean isActive()                  { return status == VariantStatus.ACTIVE; }

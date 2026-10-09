@@ -17,8 +17,10 @@ servers:
 tags:
   - name: Brand (Public)
     description: Danh sách thương hiệu active — dùng cho storefront
+  - name: Brand (Seller)
+    description: Droplist thương hiệu khi seller khai sản phẩm
   - name: Brand (Admin)
-    description: Quản lý thương hiệu — tạo, cập nhật, vô hiệu hóa
+    description: Quản lý thương hiệu — tạo, cập nhật, vô hiệu hóa, kích hoạt lại
   - name: Category (Public)
     description: Category tree và attribute list — dùng cho storefront và product form
   - name: Category (Admin)
@@ -65,6 +67,62 @@ components:
           type: string
           example: "nike"
 
+    BrandPage:
+      type: object
+      required: [items, total]
+      description: Danh sách công khai — chỉ ACTIVE.
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/BrandResponse' }
+        total: { type: integer, format: int64 }
+
+    BrandAdminSummaryPage:
+      type: object
+      required: [items, total]
+      description: Danh sách quản trị — mọi trạng thái.
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, name, slug, status]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              slug: { type: string }
+              status: { $ref: '#/components/schemas/BrandStatus' }
+        total: { type: integer, format: int64 }
+
+    BrandDetailResponse:
+      type: object
+      required: [id, name, slug, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        status: { $ref: '#/components/schemas/BrandStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    BrandStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    BrandOptionResponse:
+      type: object
+      required: [options]
+      description: Droplist cho seller khi khai brand cho sản phẩm.
+      properties:
+        options:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: string }
+              name: { type: string }
+
     CreateBrandRequest:
       type: object
       required: [name, slug]
@@ -91,9 +149,14 @@ components:
       enum: [1, 2, 3]
       description: "1=L1 (root), 2=L2, 3=L3 (leaf)"
 
+    CategoryStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
     CategoryTreeResponse:
       type: object
       required: [id, name, slug, level, children]
+      description: Cây công khai — chỉ category ACTIVE (mọi tổ tiên cũng ACTIVE), theo `sortOrder`.
       properties:
         id:
           type: string
@@ -114,12 +177,120 @@ components:
           items:
             $ref: '#/components/schemas/CategoryTreeResponse'
 
+    CategoryAdminTreeResponse:
+      type: object
+      required: [id, name, slug, level, status, children]
+      description: Cây quản trị — MỌI trạng thái, kèm `status` để admin thấy và bật lại danh mục đã tắt.
+      properties:
+        id: { type: string, description: ULID }
+        name: { type: string }
+        slug: { type: string }
+        level:
+          $ref: '#/components/schemas/CategoryLevel'
+        imageUrl: { type: string, nullable: true }
+        status:
+          $ref: '#/components/schemas/CategoryStatus'
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryAdminTreeResponse'
+
+    AttributeConstraints:
+      type: object
+      nullable: true
+      description: >
+        Ràng buộc theo ngành hàng, chồng lên guard mặc định của template (analysis.md §5.3.1). Field nào dùng
+        phụ thuộc `inputType` — field không áp dụng phải để null, server 422 INVALID_CONSTRAINTS nếu sai:
+        TEXT{maxLength} | NUMBER{min,max,integerOnly} | MULTI_SELECT{maxSelections}
+        | DATE{inputPrecision,minDate,maxDate} | SINGLE_SELECT,BOOLEAN{ — không field nào}.
+      properties:
+        maxLength: { type: integer, nullable: true, description: "TEXT — ≤ 255" }
+        min: { type: number, nullable: true, description: "NUMBER" }
+        max: { type: number, nullable: true, description: "NUMBER" }
+        integerOnly: { type: boolean, nullable: true, description: "NUMBER" }
+        inputPrecision:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/DatePrecision' }]
+          description: "DATE — mức seller phải nhập tới"
+        minDate: { type: string, nullable: true, description: "DATE — tuyệt đối (yyyy[-MM[-dd]]) hoặc tương đối (now-30d)" }
+        maxDate: { type: string, nullable: true, description: "DATE" }
+        maxSelections: { type: integer, nullable: true, description: "MULTI_SELECT — ≥ 1" }
+
+    DatePrecision:
+      type: string
+      enum: [YEAR, MONTH, DAY]
+
+    Discovery:
+      type: object
+      nullable: true
+      description: >
+        Cách 1 thuộc tính tham gia tìm hàng (analysis.md §5.3.2) — mỗi nhánh độc lập, null = tắt khả năng đó.
+        Nhánh hợp lệ theo `inputType`: search (mọi kiểu trừ DATE), filter (không TEXT), sort (chỉ NUMBER/DATE).
+      properties:
+        search:
+          type: string
+          nullable: true
+          enum: [NORMAL, HIGH]
+          description: Trọng số full-text — không áp dụng cho DATE
+        filter:
+          $ref: '#/components/schemas/FilterConfig'
+        sort:
+          type: object
+          nullable: true
+          description: Chỉ NUMBER/DATE. Sản phẩm thiếu giá trị xếp cuối.
+          properties:
+            label: { type: string, description: "Nhãn hiển thị, VD \"Giá: Thấp đến cao\"" }
+            direction: { type: string, enum: [ASC, DESC] }
+
+    FilterConfig:
+      type: object
+      nullable: true
+      required: [kind]
+      description: >
+        `kind` quyết định field nào có nghĩa: SELECT (SINGLE_SELECT/MULTI_SELECT) dùng match/valueOrder;
+        BOOLEAN không field nào khác; RANGE (NUMBER/DATE) dùng presentation/step/buckets.
+      properties:
+        kind:
+          type: string
+          enum: [SELECT, BOOLEAN, RANGE]
+        match:
+          type: string
+          nullable: true
+          enum: [ANY, ALL]
+          description: SELECT — SINGLE_SELECT chỉ nhận ANY, MULTI_SELECT nhận ANY/ALL
+        valueOrder:
+          type: string
+          nullable: true
+          enum: [OPTION_ORDER, COUNT]
+          description: SELECT
+        presentation:
+          type: string
+          nullable: true
+          enum: [SLIDER, BUCKETS]
+          description: RANGE
+        step:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/DatePrecision' }]
+          description: RANGE — chỉ DATE + SLIDER; phải thô hơn hoặc bằng constraints.inputPrecision
+        buckets:
+          type: array
+          nullable: true
+          description: RANGE + BUCKETS — được chồng nhau, mỗi bucket cần ít nhất from hoặc to
+          items:
+            type: object
+            required: [label]
+            properties:
+              label: { type: string }
+              from: { type: string, nullable: true, description: "Mốc số (NUMBER) hoặc ngày tuyệt đối/tương đối VD now-30d (DATE)" }
+              to: { type: string, nullable: true }
+
     CategoryAttributeResponse:
       type: object
-      required: [templateId, name, displayName, inputType, required, filterable, searchable, displayOrder]
+      required: [templateId, name, displayName, inputType, required, displayOrder, options]
       description: >
-        Chỉ trả về attribute đã được assign cho ĐÚNG category này — category phải là leaf (L3), không có
-        kế thừa từ category cha (L1/L2 luôn trả về mảng rỗng).
+        Thuộc tính seller dùng khi tạo/sửa sản phẩm ở ĐÚNG danh mục lá này (L1/L2 trả mảng rỗng). Chỉ template DÙNG
+        ĐƯỢC (ACTIVE, và SELECT còn ≥ 1 option ACTIVE); `options` chỉ gồm option ACTIVE theo thứ tự chuẩn. KHÔNG
+        kèm `discovery` (thuần cấu hình tìm kiếm, search-service đọc qua snapshot, không qua endpoint này).
       properties:
         templateId:
           type: string
@@ -130,32 +301,77 @@ components:
         displayName:
           type: string
           example: "Màu sắc"
+        hint:
+          type: string
+          nullable: true
         inputType:
           $ref: '#/components/schemas/InputType'
+        unit:
+          type: string
+          nullable: true
+          example: "GB"
         required:
           type: boolean
-        filterable:
-          type: boolean
-        searchable:
-          type: boolean
-          description: >
-            Catalog chỉ lưu + trả ra cho 1 search-service tương lai đồng bộ (build full-text index) —
-            catalog KHÔNG tự dùng flag này để query. Quyết định curation của Admin, cùng chỗ với
-            required/filterable, không phải cấu hình kỹ thuật của AttributeTemplate (cùng 1 template có
-            thể searchable ở category này nhưng không ở category khác).
+        constraints:
+          $ref: '#/components/schemas/AttributeConstraints'
         displayOrder:
           type: integer
+        options:
+          type: array
+          description: Rỗng với kiểu không phải SELECT
+          items:
+            type: object
+            required: [id, value, displayValue]
+            properties:
+              id: { type: string }
+              value: { type: string }
+              displayValue: { type: string }
+
+    CategoryAssignmentDetailResponse:
+      type: object
+      required: [templateId, name, displayName, inputType, templateStatus, required, displayOrder]
+      description: >
+        Chi tiết quản trị 1 assignment — ĐỦ, kể cả template đã tắt (khác CategoryAttributeResponse chỉ trả
+        template dùng được). Dùng để sửa (PUT lại toàn bộ) mà không làm rơi mất assignment cũ.
+      properties:
+        templateId: { type: string }
+        name: { type: string }
+        displayName: { type: string }
+        inputType:
+          $ref: '#/components/schemas/InputType'
+        templateStatus:
+          $ref: '#/components/schemas/AttributeTemplateStatus'
+        required: { type: boolean }
+        displayOrder: { type: integer }
+        constraints:
+          $ref: '#/components/schemas/AttributeConstraints'
+        discovery:
+          $ref: '#/components/schemas/Discovery'
+
+    AssignableAttributeTemplateResponse:
+      type: object
+      required: [options]
+      description: Droplist khi Admin gán thêm attribute cho danh mục lá — chỉ template dùng được, chưa gán.
+      properties:
+        options:
+          type: array
+          items:
+            type: object
+            required: [id, displayName, inputType]
+            properties:
+              id: { type: string }
+              displayName: { type: string }
+              inputType:
+                $ref: '#/components/schemas/InputType'
 
     CreateCategoryRequest:
       type: object
-      required: [name, slug]
+      required: [name]
+      description: "Không có slug — hệ thống tự sinh từ tên (bỏ dấu, chữ thường, gạch nối), không duy nhất, đổi theo tên. Tra cứu theo id (service.md T-10)."
       properties:
         name:
           type: string
           example: "Smartphones"
-        slug:
-          type: string
-          example: "smartphones"
         parentId:
           type: string
           nullable: true
@@ -172,34 +388,51 @@ components:
           type: string
           nullable: true
 
+    ReorderCategoriesRequest:
+      type: object
+      required: [categoryIds]
+      description: "`parentId` null = sắp lại category gốc (L1). Phải chứa MỌI anh em cùng cha, mỗi cái đúng 1 lần."
+      properties:
+        parentId:
+          type: string
+          nullable: true
+        categoryIds:
+          type: array
+          items: { type: string }
+          minItems: 1
+
     ReplaceCategoryAttributesRequest:
       type: object
-      required: [templateId, required, filterable, searchable, displayOrder]
+      required: [templateId, required, displayOrder]
       description: >
         1 phần tử của body `PUT /api/admin/categories/{id}/attributes` — body là 1 ARRAY của schema này,
         thay THẾ TOÀN BỘ danh sách attribute hiện có của category (không phải merge/patch). Client tự
-        GET `GetCategoryAttributes` trước, sửa trong list, rồi PUT lại nguyên list mong muốn cuối cùng —
-        assign/update/remove 1 attribute đều quy về gọi lại endpoint này với list đã sửa.
+        GET `GetCategoryAttributeAssignments` (admin, trả đủ kể cả template đã tắt) trước, sửa trong list,
+        rồi PUT lại nguyên list mong muốn cuối cùng — assign/update/remove 1 attribute đều quy về gọi lại
+        endpoint này với list đã sửa. "Thêm mới" (templateId chưa có trong assignment hiện tại) phải là
+        template dùng được; giữ/sửa assignment của template đã tắt vẫn được phép.
       properties:
         templateId:
           type: string
-          description: ULID của AttributeTemplate (phải tồn tại, phải ACTIVE)
+          description: ULID của AttributeTemplate
         required:
           type: boolean
-        filterable:
-          type: boolean
-        searchable:
-          type: boolean
-          description: Xem CategoryAttributeResponse.searchable — catalog chỉ lưu, không tự dùng.
         displayOrder:
           type: integer
           minimum: 0
+        constraints:
+          $ref: '#/components/schemas/AttributeConstraints'
+        discovery:
+          $ref: '#/components/schemas/Discovery'
 
     # ── AttributeTemplate ─────────────────────────────────────────────────────
 
     InputType:
       type: string
-      enum: [SELECT, TEXT, NUMBER, BOOLEAN]
+      enum: [SINGLE_SELECT, MULTI_SELECT, TEXT, NUMBER, BOOLEAN, DATE]
+      description: >
+        Bất biến. SINGLE/MULTI_SELECT có option (giá trị lưu là optionId). DATE lưu chuỗi ISO rút gọn
+        (yyyy | yyyy-MM | yyyy-MM-dd). Quy tắc từng kiểu: analysis.md §5.3.1.
 
     AttributeOptionStatus:
       type: string
@@ -211,7 +444,7 @@ components:
 
     AttributeOptionResponse:
       type: object
-      required: [id, value, displayValue]
+      required: [id, value, displayValue, status, sortOrder]
       properties:
         id:
           type: string
@@ -219,42 +452,61 @@ components:
           example: "01HX4KZ7B3QNMR2VFPJ6W8Y9T"
         value:
           type: string
+          description: Mã ổn định, bất biến, duy nhất trong template
           example: "black"
         displayValue:
           type: string
           example: "Đen"
         status:
           $ref: '#/components/schemas/AttributeOptionStatus'
-          nullable: true
-          description: null khi option mới tạo (ngầm hiểu là ACTIVE)
+        sortOrder:
+          type: integer
+          description: Thứ tự chuẩn trong template
 
     AttributeTemplateResponse:
       type: object
-      required: [id, name, displayName, inputType, status, options]
+      required: [id, name, displayName, inputType, status, usable, options]
       description: >
-        Master data thuần — không tự áp dụng ở category nào cả. Phải được assign tường minh (chỉ vào
-        category leaf/L3) qua `PUT /api/admin/categories/{id}/attributes` mới có hiệu lực cho Product.
+        Chi tiết template (admin). Không tự áp dụng — phải được gán vào danh mục lá. `options` gồm MỌI option (kể cả
+        đã tắt) theo `sortOrder`.
       properties:
-        id:
-          type: string
-          description: ULID
-          example: "01HX4KZ7B3QNMR2VFPJ6W8Y9T"
-        name:
-          type: string
-          description: Immutable identifier (snake_case)
-          example: "color"
-        displayName:
-          type: string
-          example: "Màu sắc"
+        id: { type: string, description: ULID }
+        name: { type: string, description: "Mã bất biến (snake_case)", example: "color" }
+        displayName: { type: string, example: "Màu sắc" }
+        hint: { type: string, nullable: true, description: "Gợi ý cách nhập cho seller (≤ 200)" }
         inputType:
           $ref: '#/components/schemas/InputType'
+        unit: { type: string, nullable: true, description: "Chỉ NUMBER, bất biến", example: "GB" }
         status:
           $ref: '#/components/schemas/AttributeTemplateStatus'
+        usable:
+          type: boolean
+          description: ACTIVE và (không phải SELECT hoặc còn ≥ 1 option ACTIVE) — còn được chọn mới không
         options:
           type: array
-          description: Non-empty chỉ khi inputType=SELECT
           items:
             $ref: '#/components/schemas/AttributeOptionResponse'
+
+    AttributeTemplateSummaryPage:
+      type: object
+      required: [items, total]
+      properties:
+        total: { type: integer, format: int64 }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, name, displayName, inputType, status, optionCount]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              displayName: { type: string }
+              inputType:
+                $ref: '#/components/schemas/InputType'
+              unit: { type: string, nullable: true }
+              status:
+                $ref: '#/components/schemas/AttributeTemplateStatus'
+              optionCount: { type: integer }
 
     CreateAttributeTemplateRequest:
       type: object
@@ -262,13 +514,23 @@ components:
       properties:
         name:
           type: string
-          description: Immutable, phải là snake_case, unique
-          example: "color"
+          description: Bất biến, duy nhất (kể cả template đã tắt)
+          example: "ram"
         displayName:
           type: string
-          example: "Màu sắc"
+          example: "RAM"
+        hint:
+          type: string
+          maxLength: 200
+          nullable: true
         inputType:
           $ref: '#/components/schemas/InputType'
+        unit:
+          type: string
+          maxLength: 20
+          nullable: true
+          description: Chỉ khi inputType=NUMBER (ngược lại 422 UNIT_ONLY_FOR_NUMBER); bất biến
+          example: "GB"
 
     UpdateAttributeTemplateRequest:
       type: object
@@ -276,8 +538,11 @@ components:
       properties:
         displayName:
           type: string
-          description: Chỉ displayName được phép sửa; name và inputType là immutable
           example: "Màu sắc (mới)"
+        hint:
+          type: string
+          maxLength: 200
+          nullable: true
 
     AddAttributeOptionRequest:
       type: object
@@ -285,11 +550,11 @@ components:
       properties:
         value:
           type: string
-          description: Internal key (snake_case)
+          description: Mã ổn định (snake_case), bất biến, duy nhất trong template (không phân biệt hoa/thường)
           example: "black"
         displayValue:
           type: string
-          description: Label hiển thị cho user
+          description: Nhãn hiển thị
           example: "Đen"
 
   # ── Error responses ─────────────────────────────────────────────────────────
@@ -588,9 +853,8 @@ paths:
       tags: [Category (Public)]
       summary: Lấy danh sách attributes của category
       description: |
-        Merge GLOBAL attributes (scope=GLOBAL, displayOrder=-1, hiện trước) và
-        CATEGORY attributes đã assign (scope=CATEGORY, sorted by displayOrder).
-        Kết quả cache L2 (TTL 1hr) per categoryId.
+        Chỉ template DÙNG ĐƯỢC được gán vào ĐÚNG danh mục lá này (không kế thừa giữa các level — L1/L2 trả
+        mảng rỗng), sorted by displayOrder. Kết quả cache L2 (TTL 1hr) per categoryId.
       operationId: getCategoryAttributes
       parameters:
         - name: id
@@ -648,10 +912,53 @@ paths:
           # ErrorCode: CATEGORY_NOT_FOUND (parentId không tồn tại)
         "409":
           $ref: '#/components/responses/409'
-          # ErrorCode: CATEGORY_SLUG_EXISTS
+          # ErrorCode: CATEGORY_NAME_EXISTS_IN_PARENT
         "422":
           $ref: '#/components/responses/422'
           # ErrorCode: MAX_DEPTH_EXCEEDED
+
+  /api/admin/categories/tree:
+    get:
+      tags: [Category (Admin)]
+      summary: Cây quản trị — mọi trạng thái
+      description: Không cache. Để admin thấy category đã tắt (kèm cờ status) và bật lại được.
+      operationId: getAdminCategoryTree
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryAdminTreeResponse'
+
+  /api/admin/categories/reorder:
+    put:
+      tags: [Category (Admin)]
+      summary: Sắp lại thứ tự anh em cùng cha
+      description: Gửi đủ mọi anh em cùng cha theo thứ tự mong muốn (`parentId=null` = category gốc L1).
+      operationId: reorderCategories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderCategoriesRequest'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: INVALID_CATEGORY_ORDER
 
   /api/admin/categories/{id}:
     put:
@@ -680,6 +987,9 @@ paths:
           $ref: '#/components/responses/400'
         "404":
           $ref: '#/components/responses/404'
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: CATEGORY_NAME_EXISTS_IN_PARENT
     delete:
       tags: [Category (Admin)]
       summary: Xóa category (hard delete)
@@ -750,15 +1060,72 @@ paths:
         "404":
           $ref: '#/components/responses/404'
 
+  /api/admin/categories/{id}/assignments:
+    get:
+      tags: [Category (Admin)]
+      summary: Chi tiết assignment (quản trị) — ĐỦ, kể cả template đã tắt
+      description: >
+        Khác `GET /api/categories/{id}/attributes` (chỉ trả template dùng được, dành cho seller/buyer) —
+        endpoint này trả MỌI assignment hiện có kèm trạng thái template, để admin sửa (PUT lại toàn bộ)
+        không làm rơi mất assignment của template đã tắt.
+      operationId: getCategoryAttributeAssignments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryAssignmentDetailResponse'
+        "404":
+          $ref: '#/components/responses/404'
+
+  /api/admin/categories/{id}/assignable-templates:
+    get:
+      tags: [Category (Admin)]
+      summary: Droplist template có thể gán thêm vào danh mục lá
+      description: Chỉ template DÙNG ĐƯỢC và CHƯA gán vào danh mục này.
+      operationId: listAssignableAttributeTemplates
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - { name: keyword, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/AssignableAttributeTemplateResponse'
+        "404":
+          $ref: '#/components/responses/404'
+
   /api/admin/categories/{id}/attributes:
     put:
       tags: [Category (Admin)]
       summary: Thay toàn bộ danh sách attribute assignment của category (leaf/L3)
       description: |
         Body là 1 ARRAY, REPLACE TOÀN BỘ assignment hiện có — không phải merge/patch. Assign 1 attribute
-        mới, sửa config 1 attribute, hay gỡ 1 attribute đều gọi endpoint này với list mong muốn cuối
-        cùng (client tự GET `GET /api/categories/{id}/attributes` trước, sửa trong list, rồi PUT lại).
-        Category đích phải là leaf (L3) — không có kế thừa từ category cha.
+        mới, sửa config 1 attribute, hay gỡ 1 attribute đều gọi endpoint này với list mong muốn cuối cùng
+        (client tự GET `GET /api/admin/categories/{id}/assignments` trước, sửa trong list, rồi PUT lại).
+        Category đích phải là leaf (L3) — không có kế thừa từ category cha. "Thêm mới" phải là template
+        dùng được; giữ/sửa assignment của template đã tắt vẫn cho phép.
       operationId: replaceCategoryAttributeAssignments
       parameters:
         - name: id
@@ -786,6 +1153,14 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: CATEGORY_NOT_FOUND | TEMPLATE_NOT_FOUND
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: ATTRIBUTE_ASSIGNMENT_REQUIRES_LEAF | TEMPLATE_INACTIVE (chỉ khi thêm mới)
+          # | INVALID_CONSTRAINTS | INVALID_DISCOVERY | INVALID_RANGE_FILTER
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: ASSIGNMENT_ALREADY_EXISTS (trùng templateId trong cùng request)
+          # ErrorCode: CATEGORY_NOT_FOUND | TEMPLATE_NOT_FOUND
         "409":
           $ref: '#/components/responses/409'
           # ErrorCode: ASSIGNMENT_ALREADY_EXISTS — 1 templateId xuất hiện nhiều hơn 1 lần trong request
@@ -799,9 +1174,13 @@ paths:
   /api/brands:
     get:
       tags: [Brand (Public)]
-      summary: Lấy danh sách brand active
-      description: Không cần auth. Kết quả được cache Redis (TTL 30 min).
-      operationId: listActiveBrands
+      summary: Danh sách brand active — tìm + phân trang
+      description: Không cần auth. Đọc DB trực tiếp (không cache — xem data.md § Cache).
+      operationId: listBrands
+      parameters:
+        - { name: keyword, in: query, required: false, schema: { type: string }, description: "Tìm trong name, không phân biệt hoa/thường" }
+        - { name: page,    in: query, required: false, schema: { type: integer, default: 0, minimum: 0 } }
+        - { name: size,    in: query, required: false, schema: { type: integer, default: 20, minimum: 1, maximum: 100 } }
       responses:
         "200":
           description: OK
@@ -812,13 +1191,53 @@ paths:
                 properties:
                   success: { type: boolean, example: true }
                   data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/BrandResponse'
+                    $ref: '#/components/schemas/BrandPage'
+
+  # ── Brand (Seller) ───────────────────────────────────────────────────────────
+
+  /api/seller/brands:
+    get:
+      tags: [Brand (Seller)]
+      summary: Droplist brand khi khai sản phẩm
+      description: Chỉ ACTIVE, gõ tới đâu gợi ý tới đó, tối đa 20 kết quả. Không phân trang (không cần cho autocomplete).
+      operationId: searchBrandsForSeller
+      parameters:
+        - { name: keyword, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/BrandOptionResponse'
 
   # ── Brand (Admin) ──────────────────────────────────────────────────────────
 
   /api/admin/brands:
+    get:
+      tags: [Brand (Admin)]
+      summary: Danh sách brand (quản trị) — mọi trạng thái, lọc + phân trang
+      operationId: listAdminBrands
+      parameters:
+        - { name: keyword, in: query, required: false, schema: { type: string } }
+        - { name: status,  in: query, required: false, schema: { $ref: '#/components/schemas/BrandStatus' } }
+        - { name: page,    in: query, required: false, schema: { type: integer, default: 0, minimum: 0 } }
+        - { name: size,    in: query, required: false, schema: { type: integer, default: 20, minimum: 1, maximum: 100 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/BrandAdminSummaryPage'
     post:
       tags: [Brand (Admin)]
       summary: Tạo brand mới
@@ -844,9 +1263,29 @@ paths:
           $ref: '#/components/responses/400'
         "409":
           $ref: '#/components/responses/409'
-          # ErrorCode: BRAND_SLUG_ALREADY_EXISTS
+          # ErrorCode: BRAND_NAME_ALREADY_EXISTS | BRAND_SLUG_ALREADY_EXISTS
 
   /api/admin/brands/{id}:
+    get:
+      tags: [Brand (Admin)]
+      summary: Chi tiết brand (quản trị)
+      operationId: getBrand
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/BrandDetailResponse'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: BRAND_NOT_FOUND
     put:
       tags: [Brand (Admin)]
       summary: Cập nhật tên brand
@@ -876,13 +1315,16 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: BRAND_NOT_FOUND
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: BRAND_NAME_ALREADY_EXISTS
     delete:
       tags: [Brand (Admin)]
       summary: Vô hiệu hóa brand (soft toggle, không phải xoá dữ liệu)
       description: |
-        Chuyển brand sang INACTIVE — ẩn khỏi `ListActiveBrands`/storefront. KHÔNG guard theo "đang có
-        Product dùng hay không" (đã bỏ guard `BRAND_IN_USE` — chặn ngược với nguyên tắc soft-toggle, xem
-        service.md § Category lifecycle). Product cũ tham chiếu brand đã deactivate vẫn resolve bình
+        Chuyển brand sang INACTIVE — ẩn khỏi `ListBrands`/storefront/droplist seller. KHÔNG guard theo
+        "đang có Product dùng hay không" (đã bỏ guard `BRAND_IN_USE` — chặn ngược với nguyên tắc soft-toggle,
+        xem service.md § Category lifecycle). Product cũ tham chiếu brand đã deactivate vẫn resolve bình
         thường qua `GetProduct` (không lọc theo status).
       operationId: deactivateBrand
       parameters:
@@ -900,14 +1342,41 @@ paths:
         "404":
           $ref: '#/components/responses/404'
 
+  /api/admin/brands/{id}/activate:
+    post:
+      tags: [Brand (Admin)]
+      summary: Kích hoạt lại brand đã tắt
+      operationId: activateBrand
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: BRAND_NOT_FOUND
+
   # ── AttributeTemplate (Admin) ───────────────────────────────────────────────
 
   /api/admin/attribute-templates:
     get:
       tags: [AttributeTemplate (Admin)]
-      summary: Lấy toàn bộ attribute templates
-      description: Không paginate — Admin-only, số lượng nhỏ. Không cache.
+      summary: Danh sách template (quản trị)
+      description: Mọi trạng thái; lọc + phân trang; trả bản tóm tắt (không kèm option, có số option).
       operationId: listAttributeTemplates
+      parameters:
+        - { name: keyword,   in: query, required: false, schema: { type: string }, description: "Tìm trong name/displayName, không phân biệt hoa/thường" }
+        - { name: inputType, in: query, required: false, schema: { $ref: '#/components/schemas/InputType' } }
+        - { name: status,    in: query, required: false, schema: { $ref: '#/components/schemas/AttributeTemplateStatus' } }
+        - { name: page,      in: query, required: false, schema: { type: integer, default: 0, minimum: 0 } }
+        - { name: size,      in: query, required: false, schema: { type: integer, default: 20, minimum: 1, maximum: 100 } }
       responses:
         "200":
           description: OK
@@ -918,15 +1387,13 @@ paths:
                 properties:
                   success: { type: boolean, example: true }
                   data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AttributeTemplateResponse'
+                    $ref: '#/components/schemas/AttributeTemplateSummaryPage'
     post:
       tags: [AttributeTemplate (Admin)]
       summary: Tạo attribute template
       description: |
-        `name` là immutable identifier (không thể sửa sau khi tạo).
-        `inputType` cũng immutable — xác định template dùng option pool (SELECT) hay free-text.
+        `name`, `inputType`, `unit` bất biến sau khi tạo. `unit` chỉ hợp lệ với `inputType=NUMBER`.
+        Trả về id của template mới.
       operationId: createAttributeTemplate
       requestBody:
         required: true
@@ -943,25 +1410,45 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean, example: true }
-                  data:
-                    $ref: '#/components/schemas/AttributeTemplateResponse'
+                  data: { type: string, description: "templateId (ULID)" }
         "400":
           $ref: '#/components/responses/400'
         "409":
           $ref: '#/components/responses/409'
           # ErrorCode: TEMPLATE_NAME_EXISTS
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: UNIT_ONLY_FOR_NUMBER | HINT_TOO_LONG
 
   /api/admin/attribute-templates/{id}:
+    get:
+      tags: [AttributeTemplate (Admin)]
+      summary: Chi tiết template (quản trị)
+      description: Đủ thuộc tính + MỌI option (kể cả đã tắt) theo `sortOrder`, cờ `usable`. Không kèm danh mục đang gán.
+      operationId: getAttributeTemplate
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    $ref: '#/components/schemas/AttributeTemplateResponse'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND
     put:
       tags: [AttributeTemplate (Admin)]
-      summary: Cập nhật display name của template
-      description: Chỉ `displayName` được phép sửa. `name` và `inputType` là immutable.
+      summary: Sửa tên hiển thị và gợi ý
+      description: Chỉ `displayName`, `hint` sửa được; `name`, `inputType`, `unit` bất biến.
       operationId: updateAttributeTemplate
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
+        - { name: id, in: path, required: true, schema: { type: string } }
       requestBody:
         required: true
         content:
@@ -980,19 +1467,18 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: TEMPLATE_NOT_FOUND
+        "409":
+          $ref: '#/components/responses/409'
+          # optimistic lock — template vừa bị Admin khác sửa, tải lại rồi thử lại
     delete:
       tags: [AttributeTemplate (Admin)]
-      summary: Deactivate template (soft-delete)
+      summary: Tắt template (soft)
       description: |
-        Không hard-delete — chuyển status sang INACTIVE. Chặn nếu template đang `required=true` ở bất kỳ
-        category nào (tránh deadlock: category đòi hỏi bắt buộc 1 attribute không còn dùng được).
-        Không chặn nếu chỉ assign nhưng không required.
+        Chuyển sang INACTIVE, **không guard**. Không sửa assignment/sản phẩm/variant đang tham chiếu — chỉ chặn lựa chọn
+        mới. Thuộc tính bắt buộc của danh mục tự hết hiệu lực khi template không dùng được.
       operationId: deactivateAttributeTemplate
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
+        - { name: id, in: path, required: true, schema: { type: string } }
       responses:
         "200":
           description: OK
@@ -1003,24 +1489,15 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: TEMPLATE_NOT_FOUND
-        "409":
-          $ref: '#/components/responses/409'
-          # ErrorCode: TEMPLATE_REQUIRED_BY_CATEGORY
 
   /api/admin/attribute-templates/{id}/activate:
     post:
       tags: [AttributeTemplate (Admin)]
-      summary: Reactivate template đã deactivate
-      description: |
-        Đối xứng DELETE (deactivate) — không cần guard, bật lại không vi phạm invariant nào. Ưu tiên dùng
-        endpoint này thay vì tạo template mới cùng `name` (vốn dĩ cũng không tạo được — `name` unique trên
-        mọi row bất kể status).
+      summary: Bật lại template
+      description: Không guard. Ưu tiên bật lại thay vì tạo template mới (`name` duy nhất trên mọi row).
       operationId: activateAttributeTemplate
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
+        - { name: id, in: path, required: true, schema: { type: string } }
       responses:
         "200":
           description: OK
@@ -1035,17 +1512,13 @@ paths:
   /api/admin/attribute-templates/{id}/options:
     post:
       tags: [AttributeTemplate (Admin)]
-      summary: Thêm option vào template
+      summary: Thêm option
       description: |
-        Chỉ áp dụng cho template có `inputType=SELECT`. Gọi trên template TEXT/NUMBER/BOOLEAN → 422.
-        Template phải đang ACTIVE — không quản lý option của template đã deactivate.
+        Chỉ template SINGLE_SELECT/MULTI_SELECT đang ACTIVE. `value` duy nhất trong template (không phân biệt hoa/thường).
+        Option mới xếp cuối. Trả về id của option mới.
       operationId: addAttributeOption
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-          description: AttributeTemplate ULID
+        - { name: id, in: path, required: true, schema: { type: string }, description: AttributeTemplate ULID }
       requestBody:
         required: true
         content:
@@ -1061,35 +1534,64 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean, example: true }
-                  data:
-                    $ref: '#/components/schemas/AttributeOptionResponse'
+                  data: { type: string, description: "optionId (ULID)" }
         "400":
           $ref: '#/components/responses/400'
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: TEMPLATE_NOT_FOUND
+        "409":
+          $ref: '#/components/responses/409'
+          # ErrorCode: OPTION_VALUE_EXISTS
         "422":
           $ref: '#/components/responses/422'
           # ErrorCode: INPUT_TYPE_NOT_SELECT | TEMPLATE_INACTIVE
 
+  /api/admin/attribute-templates/{id}/options/order:
+    put:
+      tags: [AttributeTemplate (Admin)]
+      summary: Sắp lại thứ tự chuẩn của option
+      description: Gửi MỌI optionId của template theo thứ tự mong muốn, mỗi option đúng 1 lần.
+      operationId: reorderAttributeOptions
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [optionIds]
+              properties:
+                optionIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          $ref: '#/components/responses/404'
+          # ErrorCode: TEMPLATE_NOT_FOUND | OPTION_NOT_FOUND
+        "422":
+          $ref: '#/components/responses/422'
+          # ErrorCode: INVALID_OPTION_ORDER
+
   /api/admin/attribute-templates/{id}/options/{optionId}:
     put:
       tags: [AttributeTemplate (Admin)]
-      summary: Cập nhật displayValue của option
+      summary: Sửa nhãn option
       description: |
-        Chỉ `displayValue` (UI label) được phép sửa. `value` là immutable. Template phải đang ACTIVE.
+        Chỉ `displayValue` sửa được (`value` bất biến). Không guard theo trạng thái — sửa được kể cả option
+        đã tắt hoặc template đã tắt (sửa mô tả không phải "thêm mới"/"chọn dùng", không bị trạng thái chi
+        phối). Áp ngay mọi nơi đang dùng. Dùng để sửa cách gọi — đổi NGHĨA thì tạo option mới + tắt option cũ.
       operationId: updateAttributeOption
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-          description: AttributeTemplate ULID
-        - name: optionId
-          in: path
-          required: true
-          schema: { type: string }
-          description: AttributeOption ULID
+        - { name: id, in: path, required: true, schema: { type: string }, description: AttributeTemplate ULID }
+        - { name: optionId, in: path, required: true, schema: { type: string }, description: AttributeOption ULID }
       requestBody:
         required: true
         content:
@@ -1113,27 +1615,16 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: TEMPLATE_NOT_FOUND | OPTION_NOT_FOUND
-        "422":
-          $ref: '#/components/responses/422'
-          # ErrorCode: TEMPLATE_INACTIVE
     delete:
       tags: [AttributeTemplate (Admin)]
-      summary: Vô hiệu hóa option (soft delete)
+      summary: Tắt option (soft)
       description: |
-        Chuyển option sang INACTIVE. Option đang được Variant dùng sẽ bị reject (409) — in-aggregate
-        check qua `AttributeOption.usageCount` (bump bởi AddVariant), không còn query VariantRepository.
+        Chuyển sang INACTIVE, **không guard** (kể cả khi đang có variant dùng, kể cả khi template đã tắt). Sản phẩm/variant
+        đang dùng giữ nguyên; chỉ chặn lựa chọn mới.
       operationId: deactivateAttributeOption
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-          description: AttributeTemplate ULID
-        - name: optionId
-          in: path
-          required: true
-          schema: { type: string }
-          description: AttributeOption ULID
+        - { name: id, in: path, required: true, schema: { type: string }, description: AttributeTemplate ULID }
+        - { name: optionId, in: path, required: true, schema: { type: string }, description: AttributeOption ULID }
       responses:
         "200":
           description: OK
@@ -1144,30 +1635,16 @@ paths:
         "404":
           $ref: '#/components/responses/404'
           # ErrorCode: TEMPLATE_NOT_FOUND | OPTION_NOT_FOUND
-        "409":
-          $ref: '#/components/responses/409'
-          # ErrorCode: OPTION_IN_USE
 
   /api/admin/attribute-templates/{id}/options/{optionId}/activate:
     post:
       tags: [AttributeTemplate (Admin)]
-      summary: Reactivate option đã deactivate
-      description: |
-        Đối xứng DELETE (deactivate) — không cần guard. Ưu tiên bật lại option cũ thay vì tạo option mới
-        cùng `value`, tránh phân mảnh identity (2 AttributeOptionId khác nhau cho cùng 1 khái niệm).
-        Không bị chặn bởi trạng thái parent template (bật/tắt option độc lập với template).
+      summary: Bật lại option
+      description: Không guard. Ưu tiên bật lại option cũ thay vì tạo option mới cùng `value` (tránh 2 ID cho 1 khái niệm).
       operationId: activateAttributeOption
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-          description: AttributeTemplate ULID
-        - name: optionId
-          in: path
-          required: true
-          schema: { type: string }
-          description: AttributeOption ULID
+        - { name: id, in: path, required: true, schema: { type: string }, description: AttributeTemplate ULID }
+        - { name: optionId, in: path, required: true, schema: { type: string }, description: AttributeOption ULID }
       responses:
         "200":
           description: OK
@@ -1566,6 +2043,32 @@ paths:
               schema: { $ref: '#/components/schemas/ApiResponseVoid' }
         "404":
           $ref: '#/components/responses/404'
+
+  # ── Search (Admin) ───────────────────────────────────────────────────────────
+
+  /api/admin/search/replay/products:
+    post:
+      tags: [Search (Admin)]
+      summary: Phát lại ProductSearchSnapshotEvent cho mọi sản phẩm đã từng publish
+      description: >
+        Backfill/rebuild index bên search-service qua đúng pipeline event. Mỗi sản phẩm 1 transaction
+        riêng (1 sản phẩm lỗi không rollback cả lô), mỗi lần phát đều tăng `search_version` nên chạy chồng
+        lên event live vẫn an toàn. Chạy đồng bộ trong request.
+      operationId: replayProductSearchSnapshots
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      published: { type: integer, description: Số sản phẩm đã ghi outbox }
+                      failed:    { type: integer, description: Số sản phẩm lỗi (xem log) }
 
   # ── Variant (Seller) ─────────────────────────────────────────────────────────
 

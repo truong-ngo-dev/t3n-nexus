@@ -12,17 +12,18 @@ import java.util.List;
 public class Category extends AbstractAggregateRoot<CategoryId> implements AggregateRoot<CategoryId> {
 
     private String name;
-    private final String slug;
+    private String slug;
     private final CategoryId parentId;
     private final CategoryLevel level;
     private String imageUrl;
+    private int sortOrder;
     private CategoryStatus status;
     private final List<CategoryAttributeAssignment> assignments;
     private final Instant createdAt;
     private Instant updatedAt;
 
     private Category(CategoryId id, String name, String slug, CategoryId parentId, CategoryLevel level,
-                     String imageUrl, CategoryStatus status,
+                     String imageUrl, int sortOrder, CategoryStatus status,
                      List<CategoryAttributeAssignment> assignments,
                      Instant createdAt, Instant updatedAt) {
         setId(id);
@@ -31,6 +32,7 @@ public class Category extends AbstractAggregateRoot<CategoryId> implements Aggre
         this.parentId    = parentId;
         this.level       = level;
         this.imageUrl    = imageUrl;
+        this.sortOrder   = sortOrder;
         this.status      = status;
         this.assignments = new ArrayList<>(assignments);
         this.createdAt   = createdAt;
@@ -39,58 +41,80 @@ public class Category extends AbstractAggregateRoot<CategoryId> implements Aggre
 
     // ───────────── Factory Methods ─────────────
 
-    public static Category createRoot(CategoryId id, String name, String slug) {
+    /** {@code sortOrder}: vị trí giữa các anh em cùng cha — caller tính (VD số anh em hiện có). */
+    public static Category createRoot(CategoryId id, String name, int sortOrder) {
         Instant now = Instant.now();
-        return new Category(id, name, slug, null, CategoryLevel.L1, null,
+        Category category = new Category(id, name, CategorySlug.from(name), null, CategoryLevel.L1, null, sortOrder,
                 CategoryStatus.ACTIVE, List.of(), now, now);
+        category.raiseUpdated();
+        return category;
     }
 
-    public static Category createChild(CategoryId id, String name, String slug,
-                                       CategoryId parentId, CategoryLevel parentLevel) {
+    /** Cha đang đóng vẫn tạo con được — chuẩn bị trước rồi mở cả nhánh sau (analysis.md AGG-CAT-03). */
+    public static Category createChild(CategoryId id, String name,
+                                       CategoryId parentId, CategoryLevel parentLevel, int sortOrder) {
         Instant now = Instant.now();
         CategoryLevel childLevel = parentLevel.nextLevel(); // throws MAX_DEPTH_EXCEEDED if parentLevel=L3
-        return new Category(id, name, slug, parentId, childLevel, null,
+        Category category = new Category(id, name, CategorySlug.from(name), parentId, childLevel, null, sortOrder,
                 CategoryStatus.ACTIVE, List.of(), now, now);
+        category.raiseUpdated();
+        return category;
     }
 
     public static Category reconstitute(CategoryId id, String name, String slug,
                                         CategoryId parentId, CategoryLevel level,
-                                        String imageUrl, CategoryStatus status,
+                                        String imageUrl, int sortOrder, CategoryStatus status,
                                         List<CategoryAttributeAssignment> assignments,
                                         Instant createdAt, Instant updatedAt) {
-        return new Category(id, name, slug, parentId, level, imageUrl, status,
+        return new Category(id, name, slug, parentId, level, imageUrl, sortOrder, status,
                 assignments, createdAt, updatedAt);
     }
 
     // ───────────── Behaviour ─────────────
 
+    /** Đổi tên thì sinh lại slug — slug chỉ để đọc, URL cũ vẫn mở được nhờ ID (service.md T-10). */
     public void update(String name, String imageUrl) {
         this.name      = name;
+        this.slug      = CategorySlug.from(name);
         this.imageUrl  = imageUrl;
         this.updatedAt = Instant.now();
-        addDomainEvent(new CategoryUpdatedEvent(getId().getValue()));
+        raiseUpdated();
     }
 
-    // Soft toggle điều hướng/hiển thị — KHÔNG phải khoá toàn vẹn dữ liệu, nên KHÔNG guard theo "đang có
-    // Product/children hay không" (khác hẳn hard-delete). Khớp Magento/Shopify: deactivate ẩn khỏi
-    // GetCategoryTree + chặn CreateProduct mới, nhưng Product cũ tham chiếu category này không bị ảnh
-    // hưởng gì (không cascade xuống children — mỗi node tự quản lý độc lập, đúng tinh thần leaf-only
-    // attribute assignment). Hard-delete (DeleteCategory, guard HAS_CHILDREN/HAS_PRODUCT_REFERENCE) vẫn
-    // giữ nguyên, riêng biệt — chỉ dùng dọn category tạo nhầm, chưa từng ai dùng.
+    // Đóng chỉ ẩn khỏi cây duyệt + chặn sản phẩm mới — không guard theo con/sản phẩm, không cascade xuống con
+    // (con tự mất đường vào vì cha bị ẩn). Khác xoá hẳn (analysis.md AGG-CAT-03).
     public void deactivate() {
         this.status    = CategoryStatus.INACTIVE;
         this.updatedAt = Instant.now();
+        raiseUpdated();
     }
 
     public void activate() {
         this.status    = CategoryStatus.ACTIVE;
         this.updatedAt = Instant.now();
+        raiseUpdated();
     }
 
-    // Thay toàn bộ danh sách attribute — assign/update/remove 1 attribute đều quy về gọi lại method
-    // này với danh sách mong muốn cuối cùng (client tự GET rồi sửa trước khi PUT lại), khớp đúng cách
-    // persistence đã làm (xoá hết + insert lại toàn bộ mỗi lần save).
+    /** Đổi vị trí giữa các anh em cùng cha — caller (use case) đã kiểm danh sách đủ/đúng mọi anh em. */
+    public void reorder(int sortOrder) {
+        this.sortOrder = sortOrder;
+        this.updatedAt = Instant.now();
+        raiseUpdated();
+    }
+
+    /** Xoá hẳn — caller kiểm không còn con/sản phẩm (INV-CAT-035, INV-CAT-98) rồi mới xoá khỏi repository. */
+    public void markDeleted() {
+        raiseUpdated();
+    }
+
+    /**
+     * Thay toàn bộ danh sách thuộc tính áp dụng (replace-all — service.md T-03). Chỉ danh mục lá (INV-CAT-033);
+     * mỗi thuộc tính đúng 1 lần (INV-CAT-034).
+     */
     public void replaceAssignments(List<CategoryAttributeAssignment> newAssignments) {
+        if (level != CategoryLevel.L3) {
+            throw new DomainException(CategoryErrorCode.ATTRIBUTE_ASSIGNMENT_REQUIRES_LEAF);
+        }
         long distinctTemplateCount = newAssignments.stream()
                 .map(CategoryAttributeAssignment::getAttributeTemplateId)
                 .distinct()
@@ -102,6 +126,12 @@ public class Category extends AbstractAggregateRoot<CategoryId> implements Aggre
         assignments.clear();
         assignments.addAll(newAssignments);
         this.updatedAt = Instant.now();
+        raiseUpdated();
+    }
+
+    // EVT-CAT-031 — mọi thay đổi cây/luật thuộc tính đều báo cho search (cây danh mục + facet).
+    private void raiseUpdated() {
+        addDomainEvent(new CategoryUpdatedEvent(getId().getValue()));
     }
 
     // ───────────── Getters ─────────────
@@ -111,6 +141,7 @@ public class Category extends AbstractAggregateRoot<CategoryId> implements Aggre
     public CategoryId getParentId()     { return parentId; }
     public CategoryLevel getLevel()     { return level; }
     public String getImageUrl()         { return imageUrl; }
+    public int getSortOrder()           { return sortOrder; }
     public CategoryStatus getStatus()   { return status; }
     public Instant getCreatedAt()       { return createdAt; }
     public Instant getUpdatedAt()       { return updatedAt; }

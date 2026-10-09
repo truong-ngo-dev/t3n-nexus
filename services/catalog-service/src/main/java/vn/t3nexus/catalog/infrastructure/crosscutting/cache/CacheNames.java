@@ -5,8 +5,7 @@ public final class CacheNames {
     private CacheNames() {}
 
     // ── L2 (Redis) only ──────────────────────────────────────
-    public static final String BRANDS_ACTIVE        = "brands:active";
-    public static final String CATEGORY_ATTRIBUTES  = "categories:attributes";
+    public static final String CATEGORY_ATTRIBUTES  = "categories:attributes:v3"; // v3: filterable/searchable -> constraints (bỏ qua entry cũ trong Redis)
 
     // ── L1 (Caffeine) + L2 (Redis) ───────────────────────────
     public static final String CATEGORY_TREE        = "category:tree";

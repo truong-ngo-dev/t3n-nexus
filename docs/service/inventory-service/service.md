@@ -57,22 +57,27 @@ Domain methods:
 ```
 Reservation
 ├── ReservationId
-├── orderId    UUID   — UNIQUE, index
-├── status     PENDING | RELEASED | CANCELLED
-├── expiresAt  timestamp  — TTL khớp với order auto-cancel window
+├── orderId    string (ULID)   — UNIQUE, index
+├── status     PENDING | COMMITTED | RELEASED | CANCELLED
+├── expiresAt  timestamptz, nullable  — TTL self-guard (5 phút, hạ từ 10 — 2026-09-23), null cho CANCELLED (T2)
 ├── createdAt
 └── items      List<ReservationItem>
 
 ReservationItem  (Entity, owned by Reservation)
 ├── ReservationItemId
-├── skuId  UUID
+├── skuId  string (ULID)
 └── qty    int
 ```
 
 Domain methods:
-- `Reservation.create(orderId, List<Item>)` — static factory
-- `Reservation.release()` → RELEASED; guard: chỉ release khi PENDING
-- `Reservation.cancel()` → CANCELLED; dùng khi TTL expire nội bộ
+- `Reservation.create(orderId, List<Item>)` — static factory, T1 (thành công) → `PENDING`, set `expiresAt = now+5min`
+- `Reservation.createFailed(orderId, List<Item>, failedSkuId, reason)` — static factory, T2 (thất bại) → `CANCELLED` ngay, `expiresAt=null`
+- `Reservation.release()` → `RELEASED`; guard: chỉ release khi `PENDING`
+- `Reservation.commit()` → `COMMITTED`; guard: chỉ commit khi `PENDING` — nhận tín hiệu `OrderConfirmed`, dừng đồng hồ TTL vĩnh viễn (2026-09-22, xem "TTL self-guard" bên dưới)
+
+**TTL self-guard (2026-09-22, đảo ngược lần 2 sau `V5`)**: `expiresAt` từng bị xoá hẳn (`V5__drop_reservation_expires_at.sql`) vì lúc đó chưa có state chung cuộc — sweep sẽ release nhầm cả đơn đã confirm (mọi `Reservation` thành công nằm mãi `PENDING`). Thêm lại (`V6`) sau khi có `COMMITTED`: Lớp 1 (Redis ZSET, `ReservationTimeoutIndex`) + Lớp 2 (Postgres backstop, partial index `WHERE status='PENDING'`) — độc lập hoàn toàn với việc `order-service` có publish đúng/đủ `OrderCancelled` hay không, chỉ là lớp phòng thủ cuối, không phải cơ chế chính (cơ chế chính vẫn là `OrderCancelledConsumer` phản ứng theo event, xử lý nhanh hơn hẳn TTL trong đa số trường hợp).
+
+**Hạ TTL 10→5 phút (2026-09-23)**: phát hiện chi phí kinh doanh thật của cửa sổ TTL — trong lúc chờ TTL sweep, `reservedQuantity` vẫn tính SKU là đang giữ dù order đã chắc chắn huỷ, khiến khách khác thấy "hết hàng" oan (đặc biệt tệ với SKU hot/flash-sale). Lý do 10 phút ban đầu ("dài hơn 3 phút deadline của `Order`") không đúng bottleneck thật — chuỗi compensate bình thường (`OrderCancelled` → `ReleaseReservation`, kể cả `republishCancellation`) chỉ mất vài giây bất kể `Order` tự huỷ sau 3 giây hay 3 phút; TTL chỉ cần đủ dài hơn thời gian lan truyền compensate thật (giây), không cần so với deadline của `Order`. 5 phút vẫn đủ margin cho case compounding-failure hiếm gặp, giảm một nửa chi phí giữ tồn kho oan ở trường hợp xấu nhất.
 
 ### LimitedOffer
 
@@ -107,6 +112,8 @@ Event-driven (Kafka consumers):
 |-------------------------------|------------------------------|----------------------------------------------------------------------|
 | `order.order.created`         | `OrderCreatedConsumer`       | `InventoryReserved` \| `InventoryReservationFailed`                  |
 | `order.order.cancelled`       | `OrderCancelledConsumer`     | `InventoryReleased`                                                  |
+| `order.order.confirmed`       | `OrderConfirmedConsumer`     | — *(2026-09-22, mới — `CommitReservation`, chuyển `Reservation` sang `COMMITTED`, dừng TTL)* |
+| `scheduler.job.fired`         | `ScheduledJobFiredConsumer`  | — *(TTL heartbeat cho `Reservation`, `@KafkaListener` đang comment — chưa đăng ký job, xem Phase R4)* |
 | `catalog.variant.created`     | `VariantCreatedConsumer`     | —  *(init Stock, sellerActive/productPublished mirror theo payload)* |
 | `catalog.variant.activated`   | `VariantActivatedConsumer`   | —                                                                    |
 | `catalog.variant.deactivated` | `VariantDeactivatedConsumer` | —                                                                    |
@@ -196,6 +203,7 @@ Trước mỗi event: `INSERT INTO processed_event(event_id) VALUES(?) ON CONFLI
 |-------------------------------------------------------|--------------------------------|---------------------------------|---------------------------------------------------|
 | [place-order](../../feature/07-place-order/design.md) | Participant — reservation step | `OrderCreated`                  | `InventoryReserved`, `InventoryReservationFailed` |
 | [place-order](../../feature/07-place-order/design.md) | Participant — compensate step  | `OrderCancelled`                | `InventoryReleased`                               |
+| [place-order](../../feature/07-place-order/design.md) | Participant — commit step (2026-09-22) | `OrderConfirmed`         | —                                                  |
 | [flashsale.md](flashsale.md)                          | Enforcer — slot guard          | `OrderCreated` *(limited path)* | `InventoryReserved`, `InventoryReservationFailed` |
 
 ---
@@ -218,6 +226,8 @@ Trước mỗi event: `INSERT INTO processed_event(event_id) VALUES(?) ON CONFLI
 |-------------------------------|---------------------------|-------------------------------|-------------|
 | `order.order.created`         | `OrderCreated`            | `OrderCreatedConsumer`        | DB `UNIQUE(order_id)` + `FOR UPDATE` trên stock (`ReserveInventory`) |
 | `order.order.cancelled`       | `OrderCancelled`          | `OrderCancelledConsumer`      | DB `isPending()` + `FOR UPDATE` trên reservation/stock (`ReleaseReservation`) |
+| `order.order.confirmed`       | `OrderConfirmed`          | `OrderConfirmedConsumer`      | DB `isPending()` + `FOR UPDATE` trên reservation (`CommitReservation`) — 2026-09-22, mới |
+| `scheduler.job.fired`         | `ScheduledJobFiredEvent`  | `ScheduledJobFiredConsumer`   | Opaque heartbeat, không mang state — `@KafkaListener` đang comment, chưa đăng ký job (Phase R4) |
 | `catalog.variant.created`     | `VariantCreatedEvent`     | `VariantCreatedConsumer`      | DB `existsBySkuId` + `UNIQUE(sku_id)` (`InitializeStock`) |
 | `catalog.variant.activated`   | `VariantActivatedEvent`   | `VariantActivatedConsumer`    | DB fast-path + `@Version` (`ActivateStock`) |
 | `catalog.variant.deactivated` | `VariantDeactivatedEvent` | `VariantDeactivatedConsumer`  | DB fast-path + `@Version` (`DeactivateStock`) |

@@ -7,10 +7,12 @@ public enum AttributeTemplateErrorCode implements ErrorCode {
     TEMPLATE_NOT_FOUND    ("20101", "Attribute template not found",              "error.attribute_template.not_found",     404),
     TEMPLATE_NAME_EXISTS  ("20102", "Attribute template name already exists",    "error.attribute_template.name_exists",   409),
     OPTION_NOT_FOUND      ("20103", "Attribute option not found",                "error.attribute_option.not_found",       404),
-    OPTION_IN_USE         ("20104", "Attribute option is used by a variant",     "error.attribute_option.in_use",          409),
-    INPUT_TYPE_NOT_SELECT        ("20105", "Options are only allowed for SELECT type",             "error.attribute_template.not_select",           422),
+    INPUT_TYPE_NOT_SELECT        ("20105", "Options are only allowed for SELECT types",            "error.attribute_template.not_select",           422),
     TEMPLATE_INACTIVE            ("20106", "Attribute template is inactive",                       "error.attribute_template.inactive",             422),
-    TEMPLATE_REQUIRED_BY_CATEGORY("20107", "Attribute template is required by at least one category", "error.attribute_template.required_by_category", 409);
+    OPTION_VALUE_EXISTS          ("20108", "Option value already exists in this template",         "error.attribute_option.value_exists",           409),
+    UNIT_ONLY_FOR_NUMBER         ("20109", "Unit is only allowed for NUMBER type",                 "error.attribute_template.unit_only_for_number", 422),
+    HINT_TOO_LONG                ("20110", "Hint must be at most 200 characters",                  "error.attribute_template.hint_too_long",        422),
+    INVALID_OPTION_ORDER         ("20111", "Option order must list every option of the template exactly once", "error.attribute_template.invalid_option_order", 422);
 
     private final String code;
     private final String defaultMessage;

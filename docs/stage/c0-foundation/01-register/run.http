@@ -1,0 +1,50 @@
+### Feature 01 (Đăng ký): gọi API thật trên ứng dụng đang chạy
+### Cách dùng: bật hạ tầng (Postgres, Redis, Kafka), chạy oauth2-service, rồi chạy từng request. Xem bước "Chạy thật" ở plan.md.
+### Gọi thẳng oauth2-service (cổng 8004). Khi feature 06 xong, đổi sang qua cổng: http://localhost:8000/auth/register
+
+@baseUrl = http://localhost:8004
+
+### 1. Đăng ký hợp lệ -> 201, data.userAccountId là UUID v7. Log: "[RegisterUser] registered: userAccountId=..."
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{"email": "chay-that-01@example.com", "password": "Matkhau123"}
+
+### 2. Cùng email, viết hoa và có khoảng trắng -> 409, code EMAIL_TAKEN
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{"email": "  CHAY-THAT-01@Example.com ", "password": "Matkhau123"}
+
+### 3. Gửi kèm vai quản trị -> 201, nhưng tài khoản vẫn là vai USER (kiểm trong user_accounts)
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{"email": "chay-that-02@example.com", "password": "Matkhau123", "role": "ADMIN", "fullName": "Ai Do"}
+
+### 4. Email miền nội bộ -> 400, code EMAIL_RESERVED
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{"email": "quan-tri@t3nexus.com.vn", "password": "Matkhau123"}
+
+### 5. Email sai định dạng -> 400, code EMAIL_INVALID
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{"email": "khong-phai-email", "password": "Matkhau123"}
+
+### 6. Mật khẩu sai luật (thiếu chữ số) -> 400, code PASSWORD_INVALID
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{"email": "chay-that-03@example.com", "password": "chuachucai"}
+
+### 7. Thiếu trường -> 400, code VALIDATION_FAILED
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{"email": "chay-that-04@example.com"}
+
+### Dọn sau khi chạy (SQL, không phải HTTP):
+### delete from user_accounts where email like 'chay-that-%@example.com';

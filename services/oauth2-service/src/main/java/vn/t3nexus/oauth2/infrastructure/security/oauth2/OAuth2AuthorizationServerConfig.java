@@ -14,7 +14,7 @@ import org.springframework.security.config.annotation.web.configurers.oauth2.ser
 import org.springframework.security.core.Authentication;
 import org.springframework.security.jackson.SecurityJacksonModules;
 import tools.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import vn.t3nexus.oauth2.infrastructure.security.service.UserCredentialDetails;
+import vn.t3nexus.oauth2.infrastructure.security.service.UserAccountDetails;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -87,14 +87,14 @@ public class OAuth2AuthorizationServerConfig {
 
         BasicPolymorphicTypeValidator.Builder validatorBuilder = BasicPolymorphicTypeValidator.builder()
                 .allowIfSubType(OneTimeTokenAuthentication.class)
-                .allowIfSubType(UserCredentialDetails.class);
+                .allowIfSubType(UserAccountDetails.class);
 
         JsonMapper jsonMapper = JsonMapper.builder()
                 .findAndAddModules()
                 .addModules(SecurityJacksonModules.getModules(classLoader, validatorBuilder))
                 .addMixIn(DeviceAwareWebAuthenticationDetails.class, DeviceAwareWebAuthenticationDetailsMixin.class)
                 .addMixIn(OneTimeTokenAuthentication.class, OneTimeTokenAuthenticationMixin.class)
-                .addMixIn(UserCredentialDetails.class, UserCredentialDetailsMixin.class)
+                .addMixIn(UserAccountDetails.class, UserAccountDetailsMixin.class)
                 .build();
         JdbcOAuth2AuthorizationService.JsonMapperOAuth2AuthorizationRowMapper rowMapper =
                 new JdbcOAuth2AuthorizationService.JsonMapperOAuth2AuthorizationRowMapper(repository, jsonMapper);

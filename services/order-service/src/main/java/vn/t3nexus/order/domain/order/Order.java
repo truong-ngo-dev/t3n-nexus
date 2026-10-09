@@ -12,6 +12,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
     private static final long INVENTORY_REPLY_TIMEOUT_MINUTES = 3;
 
     private String customerId;
+    private String customerEmail;
     private String sellerId;
     private List<OrderLineItem> items;
     private PaymentMethod paymentMethod;
@@ -24,14 +25,15 @@ public class Order extends AbstractAggregateRoot<OrderId> {
 
     private Order() {}
 
-    public static Order create(OrderId id, String customerId, String sellerId, List<OrderLineItem> items,
-                               PaymentMethod paymentMethod, ShippingAddress shippingAddress) {
+    public static Order create(OrderId id, String customerId, String customerEmail, String sellerId,
+                               List<OrderLineItem> items, PaymentMethod paymentMethod, ShippingAddress shippingAddress) {
         if (items.isEmpty()) throw OrderException.emptyItems();
         if (shippingAddress == null) throw OrderException.missingShippingAddress();
         Instant now = Instant.now();
         Order order = new Order();
         order.setId(id);
         order.customerId = customerId;
+        order.customerEmail = customerEmail;
         order.sellerId = sellerId;
         order.items = new ArrayList<>(items);
         order.paymentMethod = paymentMethod;
@@ -45,13 +47,15 @@ public class Order extends AbstractAggregateRoot<OrderId> {
     }
 
     /** Reconstitute từ persistence — dùng bởi repository, không fire event. */
-    public static Order reconstitute(OrderId id, String customerId, String sellerId, List<OrderLineItem> items,
+    public static Order reconstitute(OrderId id, String customerId, String customerEmail, String sellerId,
+                                     List<OrderLineItem> items,
                                      PaymentMethod paymentMethod, ShippingAddress shippingAddress,
                                      OrderStatus status, OrderCancelReason cancelReason, Instant inventoryReplyDeadline,
                                      Instant createdAt, Instant updatedAt) {
         Order order = new Order();
         order.setId(id);
         order.customerId = customerId;
+        order.customerEmail = customerEmail;
         order.sellerId = sellerId;
         order.items = new ArrayList<>(items);
         order.paymentMethod = paymentMethod;
@@ -68,7 +72,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
         if (status != OrderStatus.CREATED) throw OrderException.invalidTransition(status, "confirm");
         this.status = OrderStatus.CONFIRMED;
         this.updatedAt = Instant.now();
-        addDomainEvent(new OrderConfirmedEvent(getId().getValue(), customerId, sellerId, shippingAddress));
+        addDomainEvent(new OrderConfirmedEvent(getId().getValue(), customerId, customerEmail, sellerId, shippingAddress));
     }
 
     public void cancel(OrderCancelReason reason) {
@@ -77,7 +81,7 @@ public class Order extends AbstractAggregateRoot<OrderId> {
         this.status = OrderStatus.CANCELLED;
         this.cancelReason = reason;
         this.updatedAt = Instant.now();
-        addDomainEvent(new OrderCancelledEvent(getId().getValue(), customerId, reason));
+        addDomainEvent(new OrderCancelledEvent(getId().getValue(), customerId, customerEmail, reason));
     }
 
     /**
@@ -88,7 +92,21 @@ public class Order extends AbstractAggregateRoot<OrderId> {
         return status == OrderStatus.CREATED;
     }
 
+    /**
+     * Re-raise {@link OrderCancelledEvent} (eventId mới, không mutate state — order đã CANCELLED từ
+     * trước) — dùng khi {@code InventoryReserved} tới muộn sau khi order đã bị timeout-cancel:
+     * Reservation vừa được inventory-service tạo thật (khác {@code InventoryReservationFailed}, vốn
+     * không tạo gì) nên cần trigger lại {@code OrderCancelledConsumer} bên đó để release, không thì
+     * Reservation mồ côi giữ stock vĩnh viễn. Guard: chỉ hợp lệ khi đã CANCELLED — gọi sai chỗ là lỗi
+     * lập trình (caller phải tự kiểm tra {@code canProcess()==false} trước), không nên no-op im lặng.
+     */
+    public void republishCancellation() {
+        if (status != OrderStatus.CANCELLED) throw OrderException.invalidTransition(status, "republishCancellation");
+        addDomainEvent(new OrderCancelledEvent(getId().getValue(), customerId, customerEmail, cancelReason));
+    }
+
     public String getCustomerId() { return customerId; }
+    public String getCustomerEmail() { return customerEmail; }
     public String getSellerId() { return sellerId; }
     public List<OrderLineItem> getItems() { return List.copyOf(items); }
     public PaymentMethod getPaymentMethod() { return paymentMethod; }

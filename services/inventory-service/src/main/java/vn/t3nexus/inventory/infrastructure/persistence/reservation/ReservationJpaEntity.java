@@ -26,6 +26,9 @@ public class ReservationJpaEntity {
     @Column(name = "status", nullable = false)
     private ReservationStatus status;
 
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

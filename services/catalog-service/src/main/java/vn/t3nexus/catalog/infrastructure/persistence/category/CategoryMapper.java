@@ -1,11 +1,16 @@
 package vn.t3nexus.catalog.infrastructure.persistence.category;
 
+import tools.jackson.databind.ObjectMapper;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.category.*;
 
 import java.util.List;
 
 public final class CategoryMapper {
+
+    // Đọc/ghi jsonb constraints/discovery — shape cố định (record thuần), không cần cấu hình gì thêm
+    // (đã kiểm chứng round-trip với record lồng enum/record/null field).
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private CategoryMapper() {}
 
@@ -26,6 +31,7 @@ public final class CategoryMapper {
                 parentId,
                 fromInt(entity.getLevel()),
                 entity.getImageUrl(),
+                entity.getSortOrder(),
                 entity.getStatus(),
                 assignments,
                 entity.getCreatedAt(),
@@ -41,6 +47,7 @@ public final class CategoryMapper {
         entity.setParentId(category.getParentId() != null ? category.getParentId().getValue() : null);
         entity.setLevel(category.getLevel().getValue());
         entity.setImageUrl(category.getImageUrl());
+        entity.setSortOrder(category.getSortOrder());
         entity.setStatus(category.getStatus());
         entity.setCreatedAt(category.getCreatedAt());
         entity.setUpdatedAt(category.getUpdatedAt());
@@ -54,14 +61,13 @@ public final class CategoryMapper {
                 .toList();
     }
 
-    private static CategoryAttributeAssignment toAssignmentDomain(
-            CategoryAttributeAssignmentJpaEntity entity) {
-        return new CategoryAttributeAssignment(
+    private static CategoryAttributeAssignment toAssignmentDomain(CategoryAttributeAssignmentJpaEntity entity) {
+        return CategoryAttributeAssignment.reconstitute(
                 AttributeTemplateId.of(entity.getTemplateId()),
                 entity.isRequired(),
-                entity.isFilterable(),
-                entity.isSearchable(),
-                entity.getDisplayOrder()
+                entity.getDisplayOrder(),
+                JSON.readValue(entity.getConstraintsJson(), AttributeConstraints.class),
+                JSON.readValue(entity.getDiscoveryJson(), Discovery.class)
         );
     }
 
@@ -71,9 +77,9 @@ public final class CategoryMapper {
         entity.setCategoryId(categoryId);
         entity.setTemplateId(assignment.getAttributeTemplateId().getValue());
         entity.setRequired(assignment.isRequired());
-        entity.setFilterable(assignment.isFilterable());
-        entity.setSearchable(assignment.isSearchable());
         entity.setDisplayOrder(assignment.getDisplayOrder());
+        entity.setConstraintsJson(JSON.writeValueAsString(assignment.getConstraints()));
+        entity.setDiscoveryJson(JSON.writeValueAsString(assignment.getDiscovery()));
         return entity;
     }
 

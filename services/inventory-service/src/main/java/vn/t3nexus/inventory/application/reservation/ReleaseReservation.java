@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.inventory.domain.reservation.Reservation;
 import vn.t3nexus.inventory.domain.reservation.ReservationRepository;
+import vn.t3nexus.inventory.domain.reservation.ReservationTimeoutIndex;
 import vn.t3nexus.inventory.domain.stock.Stock;
 import vn.t3nexus.inventory.domain.stock.StockRepository;
 import vn.t3nexus.lib.common.application.EventDispatcher;
@@ -17,6 +18,7 @@ import vn.t3nexus.lib.common.application.EventDispatcher;
 public class ReleaseReservation {
 
     private final ReservationRepository reservationRepository;
+    private final ReservationTimeoutIndex reservationTimeoutIndex;
     private final StockRepository stockRepository;
     private final EventDispatcher eventDispatcher;
 
@@ -57,6 +59,7 @@ public class ReleaseReservation {
         reservationRepository.save(reservation);
         eventDispatcher.dispatchAll(reservation.getDomainEvents());
         reservation.clearDomainEvents();
+        reservationTimeoutIndex.remove(command.orderId());
 
         log.info("[ReleaseReservation] released: reservationId={}, orderId={}, traceId={}",
                 reservation.getId().getValue(), command.orderId(), MDC.get("traceId"));

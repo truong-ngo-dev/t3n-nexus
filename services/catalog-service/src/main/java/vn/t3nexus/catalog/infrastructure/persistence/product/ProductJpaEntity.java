@@ -50,6 +50,11 @@ public class ProductJpaEntity {
     @Column(name = "admin_blocked", nullable = false)
     private boolean adminBlocked;
 
+    @Column(name = "published_at")
+    private Instant publishedAt;
+
+    // search_version CỐ TÌNH không map — chỉ đọc/ghi qua native query (ProductJpaRepository), xem V15.
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
