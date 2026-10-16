@@ -5,6 +5,8 @@ import org.springframework.boot.EnvironmentPostProcessor;
 import org.springframework.boot.SpringApplication;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.env.Profiles;
+import vn.t3nexus.lib.observability.logging.SecretScrubbingCustomizer;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -28,6 +30,12 @@ public class ObservabilityEnvironmentPostProcessor implements EnvironmentPostPro
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, @Nonnull SpringApplication application) {
+        // Cờ hiện bí mật trong log chỉ dành cho gỡ lỗi ở máy dev: bật ở profile khác thì từ chối khởi động
+        if (environment.getProperty(SecretScrubbingCustomizer.REVEAL_PROPERTY, Boolean.class, false)
+                && !environment.acceptsProfiles(Profiles.of("dev"))) {
+            throw new IllegalStateException(SecretScrubbingCustomizer.REVEAL_PROPERTY + " chỉ được bật ở profile dev");
+        }
+
         Map<String, Object> defaults = new LinkedHashMap<>();
 
         // Sample all traces by default; services can override to lower value in production

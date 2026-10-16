@@ -13,6 +13,20 @@ test của bước, và test không khẳng định điều gì về chúng. M�
 
 Các bước chỉ cần cơ sở dữ liệu. Cổng truy cập (feature 06) chỉ cần khi chạy qua `/auth` từ đầu đến cuối; giới hạn tần suất của đăng ký do cổng thực hiện, không nằm trong feature này.
 
+## Từ luồng đến giải pháp
+
+Mỗi dòng là một bước của luồng (`flow.md` mục 3). Ba cột đầu là phần thiết kế: hướng giải ngắn (chi tiết ở `tech.md` và ADR, không chép lại), rồi các hướng giải gộp thành thành phần nào. Cột cuối điền sau khi làm xong. Các bước 1 đến 13 bên dưới là thứ tự thi công; trạng thái từng bước ở đó là bản gốc.
+
+| Bước của luồng | Hướng giải | Gộp vào thành phần | Triển khai (điền sau khi xong) |
+|---|---|---|---|
+| Giới hạn tần suất theo địa chỉ mạng | Do cổng truy cập thực hiện trước khi yêu cầu vào dịch vụ (`tech.md` T6) | Cổng truy cập, ngoài dịch vụ | Chưa làm, kiểm ở feature 06 (KT-09 phần 429) |
+| Chuẩn hóa email | Cắt khoảng trắng, chữ thường, không gộp bí danh; làm ở value object để mọi đường vào đều qua một chỗ (`tech.md` T2) | Value object email | `Email`; KT-04 (bước 3, 4) |
+| Kiểm đầu vào: email, mật khẩu, miền nội bộ | Luật nằm trong value object (`Email`, `RawPassword`); miền nội bộ qua chính sách khai báo như cổng (`tech.md` T8) | Value object và chính sách miền | `Email`, `RawPassword`, `InternalEmailPolicy`; KT-05 đến 08 (bước 3, 4, 9) |
+| Kiểm email chưa dùng (báo sớm) | Domain service cần kho và chính sách nên không thuộc aggregate nào; chỉ báo sớm, chốt cuối ở cơ sở dữ liệu (`tech.md` T3) | Domain service đăng ký | `UserAccountService`; KT-03 (bước 3, 6) |
+| Băm mật khẩu | Băm một lần bằng bcrypt hệ số 10, qua cổng để miền không biết thuật toán (ADR-0002, `tech.md` T1) | Cổng băm và bộ cài đặt | `PasswordHasher`, `PasswordHasherAdapter`; KT-01, 11 (bước 7) |
+| Một giao dịch tạo tài khoản; trùng email thì hủy | Use case gom các bước trên trong một giao dịch; ràng buộc duy nhất của email là chốt cuối, kho dịch thành lỗi trùng (`tech.md` T3) | Use case đăng ký + kho tài khoản | `UserAccount`, `RegisterUser`, `UserAccountRepositoryAdapter`, migration V12; KT-01, 02, 10, 11, 12, 13 (bước 3, 5, 6, 8, 10) |
+| Trả 201 hoặc khung lỗi có `code` | Một endpoint, vai không phải đầu vào; lỗi nghiệp vụ dịch sang mã chữ ổn định ở bộ xử lý lỗi chung (`tech.md` T9) | Endpoint và bộ xử lý lỗi chung | `UserAccountController`, `GlobalExceptionHandler` (`common-web`); KT-02, 09 (bước 9) |
+
 ## Điều kiện bắt đầu
 
 Những điều thuộc **nghiệp vụ** đã được chốt ở `analysis.md` và `service.md` trước khi vào kế hoạch này, không bàn lại ở đây:

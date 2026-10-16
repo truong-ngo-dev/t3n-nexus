@@ -14,10 +14,14 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import vn.t3nexus.oauth2.infrastructure.security.service.UserAccountDetails;
+import vn.t3nexus.oauth2.infrastructure.security.extension.authentication.UserAccountDetails;
 
 import java.io.IOException;
 
+/**
+ * Bước trung gian của luồng MFA (không phải điểm vào API): sau khi người dùng đã xác thực bằng mật khẩu, sinh mã OTT cho tài khoản
+ * đó rồi chuyển sang bước nhập mã. Thuộc tính năng MFA nên đặt cùng gói {@code mfa}, không đặt ở {@code presentation}.
+ */
 @Controller
 @RequestMapping("/mfa")
 @RequiredArgsConstructor

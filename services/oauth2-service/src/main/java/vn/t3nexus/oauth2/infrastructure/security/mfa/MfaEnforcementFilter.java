@@ -11,7 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.web.filter.OncePerRequestFilter;
-import vn.t3nexus.oauth2.infrastructure.security.service.UserAccountDetails;
+import vn.t3nexus.oauth2.infrastructure.security.extension.authentication.UserAccountDetails;
 
 import java.io.IOException;
 

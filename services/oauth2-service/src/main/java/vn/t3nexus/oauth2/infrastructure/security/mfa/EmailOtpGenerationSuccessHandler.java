@@ -12,7 +12,7 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 import org.springframework.stereotype.Component;
 import vn.t3nexus.oauth2.application.user_account.send_login_otp.SendLoginOtp;
-import vn.t3nexus.oauth2.infrastructure.security.service.UserAccountDetails;
+import vn.t3nexus.oauth2.infrastructure.security.extension.authentication.UserAccountDetails;
 
 import java.io.IOException;
 

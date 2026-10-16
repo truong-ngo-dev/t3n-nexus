@@ -10,4 +10,17 @@ public interface PasswordHasher {
      *                khi đặt mật khẩu, không áp dụng khi kiểm
      */
     boolean verify(String attempt, PasswordHash hash);
+
+    /** Giá trị băm đã lưu có hệ số thấp hơn mức hiện hành không (KT-07, ADR-0002). Mặc định: không. */
+    default boolean needsRehash(PasswordHash hash) {
+        return false;
+    }
+
+    /**
+     * Băm lại một mật khẩu <b>vừa được kiểm đúng</b> ở mức hiện hành. Không qua {@link RawPassword} vì luật mật khẩu có thể đã đổi
+     * sau khi mật khẩu cũ được đặt; mật khẩu đúng thì không bị luật mới từ chối đăng nhập.
+     */
+    default PasswordHash rehash(String verifiedAttempt) {
+        return hash(RawPassword.of(verifiedAttempt));
+    }
 }

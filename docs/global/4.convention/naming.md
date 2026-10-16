@@ -8,10 +8,11 @@ hai bên để tài liệu và mã gọi cùng một thứ.
 | Tầng | Ngôn ngữ | Ví dụ |
 |---|---|---|
 | Tài liệu nghiệp vụ (gốc, chặng, `analysis.md`): tên BC, vai, bên tham gia, thuật ngữ | Tiếng Việt | Xác thực, Người dùng, Phiên |
-| Tên thư mục và file tài liệu | Tiếng Anh | `docs/service/oauth2-service/analysis.md` |
+| Tên thư mục và file tài liệu | Tiếng Anh | `docs/service/oauth2-service/analysis/login-session.md` |
 | Thư mục tài liệu service | Theo tên service | `docs/service/oauth2-service/` |
 | Tên service (đơn vị triển khai) | Tiếng Anh, `kebab-case`, kết thúc `-service` | `oauth2-service`, `identity-service` |
-| Thực thể, value object, event, lỗi nghiệp vụ, hàm trong mã | Tiếng Anh, `PascalCase` cho kiểu, `camelCase` cho hàm | `UserAccount`, `UserAccountRegistered`, `EmailTaken` |
+| Thực thể, value object, lỗi nghiệp vụ, hàm trong mã | Tiếng Anh, `PascalCase` cho kiểu, `camelCase` cho hàm | `UserAccount`, `EmailTaken` |
+| **Lớp event trong mã** | Tên sự kiện kèm hậu tố `Event`, để không nhầm với đối tượng miền. Tên sự kiện ở tài liệu và event-catalog (như `UserAccountRegistered`, `SessionIssued`) **không** có hậu tố | `UserAccountRegisteredEvent`, `SessionIssuedEvent`, `ClientSessionIssuedEvent` |
 | Mã vai | Tiếng Anh, `UPPER_SNAKE` | `USER`, `ADMIN` |
 | API: đường dẫn, trường | Tiếng Anh | `/register`, `email` |
 | API: mã lỗi | Tiếng Anh, `UPPER_SNAKE`; thông điệp hiển thị tiếng Việt | `EMAIL_TAKEN` |

@@ -39,8 +39,8 @@ minh mình là người đó bằng bí mật ấy: **đăng nhập**. Hệ th�
 người này đã được xác thực trong một khoảng thời gian: **phiên**. Phiên không được kéo dài vô hạn, vì máy dùng chung hoặc
 bị mất sẽ để lộ tài khoản; người dùng phải tự kết thúc được: **đăng xuất**, và phiên cũng phải tự hết hạn.
 
-Nền tảng có nhiều portal, và người dùng không nên đăng nhập lại ở từng portal. Vì vậy phiên có hai tầng: một phiên ở nơi
-xác thực (một lần đăng nhập) và một phiên cho mỗi portal người dùng vào. Hệ quả: đăng xuất và thu hồi phải cắt được cả hai
+Nền tảng có nhiều ứng dụng, và người dùng không nên đăng nhập lại ở từng ứng dụng. Vì vậy phiên có hai tầng: một phiên ở nơi
+xác thực (một lần đăng nhập) và một phiên cho mỗi ứng dụng người dùng vào. Hệ quả: đăng xuất và thu hồi phải cắt được cả hai
 tầng.
 
 > **Chốt:** cần ba năng lực xác thực: đăng nhập, giữ phiên (hai tầng), đăng xuất. → `analysis.md` mô tả điều kiện hợp lệ,
@@ -57,11 +57,11 @@ cho C0: đăng ký chỉ thu thứ cần để xác thực (email, mật khẩu)
 **2.5. Ai chặn việc gì.** Xác thực chỉ khẳng định "người này, vai này". Lời khẳng định đó được công bố thành một hợp đồng
 danh tính mà các BC khác tự đọc, không gọi lại Xác thực ở mỗi yêu cầu. Việc cho hay không cho làm một thao tác thuộc BC
 sở hữu thao tác đó (UI §5: quyền thật do BC kiểm, ẩn nút không thay cho kiểm quyền). Ở C0 chưa có BC nào có thao tác cần
-chặn và chưa có BC nào đọc hợp đồng ngoài giao diện, nên vai chỉ được ghi nhận, trừ một việc của chính Xác thực: vai quyết
-định tài khoản vào được **portal** nào (người dùng vào portal Cửa hàng, vai nội bộ vào portal Vận hành). Chặn theo vai ở các
-thao tác của BC khác đến cùng BC đầu tiên cần nó (roadmap xếp phân quyền ở C1b).
+chặn và chưa có BC nào đọc hợp đồng ngoài giao diện, nên vai chỉ được ghi nhận và công bố. Xác thực không phân quyền: nó xác thực người dùng, còn ứng dụng và BC tự dùng vai để quyết
+vào ứng dụng nào và làm được thao tác nào, với mặc định từ chối. Việc kiểm đó thuộc từng BC, chứng minh được ở BC đầu tiên có thao tác
+cần chặn (roadmap xếp phân quyền ở C1b).
 
-> **Chốt:** C0 ghi nhận vai và dùng nó để quyết vào portal nào, không chặn thao tác của BC khác. → `analysis.md` ghi hợp đồng danh tính (nội dung, độ tươi, khóa chủ sở hữu)
+> **Chốt:** C0 chỉ ghi nhận và công bố vai; Xác thực không phân quyền. → `analysis.md` ghi hợp đồng danh tính (nội dung, độ tươi, khóa chủ sở hữu)
 > như điểm nối cho các BC sau; phân quyền để mức tên, ghi "C1b".
 
 **2.6. Điều gì có thể sai.** Mỗi hành vi dưới đây cần một điều được bảo đảm. Phát biểu chính thức, kèm lý do, nằm ở
@@ -76,9 +76,8 @@ thao tác của BC khác đến cùng BC đầu tiên cần nó (roadmap xếp p
 | Đăng xuất khi phiên đã hết hạn | R5. Đăng xuất luôn thành công |
 | Vai ngoài tập quy định, hoặc người đăng ký tự chọn vai quản trị | R6. Mỗi tài khoản có đúng một vai thuộc tập đã quy định; người đăng ký công khai không chọn được vai |
 | Người ngoài đăng ký bằng email trông như của nội bộ để giả mạo | R7. Email thuộc miền nội bộ chỉ dành cho tài khoản nội bộ |
-| Người dùng thường cố vào portal Vận hành, hoặc tài khoản nội bộ vào portal Cửa hàng; hoặc một portal quên kiểm vai | R8. Phiên portal chỉ được cấp cho tài khoản có vai được phép vào portal đó |
 
-> **Chốt:** tám điều cần bảo đảm. → `analysis.md` nâng chúng thành INV kèm lý do và bổ sung đường lỗi chi tiết. INV là đầu
+> **Chốt:** bảy điều cần bảo đảm. → `analysis.md` nâng chúng thành INV kèm lý do và bổ sung đường lỗi chi tiết. INV là đầu
 > vào của aggregate ở `service.md` (bước 3) và của test (bước 6).
 
 ## 3. Hành vi và BC
@@ -88,7 +87,7 @@ thao tác của BC khác đến cùng BC đầu tiên cần nó (roadmap xếp p
 | H1. Đăng ký tài khoản (tự đăng ký) | Xác thực | Tạo ra danh tính |
 | H2. Có sẵn tài khoản Quản trị | Xác thực | Như trên; là dữ liệu khởi tạo khi dựng hệ thống, không phải thao tác của người dùng |
 | H3. Đăng nhập | Xác thực | Xác thực danh tính |
-| H4. Giữ phiên | Xác thực | Phiên (ở nơi xác thực và ở từng portal) là hệ quả của xác thực |
+| H4. Giữ phiên | Xác thực | Phiên (ở nơi xác thực và ở từng ứng dụng) là hệ quả của xác thực |
 | H5. Đăng xuất | Xác thực | Kết thúc phiên |
 | H6. Ghi nhận vai | Xác thực | Vai là một phần của danh tính |
 
@@ -96,7 +95,7 @@ Mọi hành vi rơi vào một BC. Các BC có liên quan tới người dùng n
 
 | BC | Vì sao chưa cần |
 |---|---|
-| Định danh | Tên hiển thị, thiết bị và lịch sử đăng nhập chỉ có người xem khi Quản trị cần quản lý người dùng (C1b); cần bus sự kiện (C1a) để nhận event phiên |
+| Định danh | Tên hiển thị, thiết bị và lịch sử đăng nhập chỉ có người xem khi Quản trị cần quản lý người dùng (tên hiển thị, danh sách người dùng: C1b; thiết bị, lịch sử đăng nhập: C3c); cần bus sự kiện (C1a) để nhận event phiên |
 | Khách hàng | Hồ sơ giao hàng chỉ cần khi đặt hàng (C2a) |
 | Người bán | Đăng ký làm người bán và duyệt là phần của niêm yết (C1a) |
 | Shipper | Đăng ký làm shipper là phần của giao hàng (C3a) |
@@ -104,10 +103,10 @@ Mọi hành vi rơi vào một BC. Các BC có liên quan tới người dùng n
 | Thông báo | Chỉ cần khi hệ thống phải gửi thư cho người dùng (xác minh email, đặt lại mật khẩu); C0 không gửi thư |
 
 Mọi thứ ngoài H1–H6 không thuộc C0. Phần Xác thực chưa làm (phân quyền, khóa/mở tài khoản, tạo tài khoản nội bộ...)
-được ghi ở mục "Chưa làm" của [`analysis.md`](../../service/oauth2-service/analysis.md).
+được ghi ở mục "Chưa làm" của [`analysis/0.overview.md`](../../service/oauth2-service/analysis/0.overview.md).
 
 Giao diện không phải BC mà là nơi người dùng thực hiện H1, H3, H5. C0 cần giao diện cho ba hành vi này và một khung trang
-cho người đã đăng nhập, để chứng minh người dùng đã vào được và để các portal sau dùng lại bố cục.
+cho người đã đăng nhập, để chứng minh người dùng đã vào được và để các ứng dụng sau dùng lại bố cục.
 
 > **Chốt:** C0 có một BC là Xác thực, sáu hành vi. → Bước 2 chỉ viết `analysis.md` cho Xác thực, phần thuộc C0 ở mức
 > mịn (mỗi hành vi H1–H6 thành một năng lực). Các BC ở bảng trên chưa có `analysis.md` ở chặng này.
@@ -123,12 +122,11 @@ Mỗi kịch bản là một cách chứng minh hành vi hoặc điều cần b�
 | S3 | Đăng nhập sai email và đăng nhập sai mật khẩu nhận cùng một thông báo | R3 |
 | S4 | Đăng nhập bằng tài khoản Quản trị có sẵn, hệ thống nhận ra vai Quản trị; tài khoản vừa tự đăng ký có vai khác Quản trị, kể cả khi yêu cầu đăng ký gửi kèm vai quản trị | H2, H6, R6 |
 | S5 | Đăng xuất khi phiên đã hết hạn vẫn đưa người dùng về trạng thái chưa đăng nhập | R5 |
-| S6 | Tài khoản Người dùng vào portal Vận hành: đăng nhập thành công nhưng thấy "không có quyền" và không có phiên portal; nút quay lại Cửa hàng đưa vào được mà không hỏi lại mật khẩu. Tài khoản Quản trị vào Cửa hàng cũng vậy | R8 |
 
 R2 không có kịch bản nghiệp vụ vì không quan sát được từ ngoài; nó kiểm bằng test ở bước thiết kế. Tương tự, việc phiên hết
 hạn và việc đăng xuất cắt cả hai tầng phiên kiểm bằng test từ bất biến của `analysis.md`.
 
-> **Chốt:** sáu kịch bản (cùng tám điều cần bảo đảm, trừ R2 kiểm bằng test) là điều kiện "xong" của phần nghiệp vụ. →
+> **Chốt:** năm kịch bản (cùng bảy điều cần bảo đảm, trừ R2 kiểm bằng test) là điều kiện "xong" của phần nghiệp vụ. →
 > `analysis.md` dùng chúng để kiểm tra mỗi năng lực có ít nhất một kịch bản chứng minh. Bước 4 dùng chúng để cắt feature
 > theo lát dọc; bước 6 viết test từ chúng.
 
@@ -139,8 +137,8 @@ C0 chỉ có một BC nên chưa có luồng xuyên BC. Ba luồng nằm trọn 
 | Luồng | Bước |
 |---|---|
 | Đăng ký | Khách vãng lai gửi email và mật khẩu → Xác thực kiểm email chưa dùng và không thuộc miền nội bộ (R1, R7) và mật khẩu hợp lệ → tạo tài khoản vai Người dùng, đang hoạt động → báo kết quả |
-| Đăng nhập | Người dùng vào một portal, gửi email và mật khẩu → Xác thực kiểm thông tin (R3), tạo phiên ở nơi xác thực → kiểm vai được vào portal đích (R8), tạo phiên portal → người dùng vào portal. Đã có phiên ở nơi xác thực thì vào portal khác không hỏi lại mật khẩu |
-| Đăng xuất | Người dùng yêu cầu → phiên ở nơi xác thực của lần đăng nhập này và các phiên portal bên dưới bị hủy (R5), lần đăng nhập ở thiết bị khác giữ nguyên → người dùng về trạng thái chưa đăng nhập |
+| Đăng nhập | Người dùng vào một ứng dụng, gửi email và mật khẩu → Xác thực kiểm thông tin (R3), mở phiên người dùng rồi phiên ứng dụng bên dưới → người dùng vào ứng dụng, mang vai của mình. Đã có phiên ở nơi xác thực thì vào ứng dụng khác không hỏi lại mật khẩu |
+| Đăng xuất | Người dùng yêu cầu → phiên người dùng của lần đăng nhập này và các phiên ứng dụng bên dưới bị hủy (R5), lần đăng nhập ở thiết bị khác giữ nguyên → người dùng về trạng thái chưa đăng nhập |
 
 > **Chốt:** cả ba luồng nằm trong một BC, chưa có BC nào nhận kết quả. → `analysis.md` lấy ba luồng làm khung viết từng
 > năng lực. `service.md` ở C0 ghi sẵn các event "tài khoản đã đăng ký", "phiên được cấp", "phiên kết thúc" (chưa có bên
@@ -150,7 +148,7 @@ C0 chỉ có một BC nên chưa có luồng xuyên BC. Ba luồng nằm trọn 
 
 Roadmap còn ghi cho C0 những điều kiện không thuộc nghiệp vụ của BC nào:
 - **Kỹ thuật:** lỗi lần ra được nguyên nhân từ log; có số trần của máy (bộ đo nền); chạy cục bộ theo lát cắt; cổng truy cập.
-- **Giao diện:** khung frontend gồm cấu trúc, bố cục, bảo vệ truy cập và bộ thành phần dùng chung cho các portal web. Bảo vệ
+- **Giao diện:** khung frontend gồm cấu trúc, bố cục, bảo vệ truy cập và bộ thành phần dùng chung cho các ứng dụng web. Bảo vệ
   truy cập ở giao diện chỉ là trải nghiệm; quyền thật do BC kiểm (2.5).
 
 Chúng không đi qua analysis của BC.

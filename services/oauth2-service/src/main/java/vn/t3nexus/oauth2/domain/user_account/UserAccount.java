@@ -58,7 +58,7 @@ public class UserAccount extends AbstractAggregateRoot<UserAccountId> implements
         Assert.notNull(now, "now is required");
         UserAccount account = new UserAccount(id, email, passwordHash, Role.USER,
                 RegistrationMethod.CREDENTIAL, UserAccountStatus.ACTIVE, now);
-        account.addDomainEvent(new UserAccountRegistered(id, email, Role.USER, now));
+        account.addDomainEvent(new UserAccountRegisteredEvent(id, email, Role.USER, now));
         return account;
     }
 
@@ -116,6 +116,17 @@ public class UserAccount extends AbstractAggregateRoot<UserAccountId> implements
     public boolean verifyPassword(String attempt, PasswordHasher passwordHasher) {
         if (passwordHash == null) return false;
         return passwordHasher.verify(attempt, passwordHash);
+    }
+
+    /**
+     * KT-07: sau khi mật khẩu đã được kiểm đúng, nếu giá trị băm lưu có hệ số thấp hơn mức hiện hành thì băm lại. Trả {@code true} khi giá
+     * trị băm đổi (bên gọi phải lưu). Không phát event: đổi cách lưu, không phải người dùng đổi mật khẩu.
+     */
+    public boolean upgradePasswordHash(String verifiedAttempt, PasswordHasher passwordHasher) {
+        if (passwordHash == null || !passwordHasher.needsRehash(passwordHash)) return false;
+        this.passwordHash = passwordHasher.rehash(verifiedAttempt);
+        this.updatedAt    = Instant.now();
+        return true;
     }
 
     public boolean canLogin() {

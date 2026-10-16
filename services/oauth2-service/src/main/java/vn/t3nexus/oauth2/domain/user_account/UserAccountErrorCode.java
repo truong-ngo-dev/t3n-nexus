@@ -16,7 +16,8 @@ public enum UserAccountErrorCode implements ErrorCode {
     SETUP_RATE_LIMITED         ("20010", "Please wait before requesting another link",    "error.credential.setup_rate_limited",            429),
     EMAIL_INVALID              ("20011", "Email không đúng định dạng hoặc dài quá 254 ký tự", "error.credential.email_invalid",         400),
     EMAIL_RESERVED             ("20012", "Email thuộc miền nội bộ, không dùng để đăng ký công khai", "error.credential.email_reserved", 400),
-    PASSWORD_INVALID           ("20013", "Mật khẩu phải từ 8 đến 64 ký tự, chỉ gồm chữ cái không dấu, chữ số và ký tự @ hoặc $, có ít nhất một chữ cái và một chữ số", "error.credential.password_invalid", 400);
+    PASSWORD_INVALID           ("20013", "Mật khẩu phải từ 8 đến 64 ký tự, chỉ gồm chữ cái không dấu, chữ số và ký tự @ hoặc $, có ít nhất một chữ cái và một chữ số", "error.credential.password_invalid", 400),
+    INVALID_CREDENTIALS        ("20014", "Email hoặc mật khẩu không đúng",               "error.credential.invalid_credentials",          401);
 
     private final String code;
     private final String defaultMessage;

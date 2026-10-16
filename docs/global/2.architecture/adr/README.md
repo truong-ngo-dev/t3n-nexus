@@ -8,3 +8,6 @@ file: `NNNN-<slug>.md`.
 |---|---|---|
 | 0001 | Định dạng mã định danh thực thể | Accepted |
 | 0002 | Băm mật khẩu | Accepted |
+| 0003 | Phiên đăng nhập hai tầng, hợp đồng danh tính và làm mới token | Proposed |
+| 0004 | Mã một lần | Proposed |
+| 0005 | Bảo vệ yêu cầu từ trình duyệt và cookie mã thiết bị | Proposed |

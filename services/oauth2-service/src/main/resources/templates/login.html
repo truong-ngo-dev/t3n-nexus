@@ -189,16 +189,11 @@
 
     <div class="alert" th:if="${param.error}">Email hoặc mật khẩu không đúng.</div>
     <div class="alert" th:if="${param.locked}">Tài khoản đã bị khóa. Vui lòng liên hệ hỗ trợ.</div>
-
-    <div class="alert-info" th:if="${param.unverified}">
-        Tài khoản chưa được kích hoạt, vui lòng check email để kích hoạt.
-        Chưa nhận được email?
-        <button type="button" id="resend-verification-btn" th:attr="data-email=${email}">Bấm vào đây để gửi lại</button>
-    </div>
+    <div class="alert" th:if="${throttled}">Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau khoảng <span th:text="${retryMinutes}">5</span> phút.</div>
+    <div class="alert" th:if="${param.unavailable}">Hệ thống đang gặp sự cố. Vui lòng thử lại sau.</div>
 
     <form th:action="@{/login}" method="post">
         <input type="hidden" name="_csrf" th:if="${_csrf}" th:value="${_csrf.token}"/>
-        <input type="hidden" name="device_hash" id="device_hash"/>
 
         <div class="field">
             <label for="username">Email</label>
@@ -232,68 +227,11 @@
 </div>
 
 <script>
-    const deviceHashPromise = (async function () {
-        try {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            ctx.textBaseline = 'top';
-            ctx.font = '14px Arial';
-            ctx.fillStyle = '#f60';
-            ctx.fillRect(125, 1, 62, 20);
-            ctx.fillStyle = '#069';
-            ctx.fillText('T3Nexus fp', 2, 15);
-            ctx.fillStyle = 'rgba(102,204,0,0.7)';
-            ctx.fillText('T3Nexus fp', 4, 17);
-
-            const signals = [
-                canvas.toDataURL(),
-                screen.width + 'x' + screen.height,
-                screen.colorDepth,
-                Intl.DateTimeFormat().resolvedOptions().timeZone,
-                navigator.hardwareConcurrency,
-                navigator.language
-            ].join('|');
-
-            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signals));
-            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-        } catch (e) {
-            return '';
-        }
-    })();
-
-    // LOCAL — gắn vào hidden input
-    deviceHashPromise.then(hash => {
-        document.getElementById('device_hash').value = hash;
-    });
-
-    // GOOGLE — set cookie trước khi navigate đến /oauth2/authorization/google
-    document.getElementById('google-btn').addEventListener('click', async function () {
+    // Đăng nhập Google: chỉ chuyển hướng tới đường dẫn khởi tạo (mã thiết bị là cookie `DEVICE_KEY` do máy chủ cấp, không còn dấu vân tay do trình duyệt tính)
+    document.getElementById('google-btn').addEventListener('click', function () {
         const target = this.dataset.href;
-        if (!target) return;
-        const hash = await deviceHashPromise;
-        if (hash) {
-            document.cookie = `dh=${hash}; path=/; max-age=120; SameSite=Strict`;
-        }
-        window.location.href = target;
+        if (target) window.location.href = target;
     });
-
-    // Gọi thẳng identity-service qua api-gateway (same-origin — trang này đang ở
-    // http://<gateway>/auth/login, path root-relative "/web/api/..." tự resolve về cùng gateway
-    // host, không cần CORS/bridge nào). Luôn im lặng quay lại /login dù thành công hay thất bại
-    // (rate limit, email không tồn tại...) — tránh lộ thông tin account.
-    const resendBtn = document.getElementById('resend-verification-btn');
-    if (resendBtn) {
-        resendBtn.addEventListener('click', function () {
-            resendBtn.disabled = true;
-            fetch('/web/api/identity/users/resend-verification', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email: resendBtn.dataset.email})
-            }).finally(function () {
-                window.location.href = window.location.pathname;
-            });
-        });
-    }
 </script>
 </body>
 </html>

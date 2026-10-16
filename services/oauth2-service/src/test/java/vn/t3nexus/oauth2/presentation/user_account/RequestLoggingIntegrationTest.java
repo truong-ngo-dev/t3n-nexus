@@ -121,8 +121,10 @@ class RequestLoggingIntegrationTest {
         assertThat(line.toString()).doesNotContain(PASSWORD);
 
         // dòng của use case cũng mang cùng user.id (dòng hoàn tất đã có thì dòng trước nó cũng đã được ghi)
+        // file log dùng chung cả lớp test: lọc đúng dòng của tài khoản vừa đăng ký, không lấy dòng đăng ký đầu tiên của test khác
         JsonNode appLine = jsonLines().stream()
-                .filter(l -> l.path("message").asString().startsWith("registered userAccountId=")).findFirst().orElseThrow();
+                .filter(l -> l.path("message").asString().equals("registered userAccountId=" + userAccountId))
+                .findFirst().orElseThrow();
         assertThat(appLine.path("user").path("id").asString()).isEqualTo(userAccountId);
         assertThat(appLine.path("trace.id").asString()).isEqualTo(line.path("trace.id").asString());
         assertThat(logFile()).doesNotContain(PASSWORD);

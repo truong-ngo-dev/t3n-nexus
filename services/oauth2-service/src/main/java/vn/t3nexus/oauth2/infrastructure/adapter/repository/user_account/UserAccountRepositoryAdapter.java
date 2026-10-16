@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.oauth2.domain.user_account.Email;
 import vn.t3nexus.oauth2.domain.user_account.UserAccount;
 import vn.t3nexus.oauth2.domain.user_account.UserAccountException;
@@ -41,6 +42,7 @@ public class UserAccountRepositoryAdapter implements UserAccountRepository {
     }
 
     @Override
+    @Transactional
     public void save(UserAccount account) {
         try {
             jpaRepository.upsert(

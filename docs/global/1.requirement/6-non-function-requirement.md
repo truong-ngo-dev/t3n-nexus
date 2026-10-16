@@ -86,8 +86,8 @@ Thử đến điểm gãy: với mặt hàng nóng, tăng tải tới **8.000 y�
 | Điểm GPS     | **~400/giây trong ca** (≈ 11,5 triệu dòng/ngày, ~1,2 GB/ngày) | Suy ra      | 2.000 shipper × 1 điểm/5 giây, ca 8 giờ. Tần suất 5 giây là lựa chọn thiết kế, không có nguồn |
 | Tài khoản Người dùng | **~3 triệu** | Suy ra | 50.000 đơn × 30 ÷ 1,5 đơn/người/tháng ≈ 1 triệu người mua hoạt động mỗi tháng, nhân 3 (có tài khoản ngủ). Hai hệ số 1,5 và 3 là giả định |
 | Người đăng nhập mỗi ngày | **~150.000** | Suy ra | 1 triệu lượt ÷ 2 lượt/người ≈ 500.000 người, 30% đăng nhập. Hai hệ số là giả định. Lớn hơn nhiều so với ~40.000 người mua mỗi ngày nên không mâu thuẫn với số đơn |
-| Bản ghi phiên | **≤ ~400.000** | Suy ra | Người đăng nhập trong 24 giờ, cộng đỉnh flash sale |
-| Lịch sử đăng nhập | **~15 triệu dòng** (≈ 4–5 GB) | Giả định | ~165.000 dòng/ngày (kể cả ~10% thất bại) × giữ 90 ngày, ~300 byte/dòng. Thời hạn giữ và kích thước dòng là giả định |
+| Bản ghi phiên | **≤ ~1,5 triệu phiên người dùng; ≤ ~2 triệu phiên ứng dụng** | Giả định | Hạn phiên Người dùng 30 ngày, không có hạn không hoạt động, nên phiên sống tới 30 ngày; cận trên bằng số thiết bị (~1,5 triệu), cộng ~1,3 ứng dụng mỗi phiên |
+| Lịch sử đăng nhập | **~60 triệu dòng** (≈ 18 GB) | Giả định | ~165.000 dòng/ngày (kể cả ~10% thất bại) × giữ 12 tháng (365 ngày), ~300 byte/dòng. Thời hạn giữ và kích thước dòng là giả định |
 | Thiết bị | **~1,5 triệu** | Giả định | 1 triệu người hoạt động × 1,5 thiết bị mỗi người |
 
 Chat, thông báo, sự kiện đơn: chưa tính; chỉ liên quan khi làm thời gian thực, xét khi tới đó.

@@ -91,10 +91,7 @@ Quy tắc ghi:
 
 ### Ngoại lệ có kiểm soát: token ở môi trường dev
 
-Nhu cầu có token để test được đáp ứng bằng cách **lấy token ở nguồn**, không phải đọc từ log: xin từ máy chủ xác thực bằng `client_credentials`
-ở đầu file `.http`, hoặc dùng công cụ cấp token chỉ cho dev (feature 02). Với mọi dòng log về token, chỉ ghi định danh tra được: `jti`, `sub`,
-`exp`, kèm vài ký tự đầu và cuối. Nếu thật sự cần ghi đầy đủ ở dev thì phải bật tường minh `app.dev.log-token=true` **và** profile là `dev`, ghi ở mức
-DEBUG; ứng dụng từ chối khởi động nếu cờ này bật mà profile là production. Backfill hoặc việc chạy trên môi trường thật dùng tài khoản dịch vụ riêng với
+Nhu cầu có token để test được đáp ứng bằng cách **lấy token ở nguồn**: xin từ máy chủ xác thực bằng `client_credentials` ở đầu file `.http` (dịch vụ gọi dịch vụ), hoặc, với token của người dùng, bật ghi token khi cấp ở dev (feature 02, bước 11): chỉ khi profile là `dev` **và** `observability.logging.reveal-secrets=true`, máy chủ xác thực ghi một dòng INFO có tài khoản, client, `sid` và token thật mỗi lần cấp; thiếu một trong hai thì không có dòng nào, và cờ tự từ chối khởi động ngoài `dev` (mục 6). Ở mọi chỗ khác, với dòng log về token chỉ ghi định danh tra được: `jti`, `sub`, `exp`, kèm vài ký tự đầu và cuối. Backfill hoặc việc chạy trên môi trường thật dùng tài khoản dịch vụ riêng với
 quyền tối thiểu và token ngắn hạn, không dùng token copy từ log.
 
 ## 6. Log yêu cầu HTTP
@@ -118,6 +115,10 @@ trường có tên nhạy cảm ở mọi độ sâu (`password`, `token`, `acce
 đường dẫn nhạy cảm chỉ giữ các trường được phép; quét mẫu bí mật (`Bearer …`, JWT, mã băm) trên giá trị còn lại; cắt giá trị dài; đóng gói thành
 **một chuỗi**, không trải khóa của nội dung thành trường (tránh bùng nổ số trường ở Elasticsearch). Lỗi khi xử lý không bao giờ làm hỏng yêu cầu.
 
+**Cờ gỡ lỗi hiện bí mật.** Lớp quét `Bearer`, JWT, mã băm ở đầu ra file JSON (message, lỗi, stack trace) tắt được bằng
+`observability.logging.reveal-secrets=true` để thấy nguyên giá trị khi gỡ lỗi. Cờ **chỉ được bật ở profile `dev`**: bật ở profile khác thì ứng dụng từ chối
+khởi động. Cờ chỉ tắt lớp quét này; việc che nội dung yêu cầu HTTP ở trên giữ nguyên. Console không bị quét nên không cần cờ.
+
 Ghi log chạy bất đồng bộ qua hàng đợi giới hạn để không chặn luồng xử lý; đầy thì bỏ dòng mức thấp. Mỗi dịch vụ dùng cấu hình dùng chung bằng
 `logback-spring.xml` chỉ gồm `<include resource="observability-logback.xml"/>`; console luôn ra chữ, file JSON cho Filebeat luôn được ghi (xem mục 7). Overhead
 dự kiến dưới nửa mili-giây mỗi yêu cầu (Chỉ thiết kế), cần đo bằng điểm cuối rỗng của bộ đo nền (feature 08).
@@ -140,12 +141,13 @@ Mỗi dòng JSON trong file là một đối tượng JSON, tên trường theo 
 |---|---|
 | Mọi dòng | `@timestamp` (giờ sự kiện), `log.level`, `log.logger`, `message`, `process.thread.name`, `service.name`, `service.environment` |
 | Truy vết | `trace.id`, `span.id` (tự gắn từ ngữ cảnh trace) |
-| Người dùng | `user.id` (mã tài khoản) do code đặt bằng `LogContext.user(...)` khi biết người dùng; chưa tự lấy từ danh tính đã xác thực |
+| Người dùng | `user.id` (mã tài khoản) do code đặt bằng `LogContext.user(...)`. Yêu cầu đã xác thực: đặt ở **một chỗ duy nhất của mỗi dịch vụ**, ngay sau khi token được phân tích (xem quy tắc "Đặt `user.id`" bên dưới). Yêu cầu chưa xác thực (đăng ký, đăng nhập): use case đặt khi đã biết tài khoản |
 | Lỗi | `error.type`, `error.message`, `error.stack_trace`; `error.code` là mã lỗi chữ ổn định |
 | Khóa nghiệp vụ | `labels.<khóa>`, kiểu `keyword`, ví dụ `labels.orderId`, `labels.eventId`, `labels.eventType` |
 | Dòng hoàn tất | `event.dataset=http.request`, `http.request.method`, `http.route` (khuôn đường dẫn), `url.path`, `http.response.status_code`, `event.duration` (nano-giây), `http.request.body.bytes`, `http.response.body.bytes` (chỉ khi phản hồi có `Content-Length`), `client.ip` (địa chỉ kết nối; địa chỉ thật của client do cổng cấp, xem feature cổng truy cập); khi lỗi thêm `error.code` và `http.request.body.content` |
 
 Quy tắc:
+- **Đặt `user.id` khi phân tích token, một chỗ cho mỗi dịch vụ.** Mỗi dịch vụ đọc hợp đồng danh tính từ token (mã tài khoản, vai, mã phiên, hạn; `analysis.md` của Xác thực mục 4.5) ở một bước chung duy nhất sau khi token được kiểm chữ ký, rồi gọi `LogContext.user(mã tài khoản)` tại đó. Use case của dịch vụ không tự đặt lại `user.id` cho yêu cầu đã xác thực, để mọi dòng log của yêu cầu, kể cả dòng hoàn tất, đều có và có cùng một giá trị. Chỉ đặt mã tài khoản, không đặt email hay tên. Token sai chữ ký hoặc hết hạn thì không đặt gì (dòng hoàn tất của 401 không có `user.id`). Bước này phải chạy trong phạm vi MDC của bộ lọc ghi dòng hoàn tất để được khôi phục khi xong yêu cầu; kiểm bằng test đọc đầu ra JSON thật khi cài. BFF (`web-gateway`) đặt từ danh tính của phiên theo cùng quy tắc.
 - Dev dùng `log.info`, `log.warn`, `log.error(…, ex)` của SLF4J bình thường; bộ tiện ích không bọc `Logger`.
 - `message` là câu đọc được cho người, có thể kèm `khóa=giá trị`; khóa cần tìm thì đã có trường riêng. Tiền tố `[TênThaoTác]` là tùy chọn: tên thao tác
   đã có ở `log.logger` (tên lớp) và ở `labels.operation` khi dev đặt.

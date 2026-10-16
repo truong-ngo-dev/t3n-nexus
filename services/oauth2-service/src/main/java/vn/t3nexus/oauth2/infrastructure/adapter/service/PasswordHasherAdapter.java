@@ -22,4 +22,14 @@ public class PasswordHasherAdapter implements PasswordHasher {
     public boolean verify(String attempt, PasswordHash hash) {
         return passwordEncoder.matches(attempt, hash.getHashedValue());
     }
+
+    @Override
+    public boolean needsRehash(PasswordHash hash) {
+        return passwordEncoder.upgradeEncoding(hash.getHashedValue());
+    }
+
+    @Override
+    public PasswordHash rehash(String verifiedAttempt) {
+        return PasswordHash.ofHashed(passwordEncoder.encode(verifiedAttempt));
+    }
 }

@@ -65,6 +65,7 @@ service/
 │   └── {lib-name}.md      # Chỉ tạo khi API surface đủ lớn để inline vào overview làm mất thông tin
 ├── {service-name}/
 │   ├── analysis.md         # Phân tích nghiệp vụ — nguồn gốc lý do (xem mục riêng dưới)
+│   │                       # BC lớn: thay bằng thư mục analysis/ (0.overview.md + một file mỗi aggregate), xem dưới
 │   ├── service.md         # Thiết kế kỹ thuật — cách hiện thực analysis.md (nguồn cho data.md, api.yaml)
 │   ├── data.md             # DB schema, index strategy — hệ quả của service.md (bỏ qua nếu là lib)
 │   ├── api.yaml            # OpenAPI spec — hệ quả của service.md (bỏ qua nếu không expose HTTP)
@@ -83,6 +84,17 @@ tham chiếu ngược về `analysis.md` khi cần giải thích "vì sao lại 
 `analysis.md` phản ánh **trạng thái nghiệp vụ hiện tại kèm lý do**, không ghi lịch sử thay đổi (khác ADR — xem
 bảng phân biệt ở Tier 1). Khi hiểu nghiệp vụ thay đổi, sửa thẳng vào đúng đoạn văn xuôi liên quan, không thêm
 mục "trước đây làm gì". Khuôn mẫu đầy đủ và quy ước viết ở template dưới.
+
+### Khi nào tách `analysis.md` thành thư mục `analysis/`
+
+Mặc định là một file `analysis.md`. Tách thành thư mục khi **một trong hai** đúng: file vượt khoảng 300 dòng, hoặc BC có từ hai aggregate trở lên mà mỗi aggregate đã đủ nội dung riêng (cấu trúc, hành vi, bất biến, event). Không giữ cả `analysis.md` lẫn `analysis/` cho cùng một BC.
+
+| File | Nội dung |
+|---|---|
+| `analysis/0.overview.md` | Phần dùng chung của BC: nhiệm vụ và ranh giới, ngôn ngữ chung, tác nhân, danh sách aggregate và quan hệ, quy trình xuyên aggregate, mục lục bất biến, điểm nối với BC khác, "Chưa làm" dùng chung, câu hỏi chung, tham khảo |
+| `analysis/{aggregate}.md` | Một aggregate: định nghĩa, cấu trúc, hành vi, bất biến, event, "Chưa làm" và câu hỏi riêng, tham khảo |
+
+Quy ước: tên file bằng tiếng Anh `kebab-case` theo aggregate (`user-account.md`, `login-session.md`); số `0.` chỉ để `0.overview.md` đứng đầu danh sách. **Mã ID (INV, CAP, EVT...) vẫn đánh theo BC**, không theo file, và không đánh số lại khi tách. Mỗi bất biến viết đầy đủ ở file của aggregate sở hữu; `0.overview.md` chỉ giữ mục lục trỏ tới. Mọi quy tắc của `analysis.md` ở trên (chỉ nghiệp vụ, không trỏ sang `service.md`) áp dụng cho từng file. `service.md` của BC tách tương ứng khi cần.
 
 ### Quan hệ `service.md` ↔ `data.md` / `api.yaml` / code
 

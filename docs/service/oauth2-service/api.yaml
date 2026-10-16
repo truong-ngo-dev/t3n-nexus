@@ -3,7 +3,7 @@ info:
   title: Xác thực
   version: 0.1.0
   description: |
-    Sống. Đã làm: `POST /register` (feature 01). Lỗi 429 do cổng truy cập trả (feature 06), chưa làm.
+    Sống. Đã làm: `POST /register` (feature 01); đăng nhập, cấp mã và đổi mã lấy token (feature 02). Giới hạn đăng ký theo địa chỉ mạng do cổng truy cập thực hiện (feature 06), chưa làm; giới hạn đăng nhập do chính dịch vụ này thực hiện.
     Công khai qua cổng truy cập dưới tiền tố `/auth`.
 servers:
   - url: /auth
@@ -45,6 +45,93 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /login:
+    get:
+      summary: Trang đăng nhập
+      description: |
+        Trả trang đăng nhập (HTML). Khi trình duyệt chưa có cookie `DEVICE_KEY` thì cấp cookie mới ngay ở đây, trước khi nhập mật khẩu:
+        ngẫu nhiên 256 bit, `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, 12 tháng; đã có thì không đổi.
+      operationId: showLogin
+      responses:
+        '200':
+          description: Trang đăng nhập, kèm biểu mẫu có mã CSRF
+          headers:
+            Set-Cookie:
+              description: "`DEVICE_KEY` (chỉ khi chưa có) và cookie phiên"
+              schema: { type: string }
+          content:
+            text/html: { schema: { type: string } }
+    post:
+      summary: Đăng nhập bằng email và mật khẩu
+      description: |
+        Biểu mẫu của trang đăng nhập, cần mã CSRF (`_csrf`). Sai email và sai mật khẩu cho cùng một kết quả. Thành công thì mở phiên người
+        dùng rồi chuyển hướng về yêu cầu cấp mã đang chờ. Thiếu hoặc sai mã CSRF thì bị từ chối và quay về trang đăng nhập.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username, password, _csrf]
+              properties:
+                username: { type: string, description: Email }
+                password: { type: string }
+                _csrf: { type: string }
+      responses:
+        '302':
+          description: "Thành công: về `/oauth2/authorize` đang chờ. Thất bại: về `/login?error` (tài khoản chưa hoạt động: `?locked`; không mở được phiên hoặc lỗi hệ thống: `?unavailable`)"
+        '429':
+          description: Vượt giới hạn số lần thử (5 lần trong 5 phút cho mỗi cặp email và địa chỉ mạng; 15 lần trong 15 phút cho mỗi email). Trả lại trang đăng nhập kèm thông báo, không xác thực mật khẩu và không mở phiên dù mật khẩu đúng
+          headers:
+            Retry-After:
+              description: Số giây nên chờ (độ dài cửa sổ đếm)
+              schema: { type: integer }
+          content:
+            text/html: { schema: { type: string } }
+  /oauth2/authorize:
+    get:
+      summary: Yêu cầu cấp mã ủy quyền (OIDC)
+      description: |
+        Bắt buộc `state`; client trình duyệt (`web-gateway`) bắt buộc PKCE (`code_challenge`, `code_challenge_method=S256`). Thiếu thì chuyển hướng
+        tới `redirect_uri` đã đăng ký kèm `error=invalid_request`. Chưa đăng nhập thì chuyển hướng tới `/login`; phiên đã hết hạn hoặc đã bị xóa
+        cũng vậy. Đã đăng nhập thì cấp mã ngay (SSO).
+      operationId: authorize
+      parameters:
+        - { name: response_type, in: query, required: true, schema: { type: string, enum: [code] } }
+        - { name: client_id, in: query, required: true, schema: { type: string } }
+        - { name: redirect_uri, in: query, required: true, schema: { type: string } }
+        - { name: scope, in: query, required: true, schema: { type: string, example: openid profile email } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+        - { name: code_challenge, in: query, required: true, schema: { type: string } }
+        - { name: code_challenge_method, in: query, required: true, schema: { type: string, enum: [S256] } }
+      responses:
+        '302': { description: "Về `redirect_uri` kèm `code` và `state`, hoặc `error`; hoặc về `/login`" }
+  /oauth2/token:
+    post:
+      summary: Đổi mã lấy token, làm mới token
+      description: |
+        Không cần mã CSRF; client xác thực bằng `client_secret_basic`. Đổi mã cần `code_verifier` (PKCE). Làm mới cần tham số `sid` khớp với
+        `sid` trong token. Mã đăng nhập mang `sub` (mã tài khoản), `role`, `sid`, `exp` (không quá hạn phiên); không mang email, tên, mã phiên Spring.
+      operationId: token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type]
+              properties:
+                grant_type: { type: string, enum: [authorization_code, refresh_token] }
+                code: { type: string }
+                redirect_uri: { type: string }
+                code_verifier: { type: string }
+                refresh_token: { type: string }
+                sid: { type: string, format: uuid, description: Bắt buộc khi làm mới }
+      responses:
+        '200': { description: "`access_token`, `refresh_token`, `id_token`, `expires_in`" }
+        '400': { description: "`invalid_grant` (mã sai, thiếu hoặc sai `code_verifier`, phiên hết hạn), `invalid_request`" }
+        '401': { description: Client xác thực sai }
 components:
   schemas:
     RegisterRequest:

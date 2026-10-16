@@ -52,7 +52,7 @@ Tên thư mục và file dùng tiếng Anh; nội dung viết tiếng Việt. Ch
 | Yêu cầu, kịch bản, luồng nghiệp vụ của chặng | `stage.md` | Lịch sử |
 | Bảng năng lực sang feature, kế hoạch kiểm chứng, điều học được | `00-features.md` | Lịch sử |
 | Luồng xử lý, lưu ý kỹ thuật của feature | `impl.md` | Lịch sử |
-| Task, người làm | `plan.md` | Lịch sử |
+| Task, người làm, bảng từ luồng đến giải pháp (mục 3.4) | `plan.md` | Lịch sử |
 
 `analysis.md` cộng dồn qua các chặng: chặng sau bổ sung phần của mình. Tài liệu chặng chỉ trỏ tới nó, không chép.
 
@@ -95,6 +95,23 @@ Mỗi quyết định kỹ thuật có một trong ba phạm vi:
 - chỉ đúng cho feature: ghi trong ADR, `impl.md` trỏ tới;
 - đúng cho cả BC: thêm một dòng kết luận vào `service.md`, lý do ở ADR;
 - đúng cho mọi BC: đưa vào quy ước kỹ thuật chung.
+
+### 3.4 Từ luồng đến giải pháp trong `plan.md`
+
+Các bước của `plan.md` xếp theo thứ tự thi công (miền, lưu trữ, hạ tầng, ...), còn `flow.md` xếp theo luồng nghiệp vụ, nên một
+bước của luồng thường nằm rải ở nhiều bước thi công. Để nối hai bên, đầu `plan.md` có một bảng bốn cột, mỗi dòng là một bước của luồng (nút trong sơ đồ của `flow.md`):
+
+| Cột | Viết khi nào | Nội dung |
+|---|---|---|
+| Bước của luồng | Trước khi code | Lấy từ sơ đồ luồng, kèm các việc phụ của luồng (event, làm mới, log) nếu có |
+| Hướng giải | Trước khi code | Một câu, trỏ tới `tech.md` hoặc ADR; không chép lại giải pháp |
+| Gộp vào thành phần | Trước khi code | Các hướng giải gộp thành thành phần nào (ví dụ một lớp bọc phủ nhiều bước). Đây là bước thiết kế |
+| Triển khai | Sau khi làm xong | Lớp, KT và bước thi công tương ứng |
+
+Phần "Hướng giải" và "Gộp vào thành phần" quyết định thành phần **trước**; mã chỉ điền vào cột cuối, không dùng để suy ngược thành
+phần. Bước nào của luồng chưa làm thì để cột cuối ghi rõ "Chưa làm" kèm nơi xử lý tiếp (`deferred.md` hoặc feature khác). Trạng
+thái từng bước thi công vẫn ghi ở bước đó; bảng chỉ trỏ, sửa bước hoặc đổi lớp thì sửa lại cột cuối. Áp dụng từ feature 01, 02
+(điền ngược vì mã đã có); từ feature sau viết ba cột đầu trước khi code.
 
 ## 4. Nguồn của feature
 

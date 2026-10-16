@@ -36,10 +36,13 @@ Bảng này cố định nghĩa của các thuật ngữ dùng từ context map 
 |---|---|
 | Khách vãng lai | Người chưa đăng nhập |
 | Tài khoản | Đại diện cho một người trong hệ thống, do Xác thực giữ; có đúng một vai |
-| Phiên | Khoảng thời gian một tài khoản được coi là đã xác thực, do Xác thực giữ; có phiên ở máy chủ xác thực và phiên của từng portal |
-| Thiết bị | Tín hiệu nhận ra cùng một trình duyệt hoặc cài đặt ứng dụng của một tài khoản; do Định danh giữ để hiển thị |
-| Lịch sử đăng nhập | Ghi lại các lần đăng nhập, đăng xuất và thất bại của một tài khoản, do Định danh giữ |
-| Vai | Nhóm hệ thống mà tài khoản thuộc về, do Xác thực giữ: Người dùng (tài khoản tự đăng ký) hoặc vai nội bộ (Quản trị, Nhân viên kho...). Quyết định vào portal nào và thao tác thô; viết hoa "Người dùng" là chỉ vai này |
+| Phiên đăng nhập | Một phiên làm việc của người dùng, từ lúc nhập mật khẩu trên một thiết bị đến khi kết thúc, do Xác thực giữ; gồm một phiên người dùng và các phiên ứng dụng. Là nơi duy nhất quyết định một người còn được coi là đã xác thực hay không |
+| Phiên người dùng | Gốc của phiên đăng nhập: một lần nhập mật khẩu trên một thiết bị; có một hạn phiên cố định, không kéo dài |
+| Phiên ứng dụng | Phần của phiên đăng nhập ở một ứng dụng mà người dùng vào; mỗi ứng dụng tối đa một, sống không lâu hơn phiên người dùng |
+| Thiết bị | Một trình duyệt hoặc một bản cài ứng dụng của một tài khoản, nhận ra bằng mã thiết bị do Xác thực cấp (cookie); không phải phần cứng. Định danh giữ danh sách để hiển thị |
+| Thiết bị đã xác minh | Thiết bị chủ tài khoản đã xác minh bằng mã một lần gửi qua email. Hạ mức xác nhận hành động nhạy cảm từ mật khẩu + mã một lần xuống mật khẩu; không bỏ qua xác thực nhiều lớp |
+| Lịch sử đăng nhập | Ghi lại các lần đăng nhập thành công và thất bại (chỉ khi tìm ra tài khoản) của một tài khoản, chỉ thêm, giữ 12 tháng; không ghi đăng xuất. Do Định danh giữ |
+| Vai | Nhóm hệ thống mà tài khoản thuộc về, do Xác thực giữ: Người dùng (tài khoản tự đăng ký) hoặc vai nội bộ (Quản trị, Nhân viên kho...). Quyết định vào ứng dụng nào và thao tác thô; viết hoa "Người dùng" là chỉ vai này |
 | Bên tham gia | Người đóng một phần việc trong giao dịch: Người mua, Người bán, Shipper, Quản trị, Nhân viên kho. Người mua, Người bán, Shipper không phải vai: mọi tài khoản Người dùng đều mua được, bán và giao hàng là hồ sơ năng lực |
 | Hồ sơ năng lực | Hồ sơ có vòng đời và bước duyệt riêng, giữ ở BC sở hữu (Người bán, Shipper) và trỏ về tài khoản. Tài khoản chờ duyệt vẫn đăng nhập và mua bình thường |
 | COD | Thanh toán tiền mặt khi nhận hàng; tiền đi qua shipper và kho, không qua bên thanh toán |
@@ -53,8 +56,9 @@ Bảng này cố định nghĩa của các thuật ngữ dùng từ context map 
 | Ký quỹ | Giữ tiền trả trước đến khi giao thành công |
 | Sổ cái, bút toán | Sổ ghi mọi biến động tiền; mỗi bút toán có đối ứng và chỉ bù, không sửa |
 | Đối soát | So khớp số tiền hai bên (thu và nộp, thu và chi trả) |
-| Portal | Một ứng dụng giao diện cho một nhóm bên tham gia (Cửa hàng, Người bán, Vận hành, Shipper) |
-| Vận hành | Portal của Quản trị và Nhân viên kho: nghiệp vụ vận hành sàn (duyệt, phân xử, điều phối shipper, nhận hàng ở kho). Không chứa nghiệp vụ nhân sự hay kế toán |
+| Ứng dụng | Giao diện cho một nhóm bên tham gia (Cửa hàng, Người bán, Vận hành, Shipper) |
+| Vận hành | Ứng dụng của Quản trị và Nhân viên kho: nghiệp vụ vận hành sàn (duyệt, phân xử, điều phối shipper, nhận hàng ở kho). Không chứa nghiệp vụ nhân sự hay kế toán |
+| Quản trị hệ thống | Vùng quản trị mặt kỹ thuật và cấu hình của hệ thống (chính sách truy cập, job, quan sát hạ tầng), dành cho người quản trị nền tảng; không phải nghiệp vụ vận hành sàn của ứng dụng Vận hành. Chưa làm; xem `analysis/0.overview.md` của Xác thực mục "Chưa làm" |
 | Người chạy thử | Chính người làm dự án khi dùng công cụ Giả lập; không phải bên tham gia của nền tảng |
 
 ## 4. Kỹ thuật

@@ -70,7 +70,7 @@ nhau · đặc tính tải khác hẳn. BC tách vì lý do kỹ thuật ghi rõ
 | B13 | Đánh giá                       | Hỗ trợ | Đánh giá và tổng hợp điểm                                                  | Mở khóa sau đơn hoàn tất, ràng buộc riêng                                                                               | Trong (tối giản)                                |
 | B14 | Báo cáo                        | Hỗ trợ | Tổng hợp nhiều chiều                                                       | Không nối bảng gốc được ở quy mô lớn                                                                                    | Trong                                           |
 | B15 | Kho vật lý                     | Hỗ trợ | Nhận hàng người bán mang tới, lịch sử di chuyển, xuất kho                  | Thuật ngữ vật lý khác "số lượng bán được"                                                                               | Trong (chủ động chọn)                           |
-| B16 | Xác thực                       | Chung  | Đăng ký, đăng nhập, phiên, vai, phân quyền, khóa mở tài khoản             | Bảo mật, dùng chung mọi BC; nhiều portal cần một máy chủ xác thực riêng để đăng nhập chung; chính sách bảo mật đổi khác hồ sơ | Trong                                           |
+| B16 | Xác thực                       | Chung  | Đăng ký, đăng nhập, phiên, vai, phân quyền, khóa mở tài khoản             | Bảo mật, dùng chung mọi BC; nhiều ứng dụng cần một máy chủ xác thực riêng để đăng nhập chung; chính sách bảo mật đổi khác hồ sơ | Trong                                           |
 | B17 | Thông báo                      | Chung  | Gửi và đẩy thông báo                                                       | Phụ thuộc kênh, tải kết nối                                                                                             | Trong (tối giản)                                |
 | B18 | Chat                           | Chung  | Nhắn tin hai chiều                                                         | Thời gian thực, dữ liệu dạng tin nhắn                                                                                   | Trong (chủ động chọn)                           |
 | B19 | Quy trình và lập lịch          | Chung  | Job định kỳ, quy trình chạy dài                                            | Hạ tầng cho các BC khác                                                                                                 | Trong                                           |
@@ -304,17 +304,17 @@ Mỗi BC ghi: nghiệp vụ (tên, trạng thái, lý do) · ràng buộc chính
 |-----------------------------------------|-------------|------------------------------------------------|
 | Đăng ký, đăng nhập, phiên, đăng xuất    | Trong       | Mọi BC phụ thuộc                               |
 | Tài khoản đăng nhập có đúng một vai     | Trong       | Nền của kiểm quyền; người bán và shipper là hồ sơ ở BC khác, không phải vai |
-| Thu hồi phiên (đăng xuất từ xa)         | Trong       | Người dùng và Quản trị cần cắt phiên khi nghi ngờ lộ tài khoản |
+| Thu hồi phiên (đăng xuất từ xa) | Trong | Người dùng tự cắt phiên của thiết bị khác khi nghi ngờ lộ tài khoản; xác nhận bằng nhập lại mật khẩu (thêm mã một lần qua email khi thiết bị đang dùng chưa xác minh) và chủ tài khoản được báo bằng email. Quản trị không thu hồi phiên của người khác: khóa tài khoản đã kết thúc mọi phiên |
 | Xác thực nhiều lớp (tùy chọn, người dùng tự bật) | Trong | Người dùng tự nâng mức bảo mật; không bắt buộc |
 | Phân quyền tự xây                       | Trong       | Chủ động chọn                                  |
 | Khóa, mở tài khoản                      | Trong       | Quản trị cần; phát event cho Nhật ký kiểm toán |
 | Đổi mật khẩu, tạo tài khoản nội bộ      | Trong       | Tài khoản Quản trị có sẵn cần đổi mật khẩu; vai nội bộ khác cần có người tạo |
-| Thiết bị tin cậy (bỏ qua xác thực nhiều lớp trên máy quen) | **Cắt tạm** | Giá trị: đỡ nhập mã mỗi lần. Xếp sau vì chỉ là tiện ích trên xác thực nhiều lớp. Điểm nối: mã thiết bị ghi sẵn trên phiên |
-| Quên và đặt lại mật khẩu, xác minh email, giới hạn đăng nhập sai | **Cắt tạm** | Giá trị: người quên mật khẩu, chống chiếm email, chống dò mật khẩu. Xếp sau vì cần gửi thư hoặc chỗ đếm. Điểm nối: Thông báo; bước trước khi kiểm mật khẩu |
+| Thiết bị đã xác minh (hạ mức xác nhận hành động nhạy cảm trên máy quen; trước đây gọi "thiết bị tin cậy") | Trong (cùng đăng xuất từ xa) | Giá trị: chủ tài khoản đã xác minh thiết bị bằng mã một lần qua email thì hành động nhạy cảm chỉ cần mật khẩu; thiết bị chưa xác minh phải mật khẩu + mã một lần. Không bỏ qua xác thực nhiều lớp. Cần Thông báo để gửi mã. Điểm nối: mã thiết bị do Xác thực cấp; trạng thái xác minh giữ ở Định danh |
+| Quên và đặt lại mật khẩu, xác minh email, khóa tạm tài khoản khi đăng nhập sai | **Cắt tạm** | Giá trị: người quên mật khẩu, chống chiếm email, chống dò mật khẩu. Giới hạn số lần thử theo email và địa chỉ mạng đã nằm trong đăng nhập; phần cắt tạm là khóa tạm tài khoản. Xếp sau vì cần gửi thư hoặc chỗ đếm. Điểm nối: Thông báo; bước trước khi kiểm mật khẩu |
 | Đăng nhập mạng xã hội hoặc số điện thoại | **Cắt tạm** | Cải thiện; thêm cách đăng nhập mà không đổi tài khoản |
 
-- **Ràng buộc chính:** một email một tài khoản (không phân biệt hoa thường) · mật khẩu không tồn tại ở dạng đọc được · mỗi tài khoản đúng một vai · một phiên đang hoạt động cho mỗi (phiên gốc, portal) · đăng xuất luôn thành công.
-- **Vào:** lệnh thu hồi phiên (từ Định danh). **Ra:** tài khoản đã đăng ký, phiên được cấp, phiên kết thúc, đăng nhập thất bại, tài khoản bị khóa hoặc mở.
+- **Ràng buộc chính:** một email một tài khoản (không phân biệt hoa thường) · mật khẩu không tồn tại ở dạng đọc được · mỗi tài khoản đúng một vai · một phiên ứng dụng đang hoạt động cho mỗi (phiên người dùng, ứng dụng) · đăng xuất luôn thành công.
+- **Vào:** yêu cầu đăng xuất từ xa (từ người dùng); câu hỏi "thiết bị đã xác minh chưa" (hỏi Định danh). **Ra:** tài khoản đã đăng ký, phiên được cấp, token được cấp cho phiên ứng dụng, phiên kết thúc (kèm lý do), đăng nhập thất bại, tài khoản bị khóa hoặc mở.
 - **Điểm sâu:** phân quyền (chủ động chọn); đăng nhập tăng đột biến trước flash sale (đòi hỏi; đồng thời cao): mỗi lần đăng nhập tốn CPU để băm mật khẩu, nên làn sóng đăng nhập cùng lúc vượt quá cách làm đơn giản ở quy mô thiết kế (xem NFR mục 3.3).
 - **Còn mở (làm ở bước chi tiết):** độ trễ chấp nhận được của đăng xuất từ xa với từng loại ứng dụng.
 
@@ -462,11 +462,11 @@ Mỗi BC ghi: nghiệp vụ (tên, trạng thái, lý do) · ràng buộc chính
 |---------------------------------------------------|------------------|---------------------------------------------------------------|
 | Hồ sơ định danh (tên hiển thị)                    | Trong (tối giản) | Tài khoản nội bộ không có hồ sơ Khách hàng nhưng vẫn cần nhãn hiển thị |
 | Lịch sử đăng nhập                                 | Trong (tối giản) | Người dùng và Quản trị thấy dấu hiệu bất thường; dựng từ event phiên |
-| Thiết bị đã dùng và nhóm lần đăng nhập theo thiết bị | Trong (tối giản) | Hiển thị; là nơi người dùng chọn thu hồi phiên theo thiết bị |
+| Thiết bị đã dùng và nhóm lần đăng nhập theo thiết bị | Trong (tối giản) | Hiển thị; là nơi người dùng chọn đăng xuất một thiết bị khác |
 | Ảnh đại diện                                      | **Cắt tạm**      | Phụ thuộc Quản lý tệp; điểm nối: tham chiếu tệp trong hồ sơ     |
 
-- **Ràng buộc chính:** lịch sử chỉ ghi thêm (trừ thời điểm kết thúc phiên ghi một lần) · mỗi thiết bị thuộc đúng một tài khoản · bản sao email, vai, trạng thái chỉ để hiển thị, không BC nào dựa vào đó để quyết định quyền.
-- **Vào:** tài khoản đã đăng ký, phiên được cấp, phiên kết thúc, đăng nhập thất bại, tài khoản khóa hoặc mở (từ Xác thực). **Ra:** lệnh thu hồi phiên, bỏ tin cậy thiết bị (cho Xác thực, qua giao diện).
+- **Ràng buộc chính:** lịch sử chỉ ghi thêm, giữ 12 tháng · mỗi thiết bị thuộc đúng một tài khoản · bản sao email, vai, trạng thái chỉ để hiển thị, không BC nào dựa vào đó để quyết định quyền.
+- **Vào:** tài khoản đã đăng ký, phiên được cấp, token được cấp cho phiên ứng dụng, phiên kết thúc, đăng nhập thất bại, tài khoản khóa hoặc mở (từ Xác thực). **Ra:** danh sách thiết bị, các phiên đang sống theo thiết bị, trạng thái xác minh của thiết bị (cho Xác thực, qua giao diện).
 - **Điểm sâu:** không có; bản đọc dựng từ event, xử lý lặp (idempotent).
 
 ## 6. Bản đồ quan hệ (mức tên)
@@ -554,9 +554,10 @@ qua giao diện xác thực (giao diện đọc: Xác thực công bố hợp đ
 | Lập lịch         | Đơn hàng, Tồn kho, Sổ cái, Giỏ hàng | Lệnh định kỳ     | Hủy quá hạn, trả giữ chỗ, chi trả, dọn giỏ                                          |
 | Người bán        | Danh mục hàng                       | Event            | Người bán được duyệt, bị khóa                                                       |
 | Xác thực         | Định danh, Khách hàng               | Event            | Tài khoản đã đăng ký                                                                |
-| Xác thực         | Định danh                           | Event            | Phiên được cấp, phiên kết thúc, đăng nhập thất bại, tài khoản khóa hoặc mở          |
+| Xác thực         | Định danh                           | Event            | Phiên được cấp, token được cấp cho phiên ứng dụng, phiên kết thúc, đăng nhập thất bại, tài khoản khóa hoặc mở |
 | Xác thực         | Nhật ký kiểm toán                   | Event            | Khóa, mở tài khoản                                                                  |
-| Định danh        | Xác thực                            | Giao diện        | Thu hồi phiên; bỏ tin cậy thiết bị                                                  |
+| Xác thực         | Định danh                           | Giao diện        | Thiết bị của người gọi đã xác minh chưa (khi đăng xuất từ xa)                       |
+| Định danh        | Xác thực                            | Giao diện        | Các phiên người dùng đang sống của một tài khoản (hiển thị "đang đăng nhập")        |
 | Chat             | Thông báo                           | Event            | Tin nhắn mới khi người nhận không trực tuyến                                        |
 | Giao nhận        | Thông báo, người mua                | Event / đẩy      | Trạng thái giao theo thời gian thực                                                 |
 | Shipper          | Giao nhận, người mua                | Event / đẩy      | Vị trí mới nhất, sẵn sàng, tải                                                      |
@@ -615,7 +616,7 @@ Bốn điểm dưới đây là **mặc định tạm**, cụ thể hóa khi là
 |---|----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1 | Đánh giá: tối giản trong scope, hay cắt tạm?                   | Tối giản (đã ghi ở B13), xếp sau trong thứ tự triển khai vì "tin cậy" là giá trị cốt lõi                                                                                                                                      |
 | 2 | Suất ưu đãi giới hạn: ai giữ ràng buộc?                        | Ràng buộc nằm ở BC sở hữu thứ bị giới hạn: số lượt dùng voucher ở Khuyến mãi; suất flash sale (tách từ số lượng hàng thật) ở Tồn kho. |
-| 3 | 28 BC có quá nhiều?                                            | Giữ 28 vì ranh giới khó sửa; trong các cặp có thể gộp, chỉ Khách hàng với Định danh là bảo vệ được. Xác thực và Định danh tách vì nhiều portal cần một máy chủ xác thực riêng, và hai bên đổi vì lý do khác nhau. BC là khái niệm phân tích, không phải khối triển khai; việc gộp khi triển khai chọn ở giai đoạn công nghệ. |
+| 3 | 28 BC có quá nhiều?                                            | Giữ 28 vì ranh giới khó sửa; trong các cặp có thể gộp, chỉ Khách hàng với Định danh là bảo vệ được. Xác thực và Định danh tách vì nhiều ứng dụng cần một máy chủ xác thực riêng, và hai bên đổi vì lý do khác nhau. BC là khái niệm phân tích, không phải khối triển khai; việc gộp khi triển khai chọn ở giai đoạn công nghệ. |
 | 4 | Giao thất bại và hoàn hàng: BC chủ là ai (chỗ hở (a) ở mục 7)? | Giao nhận làm chủ; Kho vật lý, Đơn hàng, Tồn kho tham gia. |
 
 ## 9. Kiểm tra độ đủ
@@ -682,3 +683,4 @@ Cần có trong bản đồ hệ thống nhưng không có ngôn ngữ nghiệp 
 | Hóa đơn và thuế                          | Pháp lý; không có tiền thật                                         | Không dự kiến                              |
 | Quảng cáo, livestream, tiếp thị liên kết | Ở rìa đề tài (nguyên tắc 2); không phục vụ điểm sâu nào             | Nếu cần thêm bài toán về xếp hạng trả tiền |
 | Điểm tích lũy                            | Không phục vụ động cơ                                               | Không dự kiến                              |
+| Phát hiện dùng lại refresh token (nghi lộ token thì kết thúc phiên) | Thư viện không có sẵn, phải tự xây, dễ báo động giả khi lỗi mạng; với BFF giữ token phía máy chủ thì lợi ích thấp | Có client công khai giữ token phía người dùng (ví dụ ứng dụng di động tự giữ token) |

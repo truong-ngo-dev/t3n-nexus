@@ -35,6 +35,10 @@ Phép thử: **quy tắc có nói về ý nghĩa của một hành động nghi�
   chỉ có một ngân sách trên mọi BFF.
 - **Địa chỉ IP phải do gateway xác định.** Chỉ tin địa chỉ do cổng đặt vào tiêu đề; không tin phần tử đầu của
   `X-Forwarded-For` do client tự gửi, nếu không kẻ xấu đổi "IP" để né giới hạn.
+- **Chỗ chừa cho CAPTCHA (chưa làm, làm sau cùng).** Chống bot là một cách xử lý thay cho việc chỉ trả 429, thuộc nhóm 1 vì không cần
+  trạng thái nghiệp vụ. Luật theo đường dẫn có thêm một thuộc tính tùy chọn "yêu cầu bằng chứng người thật" (mặc định tắt), có thể
+  chỉ bật khi một khóa đã vượt ngưỡng. Yêu cầu có bằng chứng thì cổng kiểm với dịch vụ ngoài trước khi cho đi tiếp; thiếu hoặc sai thì
+  trả lỗi riêng, không trả 429. Với trang đăng nhập do Xác thực dựng, bước kiểm đứng trong Xác thực, trước khi kiểm mật khẩu.
 
 ### 2.2 Vì sao mức toàn cục không đủ cho hành động nhạy cảm
 
@@ -136,6 +140,7 @@ yêu cầu bị chặn không mở giao dịch.
 | `POST /auth/register` | 1, luật theo đường dẫn | IP | 10 / giờ | Danh sách luật theo đường dẫn ở `api-gateway` (feature 06) | Chưa làm |
 | Gửi lại liên kết đặt mật khẩu | 2 | Mã tài khoản | chờ 60 giây giữa hai lần | `oauth2-service` | Đã có (cần sửa chiếm chỗ nguyên tử) |
 | Gửi lại xác minh | 2 | Email | 3 / giờ | BC Định danh | Chưa làm |
+| Đăng nhập | 2, đếm mọi lần thử | (Email, IP) mức thấp; riêng email mức cao hơn | (email, IP) 5 lần/5 phút; email 15 lần/15 phút (`02-login-session/tech.md` T3) | `oauth2-service`, bước đăng nhập | Chưa làm |
 
 ## 9. Tham khảo
 

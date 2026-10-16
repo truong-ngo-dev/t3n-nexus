@@ -33,6 +33,12 @@ public class UserAccountException extends DomainException {
                 UserAccountErrorCode.PASSWORD_INVALID.defaultMessage());
     }
 
+    /** Đăng nhập sai: cùng một lỗi cho email không tồn tại và sai mật khẩu (INV-ATH-03); do use case ném ở cả hai nhánh. */
+    public static UserAccountException invalidCredentials() {
+        return new UserAccountException(UserAccountErrorCode.INVALID_CREDENTIALS,
+                UserAccountErrorCode.INVALID_CREDENTIALS.defaultMessage());
+    }
+
     public static UserAccountException accountNotActive() {
         return new UserAccountException(UserAccountErrorCode.ACCOUNT_NOT_ACTIVE,
                 "Account is not active");

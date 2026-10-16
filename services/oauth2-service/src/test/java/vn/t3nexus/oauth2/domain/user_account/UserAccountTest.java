@@ -34,7 +34,7 @@ class UserAccountTest {
         UserAccount account = UserAccount.register(id, email, hash, NOW);
 
         assertThat(account.getDomainEvents()).hasSize(1);
-        UserAccountRegistered event = (UserAccountRegistered) account.getDomainEvents().iterator().next();
+        UserAccountRegisteredEvent event = (UserAccountRegisteredEvent) account.getDomainEvents().iterator().next();
         assertThat(event.getUserAccountId()).isEqualTo(id.getValueAsString());
         assertThat(event.getEmail()).isEqualTo("a@example.com");
         assertThat(event.getRole()).isEqualTo("USER");

@@ -7,6 +7,11 @@
 > Chi tiết implement login flow, MFA, và session establishment trong `oauth2-service`.  
 > Framework-level → file reference trên. Logout implementation → [`03-logout/logout-impl.md`](../03-logout/implementation).
 
+> **Ghi chú (2026-10-16):** tài liệu này mô tả mô hình phiên một lớp cũ. Đường dẫn các lớp còn tồn tại đã được cập nhật theo cấu trúc gói mới
+> (`oauth2/`, `session/`, `mfa/`, `federated/`, `extension/`). `UserCredentialDetails` (nay là `UserAccountDetails` ở `extension/authentication`) và
+> `SessionEstablishingAuthorizationService` (thay bằng `LoginSessionAuthorizationService` ở `extension/session`) không còn như mô tả dưới đây;
+> mô hình hiện hành xem `docs/service/oauth2-service/analysis/` và ADR-0003.
+
 ---
 
 ## Hook Points
@@ -29,7 +34,7 @@ Hook 2 có 2 phase bên trong, được guard bằng condition riêng:
 
 ## 0. `LoginRateLimitFilter`
 
-**Class**: `infrastructure/security/LoginRateLimitFilter`
+**Class**: `infrastructure/security/extension/authentication/LoginRateLimitFilter`
 
 `OncePerRequestFilter` đặt trước `UsernamePasswordAuthenticationFilter` trong `defaultSecurityFilterChain` (`SecurityConfiguration`). Chỉ can thiệp đúng `POST /login`:
 
@@ -53,7 +58,7 @@ Chặn **trước** khi request chạm `UsernamePasswordAuthenticationFilter` �
 
 ## 1. `SocialLoginOidcUserService`
 
-**Class**: `infrastructure/security/service/SocialLoginOidcUserService`
+**Class**: `infrastructure/security/federated/SocialLoginOidcUserService`
 
 Sau khi Google xác nhận identity, class này bridge từ Google identity sang internal user model:
 
@@ -101,7 +106,7 @@ loadUser(userRequest)
 
 ## 3. `DeviceAwareAuthorizationRequestResolver`
 
-**Class**: `infrastructure/security/oauth2/DeviceAwareAuthorizationRequestResolver`
+**Class**: `infrastructure/security/federated/DeviceAwareAuthorizationRequestResolver`
 
 Hook tại `GET /oauth2/authorization/google` — trước khi redirect sang Google.
 
@@ -113,7 +118,7 @@ Xóa attribute này ngay trong success handler để tránh stale data.
 
 ## 4. `DeviceAwareAuthenticationSuccessHandler`
 
-**Class**: `infrastructure/security/handler/DeviceAwareAuthenticationSuccessHandler`
+**Class**: `infrastructure/security/federated/DeviceAwareAuthenticationSuccessHandler`
 
 Phase 1 trong device tracking — capture device signals, lưu vào HTTP session để `SessionEstablishingAuthorizationService` dùng ở Phase 1.5.
 
@@ -245,7 +250,7 @@ EstablishSession
 
 ## 9. `JwtTokenCustomizer`
 
-**Class**: `infrastructure/security/oauth2/JwtTokenCustomizer`
+**Class**: `infrastructure/security/oauth2/token/JwtTokenCustomizer`
 
 Thêm claims vào JWT token:
 

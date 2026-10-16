@@ -20,6 +20,17 @@ class PasswordHasherAdapterTest {
     }
 
     @Test
+    void a_hash_made_with_a_lower_cost_needs_a_rehash_and_the_rehash_is_at_the_current_cost_and_still_verifies() {
+        PasswordHash weak = PasswordHash.ofHashed(new BCryptPasswordEncoder(4).encode("matkhau123"));
+
+        assertThat(hasher.needsRehash(weak)).isTrue();
+        PasswordHash upgraded = hasher.rehash("matkhau123");
+        assertThat(upgraded.getHashedValue()).startsWith("$2a$10$");
+        assertThat(hasher.verify("matkhau123", upgraded)).isTrue();
+        assertThat(hasher.needsRehash(upgraded)).isFalse();
+    }
+
+    @Test
     void rejects_a_wrong_password() {
         PasswordHash hash = hasher.hash(RawPassword.of("matkhau123"));
 

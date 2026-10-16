@@ -25,11 +25,12 @@ nên chậm hơn backend. Cỡ chỉ có nghĩa tương đối giữa các chặ
 |---|---|---|---|---|---|
 | **C0** | Nền | Đăng ký, đăng nhập qua giao diện, khung bố cục | Xác thực | S–M | |
 | **C1a** | Niêm yết | Người bán đăng ký, được duyệt, đăng sản phẩm có ảnh | Danh mục hàng, Người bán, Quản lý tệp, Dữ liệu tham chiếu, Nhật ký kiểm toán | M | |
-| **C1b** | Khám phá | Khách tìm, lọc, xem sản phẩm; quản trị khóa tài khoản, chặn sản phẩm | Tìm kiếm, Xác thực (phân quyền, khóa), Định danh, Danh mục hàng | M | |
+| **C1b** | Khám phá | Khách tìm, lọc, xem sản phẩm; quản trị khóa tài khoản, chặn sản phẩm | Tìm kiếm, Xác thực (phân quyền, khóa/mở), Định danh (lõi), Danh mục hàng | M | |
 | **C2a** | Đặt hàng | Khách đặt COD, giữ chỗ, người bán xác nhận hoặc từ chối, người mua tự hủy | Giỏ hàng, Khách hàng, Định phí, Tồn kho, Đơn hàng, Thông báo | M | |
 | **C2b** | Hạn và hủy tự động | Quá hạn xác nhận tự hủy; giỏ vãng lai; bù trừ khi lỗi giữa chừng | Lập lịch, Đơn hàng, Giỏ hàng, Định phí, Người bán | M | |
 | **C3a** | Giao nhận (đường chính) | Hàng đi từ người bán, qua kho, tới tay khách; shipper xác nhận giao thì đơn "đã thanh toán" | Kho vật lý, Giao nhận, Shipper, Giả lập | M | **K1: dấu hiệu 1 (chạy hết kịch bản chính)** |
 | **C3b** | Giao nhận (nhánh lỗi) | Giao thất bại, hoàn về người bán, hạn bàn giao, phân công theo quy tắc | Giao nhận, Shipper, Kho vật lý | M | |
+| **C3c** | Bảo mật tài khoản (tên tạm) | Người dùng xem thiết bị và lịch sử đăng nhập, xác minh thiết bị, đăng xuất thiết bị khác, bật xác thực nhiều lớp; nhận email cảnh báo | Xác thực, Định danh, Thông báo | M | |
 | **C4** | Tiền | Trả trước, hoàn tiền (Sổ cái làm sau lõi) | Thanh toán | M | |
 | **C5** | Đồng thời cao | Chạy tải lên điểm nóng, không bán lố, có số đo | Tồn kho, Khuyến mãi, Giỏ hàng, Xác thực (đăng nhập dưới tải), Giả lập | L | **K2: dấu hiệu 2** |
 | **C6a** | Dữ liệu lớn: đo tìm kiếm | Tìm kiếm ở vài triệu SKU, có số đo | Tìm kiếm, Giả lập | M | **K3: dấu hiệu 3** |
@@ -48,17 +49,22 @@ phần được hoàn thiện ở chặng nào (nếu có).
 ### C0. Nền (S–M)
 
 - **Việc chính:** quy ước phát triển (sàn chung: bắt lỗi, log); cách chạy cục bộ theo lát cắt; Xác thực tối giản (đăng ký,
-  đăng nhập, đăng xuất; mỗi tài khoản có một vai: Người dùng tự đăng ký, Quản trị có sẵn) và cổng truy cập; khung frontend
-  (cấu trúc, bố cục, đăng nhập, bảo vệ truy cập; bộ thành phần dùng chung cho các portal web); bộ đo nền (đo trần của
+  đăng nhập, đăng xuất; mỗi tài khoản có một vai: Người dùng tự đăng ký, Quản trị có sẵn) và cổng truy cập. Đăng nhập ở mức
+  tối thiểu: kiểm mật khẩu, mở phiên đăng nhập hai tầng (phiên người dùng với một hạn cố định, phiên ứng dụng), token cắt theo
+  hạn phiên, đăng xuất kết thúc cả hai tầng; event phiên chỉ ghi trong miền (chưa có bus); CSRF, PKCE, cookie an toàn; phiên
+  mở ở một điểm cuối chuỗi xác thực để sau này chèn xác thực nhiều lớp mà không sửa phiên; trang đăng nhập cấp cookie mã thiết
+  bị (`DEVICE_KEY`) vì các event phiên và đăng nhập thất bại mang mã thiết bị. Khung frontend
+  (cấu trúc, bố cục, màn đăng ký, đăng nhập do Xác thực dựng, đăng xuất, trang "không có quyền", bảo vệ truy cập; cổng giữ token
+  phía máy chủ, trình duyệt chỉ có cookie phiên; bộ thành phần dùng chung cho các ứng dụng web); bộ đo nền (đo trần của
   máy: điểm cuối rỗng, ghi một dòng vào cơ sở dữ liệu, băm một mật khẩu) để biết giới hạn máy trước khi đo ứng dụng
   (`6-non-function-requirement.md` §4.1). Phần đo bộ đệm và tìm kiếm của bộ đo nền làm khi hạ tầng đó được bật (tìm kiếm
   ở C1b, bộ đệm ở C5).
 - **Mục tiêu hiểu gợi ý:** cơ chế bên dưới của frontend (phát hiện thay đổi, vòng đời, quản lý đăng ký sự kiện); chuẩn xử
   lý lỗi và log để lần ra lỗi xuyên nhiều dịch vụ.
-- **Hạ tầng:** cơ sở dữ liệu quan hệ, cổng truy cập.
+- **Hạ tầng:** cơ sở dữ liệu quan hệ, cổng truy cập; Redis cho giới hạn số lần đăng nhập (`oauth2-service/service.md` mục 7).
 - **Xong khi:** đăng ký, đăng nhập, đăng xuất qua giao diện; một yêu cầu lỗi lần ra được nguyên nhân từ log; có số trần
   máy cho điểm cuối rỗng, ghi cơ sở dữ liệu và băm một mật khẩu, ghi cùng điều kiện đo.
-- **Hoàn thiện ở:** xác thực nhiều lớp, phân quyền theo vai, khóa và mở tài khoản: C1b.
+- **Hoàn thiện ở:** phân quyền theo vai, khóa và mở tài khoản: C1b. Xác thực nhiều lớp, thiết bị, lịch sử đăng nhập, đăng xuất từ xa: C3c.
 
 ### C1a. Niêm yết (M)
 
@@ -68,7 +74,7 @@ phần được hoàn thiện ở chặng nào (nếu có).
 - **Mục tiêu hiểu gợi ý:** cách lưu và phục vụ ảnh tách khỏi dữ liệu sản phẩm; vì sao hành động quản trị cần nhật ký ghi
   thêm, không sửa.
 - **Hạ tầng:** cơ sở dữ liệu, bus sự kiện, lưu tệp. Bus sự kiện kèm hộp thư event: ghi event cùng
-  giao dịch với thay đổi dữ liệu, đẩy event từ hộp thư ra bus, chính sách giữ và dọn hộp thư, xử lý nhận trùng ở bên nhận,
+  giao dịch với thay đổi dữ liệu, đẩy event từ hộp thư ra bus, chính sách giữ hộp thư (việc dọn chạy qua Lập lịch, hoãn tới C2b), xử lý nhận trùng ở bên nhận,
   thứ tự event theo từng thực thể (C0 chưa ghi hay gửi event nào ra ngoài).
 - **BC đã có mã (kiểm sơ ở mức tên thư mục):** Danh mục hàng. Phân tích trước, đối chiếu sau.
 - **Xong khi:** người bán đăng sản phẩm có ảnh qua giao diện; quản trị duyệt người bán và hành động đó tra cứu được trong
@@ -78,17 +84,20 @@ phần được hoàn thiện ở chặng nào (nếu có).
 
 ### C1b. Khám phá (M)
 
-- **Việc chính:** tìm kiếm văn bản, lọc, sắp xếp, xem chi tiết (portal Cửa hàng); xác thực nhiều lớp, phân quyền theo vai,
-  khóa và mở tài khoản; Định danh (hồ sơ, thiết bị, lịch sử đăng nhập) và thu hồi phiên từ xa; chặn và mở sản phẩm (ghi
-  vào nhật ký).
+- **Việc chính:** tìm kiếm văn bản, lọc, sắp xếp, xem chi tiết (ứng dụng Cửa hàng); phân quyền theo vai, khóa và mở tài
+  khoản (ghi vào nhật ký); đổi mật khẩu (nhập mật khẩu cũ, kết thúc mọi phiên khác; màn trong trang tài khoản ở Cửa hàng và Người bán); Định danh lõi: hồ sơ định danh (tên hiển thị, hiện và sửa ở Cửa hàng) và danh sách người dùng cho
+  Quản trị (kèm vai, trạng thái; màn quản lý tài khoản ở ứng dụng Vận hành, ẩn nút theo vai nhưng quyền thật do BC kiểm);
+  chặn và mở sản phẩm (ghi vào nhật ký). Xác thực nhiều lớp, thiết bị, lịch sử đăng nhập, đăng xuất từ xa chuyển sang C3c
+  vì cần Thông báo và không nằm trên đường tới K1.
 - **Điểm sâu:** đọc đồng thời cao ở Danh mục (đòi hỏi); Tìm kiếm là read model (chưa đo lớn, đo ở C6a); phân quyền (chủ
   động chọn).
 - **Mục tiêu hiểu gợi ý:** vì sao tìm kiếm tách khỏi nguồn dữ liệu và chấp nhận nhất quán cuối cùng; cách giữ cập nhật không
   lùi phiên bản.
 - **Hạ tầng:** thêm tìm kiếm toàn văn.
 - **Xong khi:** khách tìm thấy và lọc được sản phẩm qua giao diện; quản trị khóa một tài khoản và chặn một sản phẩm, cả hai
-  tra cứu được trong nhật ký; vai không đủ quyền bị từ chối; người dùng xem được lịch sử đăng nhập và thu hồi được một
-  phiên từ xa.
+  tra cứu được trong nhật ký; vai không đủ quyền bị từ chối; Quản trị thấy danh sách người dùng để chọn tài khoản cần khóa; người dùng đổi mật khẩu và các phiên khác bị đăng xuất.
+- **Dữ liệu cũ:** tài khoản đăng ký trước khi có hộp thư event (C1a) không có event gửi đi nên không có hồ sơ định danh;
+  không nạp bù (mục 7).
 
 ### C2a. Đặt hàng (M)
 
@@ -109,7 +118,8 @@ phần được hoàn thiện ở chặng nào (nếu có).
 
 ### C2b. Hạn và hủy tự động (M)
 
-- **Việc chính:** Lập lịch; hạn xác nhận và hủy tự động khi quá hạn; giỏ vãng lai và gộp khi đăng nhập; quy tắc tính phí;
+- **Việc chính:** Lập lịch; các job dọn dữ liệu đã hoãn từ chặng trước (dọn hộp thư event, phiên đăng nhập quá hạn, bản ghi ủy
+  quyền mồ côi; chạy bằng lệnh định kỳ, không cần callback, nên là ca dùng đầu tiên để thử Lập lịch); hạn xác nhận và hủy tự động khi quá hạn; giỏ vãng lai và gộp khi đăng nhập; quy tắc tính phí;
   quy trình duyệt người bán chạy dài (nâng cấp từ bản tối giản ở C1a).
 - **Điểm sâu:** điều phối nhiều bước kèm bù trừ khi lỗi (đòi hỏi); quy tắc tính phí (chủ động chọn); quy trình duyệt người
   bán chạy dài, tạm dừng và tiếp tục (chủ động chọn).
@@ -124,8 +134,8 @@ phần được hoàn thiện ở chặng nào (nếu có).
 
 - **Việc chính:** người bán mang hàng tới kho; kho nhận và đối chiếu; nhật ký di chuyển; Shipper (hồ sơ, khu vực, sẵn
   sàng; đội giả lập); phân công đơn giản (chọn shipper sẵn sàng cùng khu vực); shipper xác nhận giao thì đơn chuyển sang
-  "đã thanh toán" (COD coi như đã thu đúng; event "đã giao" vẫn mang số tiền đã thu và mã shipper); giao diện: portal Nội
-  bộ (nhân viên kho), portal Người bán (xử lý đơn, bàn giao), portal Shipper (di động, tối giản); xem `5-ui-analysis.md`.
+  "đã thanh toán" (COD coi như đã thu đúng; event "đã giao" vẫn mang số tiền đã thu và mã shipper); giao diện: ứng dụng Nội
+  bộ (nhân viên kho), ứng dụng Người bán (xử lý đơn, bàn giao), ứng dụng Shipper (di động, tối giản; cần cổng di động giữ token phía máy chủ như cổng của ứng dụng web, phân tích khi tới); xem `5-ui-analysis.md`.
 - **Mục tiêu hiểu gợi ý:** vì sao event "đã giao" nên mang đủ số tiền và mã shipper dù chưa ai dùng.
 - **Hạ tầng:** không thêm.
 - **Xong khi:** chạy hết một kịch bản COD qua giao diện, từ đặt hàng đến shipper xác nhận giao. **Đạt K1.**
@@ -145,6 +155,24 @@ phần được hoàn thiện ở chặng nào (nếu có).
 - **Xong khi:** có một kịch bản giao thất bại chạy đúng (hàng về người bán, tồn kho nhập lại theo quyết định đã chọn);
   quá hạn bàn giao tự hủy; ngắt mạng giữa lúc shipper xác nhận giao, nối lại thì đơn chuyển trạng thái đúng một lần.
 
+### C3c. Bảo mật tài khoản (M) — tên tạm
+
+- **Việc chính:**
+  - Thông báo email tối thiểu (mở rộng mẫu thư từ C2a): mã một lần, cảnh báo thiết bị lạ, báo đăng xuất từ xa.
+  - Quên và đặt lại mật khẩu qua email (khác đổi mật khẩu ở C1b: không biết mật khẩu cũ nên cần email).
+  - Xác thực nhiều lớp bằng email, tùy chọn, mặc định tắt (một bước thêm sau mật khẩu).
+  - Định danh: thiết bị (nhận ra, xác minh bằng mã một lần, xóa, thiết bị đang đăng nhập) và lịch sử đăng nhập (giữ 12 tháng).
+  - Đăng xuất từ xa: một thiết bị hoặc mọi thiết bị khác, nhập lại mật khẩu, thêm mã một lần khi thiết bị người gọi chưa xác
+    minh, báo chủ tài khoản bằng email.
+  - Giao diện: màn "Bảo mật tài khoản" ở Cửa hàng và Người bán (thiết bị, lịch sử, xác minh, đăng xuất thiết bị khác, bật hoặc tắt
+    xác thực nhiều lớp); bước nhập mã ở trang đăng nhập; ứng dụng Vận hành cho Quản trị xem thiết bị, phiên sống và lịch sử của
+    người dùng (chỉ đọc).
+- **Mục tiêu hiểu gợi ý:** vì sao mã một lần phải dùng được một lần, giới hạn số lần thử và băm; vì sao việc đăng xuất thiết
+  bị khác phải xác nhận lại; vì sao thiết bị là dữ liệu để xem, không phải để quyết định đăng nhập.
+- **Hạ tầng:** Redis cho mã một lần (Redis lỗi thì từ chối, không có dự phòng).
+- **Xong khi:** người dùng xem được lịch sử đăng nhập, xác minh một thiết bị, đăng xuất một thiết bị khác và nhận email báo;
+  bật và tắt được xác thực nhiều lớp.
+
 ### C4. Tiền (M)
 
 - **Việc chính:** thanh toán trả trước qua môi trường thử nghiệm của bên cung cấp; xử lý kết quả gọi ngược trùng hoặc sai
@@ -161,7 +189,8 @@ phần được hoàn thiện ở chặng nào (nếu có).
   tải và tiêm lỗi (Giả lập); báo cáo số đo kèm điều kiện đo. **Nhánh C5b (tùy chọn):** kéo phần đối tác tối thiểu (kho giữ tồn theo
   SKU) để làm flash sale.
 - **Điểm sâu:** tranh chấp trên cùng một mặt hàng và một voucher (đòi hỏi; đồng thời cao); làn sóng đăng nhập trước flash
-  sale (Xác thực; đòi hỏi; đồng thời cao).
+  sale (Xác thực; đòi hỏi; đồng thời cao). Đường làm mới token cũng nằm trong tải đăng nhập (đọc phiên và bản ghi ủy quyền,
+  ghi hoạt động thiết bị), kèm đo cách tra bản ghi ủy quyền theo khóa chính.
 - **Mục tiêu hiểu gợi ý:** vì sao đọc rồi trừ sụp khi đồng thời; đánh đổi giữa tính đúng và thông lượng; cách tính khoảng
   thời gian tối đa được chiếm một mặt hàng nóng; vì sao băm mật khẩu làm đăng nhập thành điểm nghẽn CPU và cách giữ đăng
   nhập đúng mà vẫn chịu được làn sóng.
@@ -252,8 +281,10 @@ phần được hoàn thiện ở chặng nào (nếu có).
 | Có diễn tập triển khai lên cloud sớm trước C8 không? | **Không; chỉ triển khai ở cuối dự án (C8)** | Dự án một người, kiến thức triển khai còn yếu: gom vào cuối để không làm chậm lõi |
 | C1 (Tìm kiếm) trước C2 (Giỏ, Đơn), hay làm đường mua hàng trước? | C1 trước | Có sản phẩm mới đặt được; Tìm kiếm cần thời gian cho C6 |
 | Chặng C0 có cần riêng, hay gộp vào C1? | Giữ riêng | Frontend là chỗ yếu nhất; gộp thì C1 thành XL |
-| Giao diện chia thế nào | Bốn portal: Cửa hàng, Người bán, Vận hành (nhân viên kho và quản trị), Shipper di động | `5-ui-analysis.md` |
+| Giao diện chia thế nào | Bốn ứng dụng: Cửa hàng, Người bán, Vận hành (nhân viên kho và quản trị), Shipper di động | `5-ui-analysis.md` |
 | Có tách các chặng lớn thành đường mỏng và hoàn thiện không? | Có: C1, C2, C3, C6 mỗi chặng tách thành nửa a (đường mỏng nhất) và nửa b (hoàn thiện) | Mỗi chặng chạy được ở mức tối giản rồi hoàn thiện dần; chặng nhỏ hơn thì dễ hiệu chỉnh bằng tốc độ thật |
 | COD ở bản tối giản xử lý thế nào? | Shipper xác nhận giao thì đơn "đã thanh toán"; chưa có công nợ, nộp tiền, đối soát (xếp vào cắt tạm, kéo vào cùng Sổ cái) | Bản tối giản đã chạy hết kịch bản chính; công nợ chỉ có nghĩa khi có Sổ cái. Event "đã giao" vẫn mang số tiền và mã shipper để dựng lại sau |
 | Điều phối kèm bù trừ khi đặt hàng | C2a chỉ bản đơn giản (lỗi giữa chừng thì trả chỗ); bản đầy đủ ở C2b cùng Lập lịch | Bản đầy đủ cần Lập lịch (C2b); bản đơn giản đủ cho đường đặt hàng chính |
 | Mốc "chạy hết kịch bản chính" (K1) đặt ở đâu | Ngay sau C3a, trước khi có kịch bản giao thất bại | K1 chỉ cần đường mua hàng chính chạy hết; giao thất bại thuộc phần hoàn thiện |
+| Xác thực nhiều lớp, thiết bị, lịch sử đăng nhập, đăng xuất từ xa ở chặng nào? | Chặng riêng C3c (tên tạm), đặt sau C3b; Định danh lõi (hồ sơ, danh sách người dùng) ở lại C1b cùng khóa/mở tài khoản | Các việc này cần Thông báo (có từ C2a) và Redis, không nằm trên đường tới K1 (nguyên tắc 3), và gộp vào C1b làm chặng quá nặng; Quản trị chỉ cần danh sách người dùng để khóa tài khoản |
+| Dữ liệu tạo ở chặng trước có phải giữ khi chặng sau thêm BC hoặc đổi mô hình không? | Không: dữ liệu của một phân hệ là dữ liệu thử, xóa và tạo lại, cho tới khi phân hệ đó hoàn thành ở mức đủ chính; từ lúc đó dữ liệu của phân hệ ấy mới coi là ổn định và đổi mô hình phải di trú có kiểm soát. Không có mốc ổn định chung cho cả dự án. Ví dụ tài khoản đăng ký trước khi có hộp thư event (C1a) không có event gửi đi nên Định danh (C1b) không tạo hồ sơ cho chúng; không nạp bù | Dự án học tập, chưa có dữ liệu thật; nạp bù và di trú dữ liệu tốn công mà không dạy thêm. Mỗi phân hệ ổn định vào lúc riêng của nó, nên không cần một mốc chung |
