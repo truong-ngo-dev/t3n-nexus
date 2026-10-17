@@ -9,7 +9,7 @@
 
 > **Ghi chú (2026-10-16):** tài liệu này mô tả mô hình phiên một lớp cũ. Đường dẫn các lớp còn tồn tại đã được cập nhật theo cấu trúc gói mới
 > (`oauth2/`, `session/`, `mfa/`, `federated/`, `extension/`). `UserCredentialDetails` (nay là `UserAccountDetails` ở `extension/authentication`) và
-> `SessionEstablishingAuthorizationService` (thay bằng `LoginSessionAuthorizationService` ở `extension/session`) không còn như mô tả dưới đây;
+> `SessionEstablishingAuthorizationService` (thay bằng `SessionBoundAuthorizationService` ở `extension/session`) không còn như mô tả dưới đây;
 > mô hình hiện hành xem `docs/service/oauth2-service/analysis/` và ADR-0003.
 
 ---

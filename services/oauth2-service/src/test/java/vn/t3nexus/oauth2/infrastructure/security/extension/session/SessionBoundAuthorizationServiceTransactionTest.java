@@ -72,8 +72,8 @@ import static org.assertj.core.api.Assertions.catchThrowable;
  * (KT-22 phần lưu trữ). Chạy trên Postgres do Testcontainers dựng; không dùng giao dịch của test để thấy được commit và
  * quay lui thật.
  */
-@SpringBootTest(classes = LoginSessionAuthorizationServiceTransactionTest.TestConfig.class)
-class LoginSessionAuthorizationServiceTransactionTest {
+@SpringBootTest(classes = SessionBoundAuthorizationServiceTransactionTest.TestConfig.class)
+class SessionBoundAuthorizationServiceTransactionTest {
 
     private static final Instant NOW = Instant.parse("2026-10-14T03:00:00Z");
     private static final String SID_A = "01938a5e-1c00-7000-8000-0000000000a1";
@@ -127,7 +127,7 @@ class LoginSessionAuthorizationServiceTransactionTest {
     private LoginSessionId sessionId;
     private Optional<ResolveAuthorizationSession.Result> gate;
     private Optional<String> requestedSid = Optional.empty();
-    private LoginSessionAuthorizationService service;
+    private SessionBoundAuthorizationService service;
 
     @BeforeEach
     void setUp() {
@@ -148,9 +148,9 @@ class LoginSessionAuthorizationServiceTransactionTest {
 
         gate = Optional.of(new ResolveAuthorizationSession.Result(sessionId.getValueAsString(), SID_A,
                 NOW.plus(Duration.ofDays(30)), Role.USER, "d"));
-        service = new LoginSessionAuthorizationService(jdbcService,
+        service = new SessionBoundAuthorizationService(jdbcService,
                 new RecordClientSessionIssued(sessions, Clock.fixed(NOW, ZoneOffset.UTC)), () -> gate, transactionTemplate,
-                sessions, () -> requestedSid);
+                new SidAuthorizationLookup(jdbcService, sessions, () -> requestedSid, hint -> Optional.empty()));
     }
 
     @AfterEach

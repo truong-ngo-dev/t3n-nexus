@@ -8,30 +8,22 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
-import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.transaction.support.TransactionOperations;
+import vn.t3nexus.lib.utils.lang.Assert;
 import vn.t3nexus.oauth2.application.login_session.record_client_session_issued.RecordClientSessionIssued;
 import vn.t3nexus.oauth2.application.login_session.resolve_authorization_session.ResolveAuthorizationSession;
-import vn.t3nexus.oauth2.domain.login_session.ClientSessionId;
 import vn.t3nexus.oauth2.domain.login_session.LoginSessionException;
-import vn.t3nexus.oauth2.domain.login_session.LoginSessionRepository;
 
-import com.nimbusds.jwt.SignedJWT;
-import vn.t3nexus.oauth2.infrastructure.security.oauth2.token.JwtTokenCustomizer;
 import vn.t3nexus.oauth2.infrastructure.security.oauth2.token.SessionBinding;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Function;
+import java.util.Objects;
 
 /**
- * Lớp bọc {@link OAuth2AuthorizationService} nối bản ghi ủy quyền với phiên đăng nhập của ta (ADR-0003 mục 3, 9). Thay cho
+ * Lớp bọc {@link OAuth2AuthorizationService} gắn bản ghi ủy quyền với một phiên đăng nhập của ta (ADR-0003 mục 3, 8, 9): mọi bản ghi
+ * thuộc một phiên ứng dụng ({@code sid}), tra theo phiên đó và ghi nhận vào phiên khi cấp token. Thay cho
  * lớp bọc của mô hình phiên một lớp cũ. Hai điểm móc, theo vòng đời mà Spring gọi {@code save()}:
  *
  * <ol>
@@ -46,43 +38,39 @@ import java.util.function.Function;
  * </ol>
  *
  * <p>Bản ghi không thuộc phiên người dùng (client credentials giữa các dịch vụ) đi thẳng qua. Lỗi miền của phiên được đổi thành
- * {@code invalid_grant} để điểm cuối token trả đúng mã. Tra cứu và xóa chuyển nguyên cho lớp bọc bên dưới; tra theo {@code sid}
- * khi làm mới thêm ở bước 9a.6.
+ * {@code invalid_grant} để điểm cuối token trả đúng mã. Xóa chuyển nguyên cho lớp bọc bên dưới; tra theo token do
+ * {@link SidAuthorizationLookup} đảm nhận (tra bằng khóa chính, không quét token).
  */
 @Slf4j
-public class LoginSessionAuthorizationService implements OAuth2AuthorizationService {
+public class SessionBoundAuthorizationService implements OAuth2AuthorizationService {
 
     private final OAuth2AuthorizationService delegate;
     private final RecordClientSessionIssued  recordClientSessionIssued;
     private final AuthorizationSessionSource sessionSource;
     private final TransactionOperations      transactions;
-    private final LoginSessionRepository     loginSessionRepository;
-    private final RequestedSidSource requestedSid;
-    private final List<IssuedTokenListener> listeners;
+    private final SidAuthorizationLookup     lookup;
+    private final List<IssuedTokenListener>  listeners;
 
-    public LoginSessionAuthorizationService(OAuth2AuthorizationService delegate,
+    public SessionBoundAuthorizationService(OAuth2AuthorizationService delegate,
                                             RecordClientSessionIssued recordClientSessionIssued,
                                             AuthorizationSessionSource sessionSource,
                                             TransactionOperations transactions,
-                                            LoginSessionRepository loginSessionRepository,
-                                            RequestedSidSource requestedSid) {
-        this(delegate, recordClientSessionIssued, sessionSource, transactions, loginSessionRepository, requestedSid, List.of());
+                                            SidAuthorizationLookup lookup) {
+        this(delegate, recordClientSessionIssued, sessionSource, transactions, lookup, List.of());
     }
 
     /** @param listeners bên nhận biết một lần cấp token đã hoàn tất (chạy sau khi giao dịch xong; lỗi của chúng bị bỏ qua) */
-    public LoginSessionAuthorizationService(OAuth2AuthorizationService delegate,
+    public SessionBoundAuthorizationService(OAuth2AuthorizationService delegate,
                                             RecordClientSessionIssued recordClientSessionIssued,
                                             AuthorizationSessionSource sessionSource,
                                             TransactionOperations transactions,
-                                            LoginSessionRepository loginSessionRepository,
-                                            RequestedSidSource requestedSid,
+                                            SidAuthorizationLookup lookup,
                                             List<IssuedTokenListener> listeners) {
         this.delegate                  = delegate;
         this.recordClientSessionIssued = recordClientSessionIssued;
         this.sessionSource             = sessionSource;
         this.transactions              = transactions;
-        this.loginSessionRepository    = loginSessionRepository;
-        this.requestedSid              = requestedSid;
+        this.lookup                    = lookup;
         this.listeners                 = List.copyOf(listeners);
     }
 
@@ -125,74 +113,15 @@ public class LoginSessionAuthorizationService implements OAuth2AuthorizationServ
     }
 
     /**
-     * Tra bản ghi ủy quyền theo token mà <b>không quét theo giá trị token</b> (ADR-0003 mục 8): cột token là chuỗi dài, không
-     * có chỉ mục, nên mỗi kiểu tra cứu đi bằng một khóa chính.
-     * <ul>
-     *   <li><b>Refresh token</b> (chuỗi mờ): tra theo {@code sid} BFF gửi kèm yêu cầu (tham số {@code sid}); thiếu {@code sid}
-     *       thì không tìm thấy.</li>
-     *   <li><b>Access token</b> (JWT, dùng ở userinfo): lấy {@code sid} từ chính claim của token. Phần giải mã không xác thực
-     *       gì; việc xác thực là bước <b>so giá trị token</b> với giá trị đã lưu của bản ghi tìm được.</li>
-     *   <li><b>Mã ủy quyền</b> ({@code code}, 16 ký tự, sống 5 phút): chuyển cho lớp bọc bên dưới, có chỉ mục riêng (V14).</li>
-     *   <li>Mọi kiểu khác (ID token, {@code state}, mã thiết bị, kiểu không xác định): không tìm thấy, không quét.</li>
-     * </ul>
-     * Với hai kiểu đầu: {@code sid} sai, bản ghi không phải của {@code sid} đó, hoặc giá trị token khác đều cho không tìm thấy;
-     * so sánh giá trị theo thời gian hằng.
+     * Tra bản ghi theo token, không quét cột token (ADR-0003 mục 8): xem {@link SidAuthorizationLookup} cho cách tra theo từng loại
+     * token mà Spring hỏi (mã, refresh token, access token, ID token của {@code id_token_hint}, loại không biết).
      */
     @Override
     public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
-        if (token == null || tokenType == null) return null;
-        if (OAuth2ParameterNames.CODE.equals(tokenType.getValue())) {
-            return delegate.findByToken(token, tokenType);
-        }
-        if (OAuth2TokenType.REFRESH_TOKEN.equals(tokenType)) {
-            return requestedSid.current()
-                    .flatMap(sid -> findBySid(sid, token, LoginSessionAuthorizationService::refreshTokenValue))
-                    .orElse(null);
-        }
-        if (OAuth2TokenType.ACCESS_TOKEN.equals(tokenType)) {
-            return sidClaimOf(token)
-                    .flatMap(sid -> findBySid(sid, token, LoginSessionAuthorizationService::accessTokenValue))
-                    .orElse(null);
-        }
-        return null;
+        return lookup.find(token, tokenType);
     }
 
-    private Optional<OAuth2Authorization> findBySid(String sid, String token,
-                                                    Function<OAuth2Authorization, String> storedValue) {
-        ClientSessionId clientSessionId;
-        try {
-            clientSessionId = ClientSessionId.of(UUID.fromString(sid));
-        } catch (IllegalArgumentException malformed) {
-            return Optional.empty();
-        }
-        return loginSessionRepository.findAuthorizationIdByClientSessionId(clientSessionId)
-                .map(delegate::findById)
-                .filter(authorization -> sameValue(storedValue.apply(authorization), token));
-    }
-
-    private static String refreshTokenValue(OAuth2Authorization authorization) {
-        return authorization.getRefreshToken() == null ? null : authorization.getRefreshToken().getToken().getTokenValue();
-    }
-
-    private static String accessTokenValue(OAuth2Authorization authorization) {
-        return authorization.getAccessToken() == null ? null : authorization.getAccessToken().getToken().getTokenValue();
-    }
-
-    /** Claim {@code sid} của một JWT (chỉ đọc, không kiểm chữ ký); rỗng nếu không phải JWT hoặc không có claim. */
-    private static Optional<String> sidClaimOf(String jwt) {
-        try {
-            return Optional.ofNullable(SignedJWT.parse(jwt).getJWTClaimsSet().getStringClaim(JwtTokenCustomizer.CLAIM_SID));
-        } catch (ParseException notAJwt) {
-            return Optional.empty();
-        }
-    }
-
-    private static boolean sameValue(String stored, String presented) {
-        if (stored == null || presented == null) return false;
-        return MessageDigest.isEqual(stored.getBytes(StandardCharsets.UTF_8), presented.getBytes(StandardCharsets.UTF_8));
-    }
-
-    // ───────────── Điểm móc 1: mã ủy quyền vừa được cấp ─────────────
+    // ───────────── Hook point 1: authorization code just have been issued ─────────────
 
     private static boolean isAuthorizationCodeIssued(OAuth2Authorization authorization) {
         return authorization.getToken(OAuth2AuthorizationCode.class) != null
@@ -210,7 +139,7 @@ public class LoginSessionAuthorizationService implements OAuth2AuthorizationServ
                 .build();
     }
 
-    // ───────────── Điểm móc 2: token vừa được cấp ─────────────
+    // ───────────── Hook point 2: token just have been issued ─────────────
 
     private static boolean isTokenIssuedForSession(OAuth2Authorization authorization) {
         OAuth2Authorization.Token<OAuth2AccessToken> accessToken = authorization.getToken(OAuth2AccessToken.class);
@@ -239,6 +168,7 @@ public class LoginSessionAuthorizationService implements OAuth2AuthorizationServ
     /** {@code jti} của access token (JWT) làm mã event; dự phòng cho token không có claim. */
     private static String tokenIdOf(OAuth2Authorization authorization) {
         OAuth2Authorization.Token<OAuth2AccessToken> token = authorization.getToken(OAuth2AccessToken.class);
+        Objects.requireNonNull(token);
         Map<String, Object> claims = token.getClaims();
         Object jti = claims == null ? null : claims.get("jti");
         if (jti != null) return jti.toString();

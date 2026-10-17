@@ -30,16 +30,20 @@ import vn.t3nexus.oauth2.domain.login_session.LoginSessionRepository;
 import vn.t3nexus.oauth2.infrastructure.security.mfa.MfaEnforcementFilter;
 import tools.jackson.databind.json.JsonMapper;
 import vn.t3nexus.oauth2.infrastructure.security.extension.authentication.LoginRequestDetails;
+import vn.t3nexus.oauth2.infrastructure.security.extension.session.IdTokenHintVerifier;
 import vn.t3nexus.oauth2.infrastructure.security.extension.session.IssuedTokenListener;
-import vn.t3nexus.oauth2.infrastructure.security.extension.session.LoginSessionAuthorizationService;
+import vn.t3nexus.oauth2.infrastructure.security.extension.session.SidAuthorizationLookup;
+
+import vn.t3nexus.oauth2.infrastructure.security.extension.session.SessionBoundAuthorizationService;
 
 import vn.t3nexus.oauth2.infrastructure.security.oauth2.validator.StateRequiredValidator;
 import vn.t3nexus.oauth2.infrastructure.security.oauth2.store.UserAccountDetailsMixin;
 import vn.t3nexus.oauth2.infrastructure.security.oauth2.store.OneTimeTokenAuthenticationMixin;
 import vn.t3nexus.oauth2.infrastructure.security.extension.session.AuthorizationSessionGateFilter;
-import vn.t3nexus.oauth2.infrastructure.security.extension.session.RequestAttributeAuthorizationSessionSource;
-import vn.t3nexus.oauth2.infrastructure.security.extension.session.RequestParameterSidSource;
+import vn.t3nexus.oauth2.infrastructure.security.extension.session.AuthorizationSessionSource;
+import vn.t3nexus.oauth2.infrastructure.security.extension.session.RequestedSidSource;
 import vn.t3nexus.oauth2.infrastructure.security.extension.logging.UserIdLogContextFilter;
+import vn.t3nexus.oauth2.infrastructure.security.extension.logout.OidcLogoutFailureHandler;
 import vn.t3nexus.oauth2.infrastructure.security.extension.logout.OidcLogoutSuccessHandler;
 
 @Configuration
@@ -51,6 +55,7 @@ public class OAuth2AuthorizationServerConfig {
     public SecurityFilterChain authorizationServerSecurityFilterChain(
             HttpSecurity http,
             OidcLogoutSuccessHandler oidcLogoutHandler,
+            OidcLogoutFailureHandler oidcLogoutFailureHandler,
             ResolveAuthorizationSession resolveAuthorizationSession,
             RegisteredClientRepository registeredClientRepository) {
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = new OAuth2AuthorizationServerConfigurer();
@@ -67,8 +72,9 @@ public class OAuth2AuthorizationServerConfig {
                         })))
                         .oidc(oidcConfigurer -> oidcConfigurer
                                 .userInfoEndpoint(userInfo -> userInfo.userInfoMapper(new SessionUserInfoMapper()))
-                                .logoutEndpoint(logoutEndpointConfigurer ->
-                                        logoutEndpointConfigurer.logoutResponseHandler(oidcLogoutHandler))))
+                                .logoutEndpoint(leConf -> leConf
+                                        .logoutResponseHandler(oidcLogoutHandler)
+                                        .errorResponseHandler(oidcLogoutFailureHandler))))
                 // Cửa kiểm hạn của /oauth2/authorize (ADR-0003 mục 2): đứng trước AuthorizationFilter (và trước bộ lọc
                 // endpoint cấp mã của Spring, được thêm sau AuthorizationFilter) để phiên đã chết bị đưa về trang đăng nhập.
                 .addFilterBefore(new AuthorizationSessionGateFilter(resolveAuthorizationSession, registeredClientRepository), AuthorizationFilter.class)
@@ -90,6 +96,9 @@ public class OAuth2AuthorizationServerConfig {
             RecordClientSessionIssued recordClientSessionIssued,
             LoginSessionRepository loginSessionRepository,
             TransactionOperations transactionOperations,
+            IdTokenHintVerifier idTokenHintVerifier,
+            RequestedSidSource requestedSidSource,
+            AuthorizationSessionSource authorizationSessionSource,
             ObjectProvider<IssuedTokenListener> issuedTokenListeners
     ) {
         JdbcOAuth2AuthorizationService jdbcService = new JdbcOAuth2AuthorizationService(jdbcOperations, repository);
@@ -111,9 +120,11 @@ public class OAuth2AuthorizationServerConfig {
                 new JdbcOAuth2AuthorizationService.JsonMapperOAuth2AuthorizationRowMapper(repository, jsonMapper);
         jdbcService.setAuthorizationRowMapper(rowMapper);
 
-        return new LoginSessionAuthorizationService(jdbcService, recordClientSessionIssued,
-                new RequestAttributeAuthorizationSessionSource(), transactionOperations, loginSessionRepository,
-                new RequestParameterSidSource(), issuedTokenListeners.orderedStream().toList());
+        SidAuthorizationLookup lookup = new SidAuthorizationLookup(jdbcService, loginSessionRepository,
+                requestedSidSource, idTokenHintVerifier);
+        return new SessionBoundAuthorizationService(jdbcService, recordClientSessionIssued,
+                authorizationSessionSource, transactionOperations, lookup,
+                issuedTokenListeners.orderedStream().toList());
     }
 
     @Bean

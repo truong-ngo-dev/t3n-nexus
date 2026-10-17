@@ -12,7 +12,8 @@ import vn.t3nexus.lib.web.commons.client.ClientCredentialsTokenClient;
 import java.util.Map;
 
 /**
- * <p>Back-channel session revoke sang <b>web-gateway</b> (<code>POST /webgw/internal/sessions/revoke</code>) &mdash;
+ * <p>Back-channel báo web-gateway xóa mã của một phiên ứng dụng vừa kết thúc (<code>POST /webgw/internal/sessions/revoke</code>,
+ * thân <code>{"sid": "&lt;mã phiên ứng dụng&gt;"}</code>, hợp đồng ở feature 03 <code>tech.md</code> T7) &mdash;
  * server-to-server, <b>KHÔNG</b> qua api-gateway (cùng lý do các call nội bộ khác trong service này, xem
  * <code>app.oauth2.internal-base-url</code>).</p>
  *
@@ -53,7 +54,7 @@ public class WebGatewayRevocationClient {
         return factory;
     }
 
-    public void revoke(String ossId) {
+    public void revoke(String sid) {
         // Tách riêng try/catch cho mint-token vs gọi-revoke — 2 lỗi này nguyên nhân khác hẳn nhau
         // (sai client credential vs web-gateway down/token bị reject) nhưng trước đây gộp chung 1
         // log, không phân biệt được lỗi nằm ở bước nào khi debug.
@@ -61,7 +62,7 @@ public class WebGatewayRevocationClient {
         try {
             token = tokenClient.fetchToken(INTERNAL_SCOPE);
         } catch (Exception e) {
-            log.warn("[WebGatewayRevocation] failed to mint internal token for ossId={}: {}", ossId, e.getMessage());
+            log.warn("[WebGatewayRevocation] failed to mint internal token for sid={}: {}", sid, e.getMessage());
             return;
         }
 
@@ -70,15 +71,15 @@ public class WebGatewayRevocationClient {
                     .uri("/webgw/internal/sessions/revoke")
                     .headers(h -> h.setBearerAuth(token))
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("ossId", ossId))
+                    .body(Map.of("sid", sid))
                     .retrieve()
                     .toBodilessEntity();
-            log.info("[WebGatewayRevocation] revoked ossId={}", ossId);
+            log.info("[WebGatewayRevocation] revoked sid={}", sid);
         } catch (Exception e) {
-            // Best-effort — logout đã hoàn tất phía user (IDP session + OAuthSession đã xoá ở bước
-            // trước rồi), thất bại ở đây (timeout, web-gateway down, token bị reject...) không abort
+            // Best-effort — logout đã hoàn tất phía người dùng (phiên và bản ghi ủy quyền đã xóa trong giao dịch đăng xuất, trước
+            // bước này), thất bại ở đây (timeout, web-gateway down, token bị reject...) không abort
             // flow. Redis mapping [A1]/[A2] orphan tối đa tới TTL 24h — xem design.md Failure Scenarios.
-            log.info("[WebGatewayRevocation] revoke call failed for ossId={}: {}", ossId, e.getMessage());
+            log.info("[WebGatewayRevocation] revoke call failed for sid={}: {}", sid, e.getMessage());
         }
     }
 }

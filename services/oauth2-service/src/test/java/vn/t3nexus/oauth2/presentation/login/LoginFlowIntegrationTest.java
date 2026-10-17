@@ -71,6 +71,8 @@ class LoginFlowIntegrationTest {
     }
 
     @MockitoBean RateLimiter rateLimiter;
+    // Mock ở lời gọi HTTP sang web-gateway (không phải ở EndedSessionNotifier) để chạy thật bộ báo và việc tra client đã đăng ký
+    @MockitoBean vn.t3nexus.oauth2.infrastructure.adapter.http.WebGatewayRevocationClient webGatewayRevocationClient;
 
     @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
@@ -430,6 +432,50 @@ class LoginFlowIntegrationTest {
         assertThat(location(postLogin("khong-co-" + UUID.randomUUID() + "@example.com", PASSWORD))).endsWith("/login?error");
     }
 
+    /**
+     * Chạy chính tệp {@code infra/seed/admin.sql} (feature 04) bằng {@code psql} trong container Postgres của test, trên cơ sở dữ liệu
+     * mà ứng dụng đang dùng, với email nội bộ ngẫu nhiên và mật khẩu băm tại chỗ. Trả mã tài khoản vừa tạo.
+     */
+    private String seedAdminAccount() throws Exception {
+        email = "quantri-" + UUID.randomUUID() + "@t3nexus.com.vn";
+        var pg = PostgresContainerHolder.POSTGRES;
+        pg.copyFileToContainer(org.testcontainers.utility.MountableFile.forHostPath(
+                java.nio.file.Path.of("..", "..", "infra", "seed", "admin.sql").toAbsolutePath().normalize()), "/tmp/seed-admin-login.sql");
+        String hash = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(10).encode(PASSWORD);
+        var result = pg.execInContainer("psql", "-U", pg.getUsername(), "-d", pg.getDatabaseName(),
+                "-v", "email=" + email, "-v", "hash=" + hash, "-f", "/tmp/seed-admin-login.sql");
+        assertThat(result.getExitCode()).as(result.getStderr()).isZero();
+        return jdbc.queryForObject("select id::text from user_accounts where email = ?", String.class, email);
+    }
+
+    // KT-08 (feature 04, S4): tài khoản Quản trị do script tạo đăng nhập qua luồng thật và token mang vai ADMIN
+    @Test
+    void the_seeded_admin_logs_in_through_the_real_flow_and_the_token_carries_the_admin_role() throws Exception {
+        newBrowser();
+        String adminId = seedAdminAccount();
+
+        JsonNode tokens = exchange(loginAndGetCode());
+
+        JsonNode access = claims(tokens.path("access_token").asString());
+        assertThat(access.path("sub").asString()).isEqualTo(adminId);
+        assertThat(access.path("role").asString()).isEqualTo("ADMIN");
+        assertThat(UUID.fromString(access.path("sid").asString()).version()).isEqualTo(7);
+        assertThat(claims(tokens.path("id_token").asString()).path("sid").asString()).isEqualTo(access.path("sid").asString());
+    }
+
+    // KT-08 (sai mật khẩu): Quản trị bị từ chối như mọi tài khoản, không mở phiên
+    @Test
+    void the_seeded_admin_with_a_wrong_password_is_rejected_and_opens_no_session() throws Exception {
+        newBrowser();
+        String adminId = seedAdminAccount();
+        get(authorizeUrl("x"));
+
+        String redirect = location(postLogin(email, "Sai-mat-khau-1"));
+
+        assertThat(redirect).endsWith("/login?error");
+        assertThat(jdbc.queryForObject("select count(*) from login_sessions where user_account_id = ?::uuid", Integer.class, adminId)).isZero();
+    }
+
     private String csrfFrom(HttpResponse<String> page) {
         Matcher csrf = Pattern.compile("name=\"_csrf\"[^>]*value=\"([^\"]+)\"").matcher(page.body());
         assertThat(csrf.find()).isTrue();
@@ -588,6 +634,262 @@ class LoginFlowIntegrationTest {
                 + "where user_account_id = ?::uuid", Long.class, accountId);
         assertThat(idle).isNotNull().isGreaterThan(1800);
         assertThat((long) idle).isBetween(lifetimeSeconds - 60, lifetimeSeconds);   // còn lại tính từ lúc mở phiên, lệch vài giây
+    }
+
+    // ───────────── Đăng xuất (feature 03): KT-01 đến KT-21 ─────────────
+
+    private static final String POST_LOGOUT_URI = "http://localhost:4200";   // đã đăng ký cho web-gateway ở V4
+
+    private HttpResponse<String> logout(String hint, String postLogoutRedirectUri, String state) throws Exception {
+        StringBuilder url = new StringBuilder(base() + "/connect/logout?state=" + state);
+        if (hint != null) url.append("&id_token_hint=").append(enc(hint));
+        if (postLogoutRedirectUri != null) url.append("&post_logout_redirect_uri=").append(enc(postLogoutRedirectUri));
+        return get(url.toString());
+    }
+
+    private int rows(String sql, Object... args) {
+        return jdbc.queryForObject(sql, Integer.class, args);
+    }
+
+    private int loginSessions(String accountId) {
+        return rows("select count(*) from login_sessions where user_account_id = ?::uuid", accountId);
+    }
+
+    private int authorizations(String accountId) {
+        return rows("select count(*) from oauth2_authorization where principal_name = ?", accountId);
+    }
+
+    /** Đổi một ký tự ở đầu phần chữ ký (không phải ký tự cuối: các bit đệm của base64url có thể không làm đổi byte nào). */
+    private static String tampered(String jwt) {
+        int signatureStart = jwt.lastIndexOf('.') + 1;
+        char original = jwt.charAt(signatureStart);
+        return jwt.substring(0, signatureStart) + (original == 'A' ? 'B' : 'A') + jwt.substring(signatureStart + 1);
+    }
+
+    @Test
+    void logout_ends_the_session_removes_every_authorization_and_leaves_nothing_usable() throws Exception {
+        // KT-01, 02, 05, 07, 11, 21
+        newBrowser();
+        String accountId = registerAccount();
+        HttpCookie device = new HttpCookie("DEVICE_KEY", "raw-device-cookie-" + UUID.randomUUID());
+        device.setPath("/");
+        cookies.getCookieStore().add(URI.create(base()), device);
+        JsonNode tokens = exchange(loginAndGetCode());
+        String sid = claims(tokens.path("access_token").asString()).path("sid").asString();
+        JsonNode idToken = claims(tokens.path("id_token").asString());
+        assertThat(idToken.path("sid").asString()).isEqualTo(sid);                  // KT-21: sid là mã phiên ứng dụng
+        assertThat(idToken.propertyNames()).doesNotContain("auth_time");            // KT-21: Spring không sinh nữa (sổ phiên rỗng)
+        assertThat(rows("select count(*) from spring_session where principal_name = ?", accountId)).isEqualTo(1);
+
+        HttpResponse<String> response = logout(tokens.path("id_token").asString(), POST_LOGOUT_URI, "bye");
+
+        assertThat(location(response)).startsWith(POST_LOGOUT_URI).contains("state=bye");
+        assertThat(loginSessions(accountId)).isZero();
+        assertThat(rows("select count(*) from client_sessions where id = ?::uuid", sid)).isZero();
+        assertThat(authorizations(accountId)).isZero();
+        assertThat(rows("select count(*) from spring_session where principal_name = ?", accountId)).isZero();   // KT-11
+        assertThat(cookies.getCookieStore().get(URI.create(base()))).extracting(HttpCookie::getName).contains("DEVICE_KEY");
+        org.mockito.Mockito.verify(webGatewayRevocationClient).revoke(sid);          // KT-07: bộ báo thật tra ra client web-gateway
+
+        // KT-05: không còn dùng được gì
+        assertThat(tokenResponse("grant_type=refresh_token&refresh_token=" + enc(tokens.path("refresh_token").asString())
+                + "&sid=" + enc(sid)).body()).contains("invalid_grant");
+        assertThat(location(get(authorizeUrl("after")))).contains("/login");
+        HttpResponse<String> userinfo = http.send(HttpRequest.newBuilder(URI.create(base() + "/userinfo"))
+                .header("Authorization", "Bearer " + tokens.path("access_token").asString()).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(userinfo.statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    void a_second_logout_with_the_same_hint_goes_home_without_an_error() throws Exception {
+        // KT-14
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+        String hint = tokens.path("id_token").asString();
+        logout(hint, POST_LOGOUT_URI, "one");
+
+        HttpResponse<String> again = logout(hint, POST_LOGOUT_URI, "two");
+
+        assertThat(again.statusCode()).isEqualTo(302);
+        assertThat(location(again)).isEqualTo(base() + "/");
+        assertThat(loginSessions(accountId)).isZero();
+    }
+
+    @Test
+    void a_logout_without_a_login_cookie_ends_nothing_and_still_redirects() throws Exception {
+        // KT-03, 23
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+        JsonNode second = exchange(codeFrom(get(authorizeUrl("again")), "again"));   // hint mới nhất
+        org.mockito.Mockito.clearInvocations(webGatewayRevocationClient);
+
+        newBrowser();   // trình duyệt khác, không cookie
+        HttpResponse<String> response = logout(second.path("id_token").asString(), POST_LOGOUT_URI, "nocookie");
+
+        assertThat(location(response)).startsWith(POST_LOGOUT_URI);
+        assertThat(loginSessions(accountId)).isEqualTo(1);
+        assertThat(authorizations(accountId)).isEqualTo(1);
+        org.mockito.Mockito.verifyNoInteractions(webGatewayRevocationClient);
+        assertThat(tokens.path("refresh_token").asString()).isNotEmpty();
+    }
+
+    @Test
+    void an_unregistered_landing_page_or_a_missing_hint_is_refused_and_the_session_survives() throws Exception {
+        // KT-09, 10
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+        String hint = tokens.path("id_token").asString();
+
+        assertThat(logout(hint, "http://evil.example/after", "x").statusCode()).isEqualTo(400);
+        assertThat(logout(null, POST_LOGOUT_URI, "x").statusCode()).isEqualTo(400);
+
+        assertThat(loginSessions(accountId)).isEqualTo(1);
+        assertThat(authorizations(accountId)).isEqualTo(1);
+    }
+
+    @Test
+    void a_forged_or_garbage_hint_goes_home_and_does_not_touch_the_session() throws Exception {
+        // KT-10, 18
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+
+        for (String bad : new String[]{tampered(tokens.path("id_token").asString()), "garbage", "a.b.c"}) {
+            HttpResponse<String> response = logout(bad, POST_LOGOUT_URI, "x");
+            assertThat(response.statusCode()).isEqualTo(302);
+            assertThat(location(response)).isEqualTo(base() + "/");
+        }
+
+        assertThat(loginSessions(accountId)).isEqualTo(1);
+        assertThat(rows("select count(*) from spring_session where principal_name = ?", accountId)).isEqualTo(1);
+    }
+
+    @Test
+    void the_hint_from_login_time_still_logs_out_after_a_refresh_and_after_a_silent_authentication() throws Exception {
+        // KT-13: làm mới cấp ID token mới; xác thực im lặng đổi bản ghi ủy quyền; hint lúc đăng nhập vẫn dùng được
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode first = exchange(loginAndGetCode());
+        String loginTimeHint = first.path("id_token").asString();
+        String sid = claims(first.path("access_token").asString()).path("sid").asString();
+        JsonNode refreshed = token("grant_type=refresh_token&refresh_token=" + enc(first.path("refresh_token").asString())
+                + "&sid=" + enc(sid));
+        assertThat(refreshed.path("id_token").asString()).isNotEqualTo(loginTimeHint);
+        exchange(codeFrom(get(authorizeUrl("again")), "again"));       // bản ghi ủy quyền thay bằng bản mới
+
+        HttpResponse<String> response = logout(loginTimeHint, POST_LOGOUT_URI, "late");
+
+        assertThat(location(response)).startsWith(POST_LOGOUT_URI);
+        assertThat(loginSessions(accountId)).isZero();
+        assertThat(authorizations(accountId)).isZero();
+    }
+
+    @Test
+    void a_hint_of_another_session_does_not_end_the_session_of_the_cookie() throws Exception {
+        // KT-19
+        newBrowser();
+        String accountId = registerAccount();
+        exchange(loginAndGetCode());
+        CookieManager jarA = cookies; HttpClient httpA = http;
+        newBrowser();
+        JsonNode b = exchange(loginAndGetCode());
+        assertThat(loginSessions(accountId)).isEqualTo(2);
+
+        cookies = jarA; http = httpA;                                   // cookie của A, hint của B
+        HttpResponse<String> response = logout(b.path("id_token").asString(), POST_LOGOUT_URI, "mix");
+
+        assertThat(response.statusCode()).isEqualTo(302);
+        assertThat(loginSessions(accountId)).isEqualTo(2);
+    }
+
+    @Test
+    void two_devices_of_one_account_log_out_independently_even_after_a_silent_authentication_on_the_older_one() throws Exception {
+        // KT-20 (R13): A đăng nhập, B đăng nhập, A xin mã lại, A đăng xuất
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode a1 = exchange(loginAndGetCode());
+        CookieManager jarA = cookies; HttpClient httpA = http;
+        newBrowser();
+        exchange(loginAndGetCode());
+        CookieManager jarB = cookies; HttpClient httpB = http;
+        cookies = jarA; http = httpA;
+        JsonNode a2 = exchange(codeFrom(get(authorizeUrl("again")), "again"));
+
+        HttpResponse<String> response = logout(a2.path("id_token").asString(), POST_LOGOUT_URI, "a");
+
+        assertThat(location(response)).startsWith(POST_LOGOUT_URI);
+        assertThat(loginSessions(accountId)).isEqualTo(1);              // chỉ B còn
+        cookies = jarB; http = httpB;
+        assertThat(location(get(authorizeUrl("b-still")))).contains("code=");   // B vẫn đăng nhập (đăng nhập chung)
+        assertThat(a1.path("id_token").asString()).isNotEmpty();
+    }
+
+    @Test
+    void a_code_issued_before_the_logout_cannot_be_exchanged_after_it() throws Exception {
+        // KT-16
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode first = exchange(loginAndGetCode());
+        String pendingCode = codeFrom(get(authorizeUrl("pending")), "pending");   // mã cấp rồi, chưa đổi
+        logout(first.path("id_token").asString(), POST_LOGOUT_URI, "x");
+
+        HttpResponse<String> late = tokenResponse("grant_type=authorization_code&code=" + enc(pendingCode)
+                + "&redirect_uri=" + enc(REDIRECT_URI) + "&code_verifier=" + CODE_VERIFIER);
+
+        assertThat(late.statusCode()).isEqualTo(400);
+        assertThat(late.body()).contains("invalid_grant").doesNotContain("access_token");
+        assertThat(loginSessions(accountId)).isZero();
+    }
+
+    @Test
+    void the_applications_are_told_only_after_the_transaction_has_committed() throws Exception {
+        // KT-07: lúc báo, phiên và bản ghi ủy quyền đã mất khỏi cơ sở dữ liệu
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+        java.util.concurrent.atomic.AtomicReference<int[]> seen = new java.util.concurrent.atomic.AtomicReference<>();
+        org.mockito.Mockito.doAnswer(call -> {
+            seen.set(new int[]{loginSessions(accountId), authorizations(accountId)});
+            return null;
+        }).when(webGatewayRevocationClient).revoke(org.mockito.ArgumentMatchers.anyString());
+
+        logout(tokens.path("id_token").asString(), POST_LOGOUT_URI, "after-commit");
+
+        assertThat(seen.get()).containsExactly(0, 0);
+    }
+
+    @Test
+    void a_failure_telling_the_applications_does_not_fail_the_logout_and_leaves_one_warning() throws Exception {
+        // KT-07
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+        org.mockito.Mockito.doThrow(new IllegalStateException("bff down")).when(webGatewayRevocationClient)
+                .revoke(org.mockito.ArgumentMatchers.anyString());
+
+        HttpResponse<String> response = logout(tokens.path("id_token").asString(), POST_LOGOUT_URI, "bff-down");
+
+        assertThat(location(response)).startsWith(POST_LOGOUT_URI);
+        assertThat(loginSessions(accountId)).isZero();
+        awaitLogLine(node -> node.toString().contains("could not tell the applications"));
+    }
+
+    @Test
+    void the_hint_never_reaches_the_service_log() throws Exception {
+        // KT-17
+        newBrowser();
+        registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+        String hint = tokens.path("id_token").asString();
+        logout(hint, POST_LOGOUT_URI, "logline");
+
+        awaitLogLine(node -> node.toString().contains("/connect/logout"));
+        String log = java.nio.file.Files.readString(java.nio.file.Path.of(LOG_FILE));
+        assertThat(log).doesNotContain(hint).doesNotContain(hint.substring(hint.indexOf('.') + 1, hint.indexOf('.') + 40));
     }
 
     @Test

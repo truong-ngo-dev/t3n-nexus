@@ -30,7 +30,7 @@ import static vn.t3nexus.oauth2.application.login_session.LoginTestFixture.USER_
 import vn.t3nexus.oauth2.infrastructure.security.oauth2.token.SessionBinding;
 
 /** Điểm móc `save()` trên cổng giả: KT-19, 22 (phần lớp bọc), 23; ADR-0003 mục 3, 9. */
-class LoginSessionAuthorizationServiceTest {
+class SessionBoundAuthorizationServiceTest {
 
     private static final String SID_A = "01938a5e-1c00-7000-8000-0000000000a1";
 
@@ -40,7 +40,7 @@ class LoginSessionAuthorizationServiceTest {
 
     private LoginTestFixture fx;
     private SingleRowAuthorizationService delegate;
-    private LoginSessionAuthorizationService service;
+    private SessionBoundAuthorizationService service;
     private String loginSessionId;
     private Optional<ResolveAuthorizationSession.Result> gate = Optional.empty();
     private int sessionSaves;
@@ -57,9 +57,10 @@ class LoginSessionAuthorizationServiceTest {
         fx.sessions.get(LoginSessionId.of(loginSessionId)).clearDomainEvents();
         gate = Optional.of(new ResolveAuthorizationSession.Result(loginSessionId, SID_A,
                 NOW.plus(Duration.ofDays(30)), Role.USER, "h(raw-device-cookie)"));
-        service = new LoginSessionAuthorizationService(delegate,
+        service = new SessionBoundAuthorizationService(delegate,
                 new RecordClientSessionIssued(countingSaves(fx.sessionRepository), fx.clock), () -> gate,
-                TransactionOperations.withoutTransaction(), fx.sessionRepository, () -> requestedSid);
+                TransactionOperations.withoutTransaction(),
+                new SidAuthorizationLookup(delegate, fx.sessionRepository, () -> requestedSid, hint -> Optional.empty()));
     }
 
     /** Kho phiên giả giữ cùng một đối tượng nên không đọc lại được "chưa lưu": đếm lệnh lưu để chứng minh. */
@@ -263,9 +264,10 @@ class LoginSessionAuthorizationServiceTest {
 
     private void withListeners(IssuedTokenListener... listeners) {
         notified = new java.util.ArrayList<>();
-        service = new LoginSessionAuthorizationService(delegate,
+        service = new SessionBoundAuthorizationService(delegate,
                 new RecordClientSessionIssued(countingSaves(fx.sessionRepository), fx.clock), () -> gate,
-                TransactionOperations.withoutTransaction(), fx.sessionRepository, () -> requestedSid,
+                TransactionOperations.withoutTransaction(),
+                new SidAuthorizationLookup(delegate, fx.sessionRepository, () -> requestedSid, hint -> Optional.empty()),
                 java.util.List.of(listeners));
     }
 

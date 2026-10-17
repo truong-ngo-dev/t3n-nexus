@@ -25,6 +25,20 @@ public interface LoginSessionRepository extends Repository<LoginSession, LoginSe
     /** Các phiên còn hiệu lực của tài khoản trên một thiết bị tại {@code now}. */
     List<LoginSession> findActiveByAccountAndDevice(UserAccountId accountId, DeviceKeyHash deviceKey, Instant now);
 
+    /**
+     * Như {@link #findById} nhưng **khóa hàng phiên** tới hết giao dịch hiện tại, để các thao tác ghi lên cùng một phiên nối tiếp nhau
+     * (cấp phiên ứng dụng, đăng xuất): bên đến sau chờ, rồi đọc lại trạng thái đã commit, kể cả khi phiên đã bị xóa (rỗng). Nếu không,
+     * bên nạp phiên trước khi đăng xuất xóa nó rồi ghi lại sẽ tạo lại phiên đã đăng xuất (R7). Phải gọi trong giao dịch.
+     */
+    Optional<LoginSession> findByIdForUpdate(LoginSessionId id);
+
+    /**
+     * Phiên người dùng còn hiệu lực giữ mã cookie đăng nhập {@code idpSessionId}, kèm các phiên ứng dụng của nó, **khóa hàng** như
+     * {@link #findByIdForUpdate}; dùng khi đăng xuất (tìm theo cookie). Phiên đã quá hạn thì không tìm thấy (INV-ATH-08).
+     * Phải gọi trong giao dịch.
+     */
+    Optional<LoginSession> findActiveByIdpSessionIdForUpdate(String idpSessionId, Instant now);
+
     /** Các phiên đã quá hạn (dọn theo lô, ADR-0003 mục 7). */
     List<LoginSession> findExpired(Instant now, int limit);
 

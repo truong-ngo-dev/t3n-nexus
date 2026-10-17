@@ -1,6 +1,7 @@
 package vn.t3nexus.oauth2.application.login_session.resolve_authorization_session;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.service.IdGenerator;
 import vn.t3nexus.oauth2.domain.login_session.ClientId;
@@ -32,9 +33,10 @@ import java.util.Optional;
  * không còn hoạt động (bị khóa giữa chừng) thì {@code ACCOUNT_NOT_ACTIVE}; lỗi cơ sở dữ liệu cứ lan ra (không nuốt), để không
  * cấp mã khi không đọc được phiên.
  *
- * <p>Chưa gắn {@code @Service}: gắn khi nối lớp bọc {@code OAuth2AuthorizationService} (bước 9a).
+ * <p>Chỉ đọc, không có {@code @Transactional}.
  */
 @Slf4j
+@Service
 public class ResolveAuthorizationSession
         implements CommandHandler<ResolveAuthorizationSession.Command, ResolveAuthorizationSession.Result> {
 

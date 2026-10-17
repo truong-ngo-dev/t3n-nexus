@@ -44,6 +44,7 @@ Các sự kiện về thư viện đã kiểm trên mã (Spring Session JDBC 4.0
 **4. Hợp đồng danh tính: một claim phiên là `sid`.**
 - Claim: mã tài khoản, vai, `sid` (mã phiên ứng dụng của ta), `exp`. Không thêm claim mã phiên người dùng: tra được từ `sid` bằng một
   lần đọc khóa chính ở thao tác hiếm (đăng xuất từ xa trừ phiên đang gọi); thêm claim tốn khoảng 60 byte mỗi yêu cầu.
+- **`sid` của ta khác `sid` mặc định của Spring Authorization Server** (băm mã session HTTP, chỉ ở ID token). Ta cung cấp bean `SessionRegistry` không lưu gì để Spring không sinh `sid` và không kiểm `sid` lúc đăng xuất, vì Spring phải đoán session khi đổi mã (yêu cầu không có cookie) và chọn nhầm khi một người dùng có nhiều thiết bị (đã thử, feature 03 `tech.md` T2). Hint đăng xuất do ta ràng buộc với cookie bằng `idp_session_id`.
 - `SESSION_ID` của Spring chỉ nằm ở cookie và cột `idp_session_id`; **không vào token, event, log**. `authorization_id` chỉ ở cơ sở dữ liệu.
   Rà log che `Cookie`, `Set-Cookie`.
 
@@ -70,7 +71,7 @@ thẳng từ yêu cầu của trình duyệt. Sau này xác thực nhiều lớp
 - Cần tùy biến điểm tra authorization theo token. Mọi kiểu tra cứu khác (access token, ID token, `state`, mã thiết bị, kiểu không
   xác định) trả không tìm thấy; chặn `/oauth2/revoke`, `/oauth2/introspect`. `fillfactor` thấp cho bảng để cập nhật tại chỗ rẻ.
 
-**9. Điểm móc lúc token được cấp** (`save()` của lớp bọc `LoginSessionAuthorizationService`, use case `RecordClientSessionIssued`, cùng giao dịch với bản ghi ủy quyền) gọi `issueClientSession` hoặc `refreshClientSession` của aggregate (chọn theo việc phiên ứng dụng `sid` đã trỏ tới đúng bản ghi ủy quyền này chưa), và aggregate phát `ClientSessionIssued`. Với `issueClientSession`, điểm móc truyền `sid` đã chọn lúc cấp mã (mục 3) làm mã phiên ứng dụng mới, **so `sid` aggregate trả về với `sid` đã nằm trong token và quay lui giao dịch nếu khác** (đua nhau), rồi xóa bản ghi ủy quyền cũ nếu kết quả báo có đổi liên kết. **Không thử lại khi vi phạm ràng buộc duy nhất**: bên thua đã ký token mang `sid` riêng nên không thể hòa giải với phiên của bên thắng, chỉ có thể thất bại và đăng nhập lại. Chỉ có một nơi phát: khi bản ghi có access token chưa bị vô hiệu
+**9. Điểm móc lúc token được cấp** (`save()` của lớp bọc `SessionBoundAuthorizationService`, use case `RecordClientSessionIssued`, cùng giao dịch với bản ghi ủy quyền) gọi `issueClientSession` hoặc `refreshClientSession` của aggregate (chọn theo việc phiên ứng dụng `sid` đã trỏ tới đúng bản ghi ủy quyền này chưa), và aggregate phát `ClientSessionIssued`. Với `issueClientSession`, điểm móc truyền `sid` đã chọn lúc cấp mã (mục 3) làm mã phiên ứng dụng mới, **so `sid` aggregate trả về với `sid` đã nằm trong token và quay lui giao dịch nếu khác** (đua nhau), rồi xóa bản ghi ủy quyền cũ nếu kết quả báo có đổi liên kết. **Không thử lại khi vi phạm ràng buộc duy nhất**: bên thua đã ký token mang `sid` riêng nên không thể hòa giải với phiên của bên thắng, chỉ có thể thất bại và đăng nhập lại. Chỉ có một nơi phát: khi bản ghi có access token chưa bị vô hiệu
 và có mã phiên của ta (loại dịch vụ gọi dịch vụ, loại lần lưu dọn dẹp của thư viện). Mã event lấy từ `jti`. Định danh ghi
 `last_active_at` bằng một câu lệnh có điều kiện, ngưỡng 1 phút (cấu hình).
 

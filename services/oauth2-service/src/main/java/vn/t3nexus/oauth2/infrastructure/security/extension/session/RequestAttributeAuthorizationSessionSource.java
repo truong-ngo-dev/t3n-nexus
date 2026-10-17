@@ -1,5 +1,7 @@
 package vn.t3nexus.oauth2.infrastructure.security.extension.session;
 
+import org.springframework.stereotype.Component;
+
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import vn.t3nexus.oauth2.application.login_session.resolve_authorization_session.ResolveAuthorizationSession;
@@ -10,6 +12,7 @@ import java.util.Optional;
  * Đọc kết quả của cửa kiểm hạn từ thuộc tính của yêu cầu hiện tại ({@link #ATTRIBUTE}), do bộ lọc cửa kiểm hạn đặt. Thuộc
  * tính chỉ sống trong một yêu cầu nên không lẫn giữa các người dùng.
  */
+@Component
 public class RequestAttributeAuthorizationSessionSource implements AuthorizationSessionSource {
 
     public static final String ATTRIBUTE = RequestAttributeAuthorizationSessionSource.class.getName() + ".RESULT";

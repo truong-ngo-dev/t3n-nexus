@@ -1,6 +1,6 @@
 # Xác thực: dữ liệu
 
-> **Trạng thái:** Sống · **Cập nhật:** `2026-10-16` · Đã làm: `user_accounts` (feature 01, migration V12), `login_sessions` và `client_sessions` (feature 02, migration V13). Mục dữ liệu khởi tạo còn là Dự kiến.
+> **Trạng thái:** Sống · **Cập nhật:** `2026-10-17` · Đã làm: `user_accounts` (feature 01, migration V12), `login_sessions` và `client_sessions` (feature 02, migration V13), chỉ mục theo mã cookie đăng nhập (feature 03, V15) và bỏ bảng phiên cũ `oauth_sessions` (feature 03, V16). Dữ liệu khởi tạo Quản trị: script `infra/seed/admin.sql` chạy tay, ngoài Flyway (feature 04).
 > Cơ sở dữ liệu quan hệ, một lược đồ riêng của BC.
 
 ## 1. `user_accounts` (AGG-ATH-01) · Đã làm
@@ -30,7 +30,7 @@ Ràng buộc:
 
 Cột sẽ thêm sau (không có ở C0): `locked_at` (C1b), `email_verified_at` (khi có xác minh).
 
-## 2. `login_sessions` và `client_sessions` (AGG-ATH-02) · Đã làm (lược đồ và kho; migration V13)
+## 2. `login_sessions` và `client_sessions` (AGG-ATH-02) · Đã làm (lược đồ và kho; migration V13, V15)
 
 Phiên đăng nhập hai tầng (ADR-0003). Chỉ giữ phiên đang hoạt động; hết hạn suy ra từ `expires_at` (INV-ATH-08), mọi truy vấn
 "đang sống" lọc theo hạn; dòng quá hạn dọn theo lô sau (Lập lịch, C2b).
@@ -46,7 +46,7 @@ Phiên đăng nhập hai tầng (ADR-0003). Chỉ giữ phiên đang hoạt đ�
 | `issued_at` | `TIMESTAMPTZ` | Lúc nhập mật khẩu |
 | `expires_at` | `TIMESTAMPTZ` | Hạn phiên, đặt lúc mở, không bao giờ đổi; ràng buộc `expires_at > issued_at` |
 
-Chỉ mục: `(user_account_id)`, `(user_account_id, device_key)`, `(expires_at)`.
+Chỉ mục: `(user_account_id)`, `(user_account_id, device_key)`, `(expires_at)`, `(idp_session_id)` (V15: đăng xuất tìm phiên còn sống theo cookie đăng nhập).
 
 **`client_sessions`** (phiên ứng dụng, thực thể con)
 
@@ -54,17 +54,21 @@ Chỉ mục: `(user_account_id)`, `(user_account_id, device_key)`, `(expires_at)
 |---|---|---|
 | `id` | `UUID` khóa chính | Mã phiên ứng dụng = `sid` trong hợp đồng danh tính |
 | `login_session_id` | `UUID` không rỗng | Khóa ngoại tới `login_sessions`, `ON DELETE CASCADE` |
-| `client_id` | `VARCHAR(100)` | Client đã đăng ký của ứng dụng |
+| `client_id` | `VARCHAR(100)` | Mã **nội bộ** của client đã đăng ký (`RegisteredClient.getId()`, ví dụ `web-gateway-client-id`), không phải `client_id` công khai (`web-gateway`); muốn biết ứng dụng nào thì tra lại client đã đăng ký |
 | `authorization_id` | `VARCHAR(100)` | `oauth2_authorization.id` hiện hành, **đổi được** khi xác thực im lặng; không có khóa ngoại vì bảng đó do Spring quản lý |
 | `issued_at` | `TIMESTAMPTZ` | |
 
 Ràng buộc duy nhất: `(login_session_id, client_id)` (INV-ATH-10, chốt cuối khi hai yêu cầu đua nhau; kho dịch thành
 `CLIENT_SESSION_CONFLICT`) và `authorization_id`.
 
-Cách ghi: upsert gốc theo khóa chính; chỉ `idp_session_id` (phiên người dùng) và `authorization_id` (phiên ứng dụng) đổi được.
+Cách ghi: upsert gốc theo khóa chính; chỉ `idp_session_id` (phiên người dùng) và `authorization_id` (phiên ứng dụng) đổi được. Nơi sắp ghi lên một phiên đang sống (cấp phiên ứng dụng ở điểm móc lúc cấp token, đăng xuất) nạp phiên bằng `SELECT id ... FOR UPDATE` rồi đọc, để các thao tác ghi lên cùng một phiên nối tiếp nhau; nếu không, `save` (là `INSERT ... ON CONFLICT DO UPDATE`) sẽ tạo lại phiên vừa bị đăng xuất xóa.
 Cách đọc: JPQL kèm phiên ứng dụng bằng một câu truy vấn; tra theo `sid` qua `client_sessions.id`.
+Tra phiên còn sống theo cookie đăng nhập (đăng xuất): khóa hàng theo `idp_session_id` và `expires_at > now` (mới nhất trước), rồi nạp phiên kèm phiên ứng dụng.
 
-## 3. Dữ liệu khởi tạo · Dự kiến
+Bảng `oauth_sessions` của mô hình phiên cũ đã bỏ ở V16 (không còn ai đọc hay ghi). Bảng `oauth2_authorization` do Spring quản lý; mỗi phiên ứng dụng trỏ tới một bản ghi qua `authorization_id`, và đăng xuất xóa các bản ghi đó cùng giao dịch với việc xóa phiên.
 
-Một dòng `user_accounts` vai `ADMIN`, trạng thái `ACTIVE`, email thuộc miền nội bộ, `password_hash` do script của môi trường
-cung cấp. Chi tiết ở feature 04.
+## 3. Dữ liệu khởi tạo · Đã làm
+
+Một dòng `user_accounts` vai `ADMIN`, trạng thái `ACTIVE`, `registration_method` `CREDENTIAL`, `mfa_enabled` `false`, email thuộc miền nội bộ,
+`password_hash` là chuỗi bcrypt do người vận hành truyền vào. Tạo bằng script `infra/seed/admin.sql` chạy tay (feature 04), **không** nằm trong
+migration Flyway; không có migration nào chèn `user_accounts` (có test quét). Chạy lại không thêm dòng, không đổi mật khẩu đã có.

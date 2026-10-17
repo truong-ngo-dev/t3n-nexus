@@ -1,6 +1,7 @@
 package vn.t3nexus.oauth2.application.login_session.authenticate_with_password;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.oauth2.domain.login_session.DeviceKeyHash;
 import vn.t3nexus.oauth2.domain.login_session.LoginContext;
@@ -35,6 +36,7 @@ import java.util.Optional;
  * ném lỗi (không quay lui giao dịch cùng event, ví dụ ghi trong giao dịch riêng).
  */
 @Slf4j
+@Service
 public class AuthenticateWithPassword
         implements CommandHandler<AuthenticateWithPassword.Command, AuthenticateWithPassword.Result> {
 

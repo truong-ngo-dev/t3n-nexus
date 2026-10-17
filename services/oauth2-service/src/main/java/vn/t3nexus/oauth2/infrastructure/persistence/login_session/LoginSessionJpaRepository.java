@@ -49,6 +49,20 @@ public interface LoginSessionJpaRepository extends JpaRepository<LoginSessionJpa
                                                              @Param("deviceKey") String deviceKey,
                                                              @Param("now") Instant now);
 
+    /** Khóa hàng phiên theo mã (SELECT ... FOR UPDATE); rỗng nếu hàng không còn. Có tác dụng tới hết giao dịch của bên gọi. */
+    @Query(nativeQuery = true, value = "SELECT id FROM login_sessions WHERE id = :id FOR UPDATE")
+    List<UUID> lockById(@Param("id") UUID id);
+
+    /** Khóa hàng phiên còn hiệu lực theo mã cookie đăng nhập của Spring (đăng xuất); mới nhất trước nếu có hai hàng trùng mã. */
+    @Query(nativeQuery = true, value = """
+            SELECT id FROM login_sessions
+            WHERE idp_session_id = :idpSessionId AND expires_at > :now
+            ORDER BY issued_at DESC
+            LIMIT 1
+            FOR UPDATE
+            """)
+    List<UUID> lockActiveByIdpSessionId(@Param("idpSessionId") String idpSessionId, @Param("now") Instant now);
+
     /** Mã các phiên đã quá hạn (cũ nhất trước), giới hạn theo lô; nạp phiên ứng dụng ở bước sau. */
     @Query("select ls.id from LoginSessionJpaEntity ls where ls.expiresAt <= :now order by ls.expiresAt")
     List<UUID> findExpiredIds(@Param("now") Instant now, Pageable limit);

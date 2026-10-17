@@ -3,7 +3,7 @@ info:
   title: Xác thực
   version: 0.1.0
   description: |
-    Sống. Đã làm: `POST /register` (feature 01); đăng nhập, cấp mã và đổi mã lấy token (feature 02). Giới hạn đăng ký theo địa chỉ mạng do cổng truy cập thực hiện (feature 06), chưa làm; giới hạn đăng nhập do chính dịch vụ này thực hiện.
+    Sống. Đã làm: `POST /register` (feature 01); đăng nhập, cấp mã và đổi mã lấy token (feature 02); đăng xuất (`GET`, `POST` `/connect/logout`, feature 03). Giới hạn đăng ký theo địa chỉ mạng do cổng truy cập thực hiện (feature 06), chưa làm; giới hạn đăng nhập do chính dịch vụ này thực hiện.
     Công khai qua cổng truy cập dưới tiền tố `/auth`.
 servers:
   - url: /auth
@@ -132,6 +132,25 @@ paths:
         '200': { description: "`access_token`, `refresh_token`, `id_token`, `expires_in`" }
         '400': { description: "`invalid_grant` (mã sai, thiếu hoặc sai `code_verifier`, phiên hết hạn), `invalid_request`" }
         '401': { description: Client xác thực sai }
+  /connect/logout:
+    get:
+      summary: Đăng xuất (OIDC RP-Initiated Logout)
+      description: |
+        Trình duyệt tới đây sau khi ứng dụng (BFF) đã xóa phiên của nó. Spring Authorization Server kiểm `id_token_hint` (ID token do chính Xác thực cấp, kiểm chữ ký và issuer, **không kiểm hạn**; tra bản ghi theo `sid`), client và `post_logout_redirect_uri` (phải thuộc danh sách đã đăng ký của client).
+        Cookie đăng nhập (`OAUTH2_SESSION`) quyết định phiên nào bị kết thúc: phiên người dùng tìm theo cookie phải chứa phiên ứng dụng `sid` của hint. Khi đó, trong một giao dịch, xóa phiên người dùng, mọi phiên ứng dụng của nó và các bản ghi ủy quyền; rồi hủy session Spring (`DEVICE_KEY` giữ nguyên) và báo BFF xóa mã theo `sid`.
+        Luôn thành công khi yêu cầu hợp lệ: không có cookie, phiên đã hết hạn hoặc đã kết thúc, hint của phiên khác thì không kết thúc gì và vẫn chuyển hướng. Hint không tra được (đã đăng xuất, ký sai, sai chủ) thì về `/` và không động tới session nào, để đăng xuất lần hai không hiện lỗi.
+        Chấp nhận cả `POST` với cùng tham số.
+      operationId: logout
+      parameters:
+        - { name: id_token_hint, in: query, required: true, schema: { type: string }, description: ID token đã cấp cho phiên (có thể đã hết hạn) }
+        - { name: post_logout_redirect_uri, in: query, required: false, schema: { type: string, example: 'http://localhost:4200' }, description: Phải nằm trong danh sách đã đăng ký của client }
+        - { name: state, in: query, required: false, schema: { type: string }, description: Được trả lại ở trang đích }
+        - { name: client_id, in: query, required: false, schema: { type: string } }
+      responses:
+        '302':
+          description: "Về `post_logout_redirect_uri` kèm `state` (khi hint hợp lệ và có trang đích), hoặc về `/` (không có trang đích, hoặc `id_token_hint` không tra được)"
+        '400':
+          description: "`invalid_request`: thiếu `id_token_hint`, trang đích không đăng ký, hoặc `client_id` không khớp. Không kết thúc phiên nào và không chuyển hướng"
 components:
   schemas:
     RegisterRequest:

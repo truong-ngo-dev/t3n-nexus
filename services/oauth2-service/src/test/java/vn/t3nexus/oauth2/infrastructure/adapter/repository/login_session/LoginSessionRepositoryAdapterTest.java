@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import vn.t3nexus.oauth2.infrastructure.PostgresContainerHolder;
 import vn.t3nexus.lib.common.domain.service.UuidV7IdGenerator;
 import vn.t3nexus.oauth2.application.login_session.authenticate_with_password.AuthenticateWithPassword;
+import vn.t3nexus.oauth2.application.login_session.end_login_session.EndLoginSession;
 import vn.t3nexus.oauth2.application.login_session.open_login_session.OpenLoginSession;
 import vn.t3nexus.oauth2.domain.login_session.ClientId;
 import vn.t3nexus.oauth2.domain.login_session.ClientSessionId;
@@ -55,7 +56,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -352,6 +355,16 @@ class LoginSessionRepositoryAdapterTest {
     // ───────────── Truy vấn dùng chỉ mục (KT-21) ─────────────
 
     @Test
+    void the_old_session_table_is_gone_after_the_migrations_and_the_new_ones_exist() {
+        // KT-12: mô hình phiên cũ đã gỡ (V16), chạy Flyway từ trống
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+        assertThat(jdbc.queryForObject("select to_regclass('oauth_sessions')", String.class)).isNull();
+        assertThat(jdbc.queryForObject("select to_regclass('login_sessions')", String.class)).isEqualTo("login_sessions");
+        assertThat(jdbc.queryForObject("select to_regclass('client_sessions')", String.class)).isEqualTo("client_sessions");
+    }
+
+    @Test
     void the_main_lookups_have_an_index_to_use() {
         // Bảng nhỏ thì kế hoạch chọn quét tuần tự dù có chỉ mục; tắt quét tuần tự để chứng minh chỉ mục có sẵn và dùng được.
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
@@ -361,6 +374,7 @@ class LoginSessionRepositoryAdapterTest {
             assertThat(plan(jdbc, "select * from login_sessions where user_account_id = '" + UUID.randomUUID() + "'")).contains("Index");
             assertThat(plan(jdbc, "select * from login_sessions where expires_at <= now() order by expires_at limit 100")).contains("Index");
             assertThat(plan(jdbc, "select * from client_sessions where authorization_id = 'x'")).contains("Index");
+            assertThat(plan(jdbc, "select id from login_sessions where idp_session_id = 'x' and expires_at > now() order by issued_at desc limit 1")).contains("Index");
         });
     }
 
@@ -421,6 +435,110 @@ class LoginSessionRepositoryAdapterTest {
             pool.shutdownNow();
             jdbc.update("delete from login_sessions where id = ?", base.getId().getValue());
             jdbc.update("delete from user_accounts where id = ?", account.getValue());
+        }
+    }
+
+    // ───────────── Tra theo cookie và khóa hàng (đăng xuất) ─────────────
+
+    @Test
+    @Transactional
+    void the_lookup_by_cookie_finds_only_a_living_session_with_its_client_sessions() {
+        UserAccountId account = newAccount();
+        LoginSession alive = openSession(account);
+        alive.issueClientSession(shop, sid(), "auth-1", "jti-1", NOW);
+        LoginSession expired = openSession(account, new DeviceKeyHash("d2"), NOW.minus(Duration.ofDays(40)), NOW.minus(Duration.ofDays(10)));
+        sessions.save(alive);
+        sessions.save(expired);
+        flushAndClear();
+
+        assertThat(sessions.findActiveByIdpSessionIdForUpdate(alive.idpSessionId(), NOW))
+                .get().satisfies(found -> {
+                    assertThat(found.getId()).isEqualTo(alive.getId());
+                    assertThat(found.clientSessions()).hasSize(1);
+                });
+        assertThat(sessions.findActiveByIdpSessionIdForUpdate(expired.idpSessionId(), NOW)).isEmpty();
+        assertThat(sessions.findActiveByIdpSessionIdForUpdate("IDP-UNKNOWN", NOW)).isEmpty();
+    }
+
+    @Test
+    @Transactional
+    void locking_a_session_that_no_longer_exists_gives_nothing() {
+        LoginSession session = openSession(newAccount());
+        sessions.save(session);
+        flushAndClear();
+        sessions.delete(session.getId());
+        flushAndClear();
+
+        assertThat(sessions.findByIdForUpdate(session.getId())).isEmpty();
+    }
+
+    // ───────────── Đăng xuất đua với cấp phiên ứng dụng (KT-15, R7) ─────────────
+
+    /** Cách điểm móc lúc cấp token nạp phiên trước khi sửa và ghi lại (xem `RecordClientSessionIssued`). */
+    private LoginSession loadForIssue(LoginSessionId id) {
+        return sessions.findByIdForUpdate(id).orElseThrow();
+    }
+
+    @Test
+    void a_logout_racing_with_an_issue_never_leaves_a_resurrected_session() throws Exception {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        UserAccountId account = tx.execute(status -> newAccount());
+        LoginSession base = openSession(account);
+        ClientSessionId sidShop = sid();
+        base.issueClientSession(shop, sidShop, "auth-shop", "jti-1", NOW);
+        tx.executeWithoutResult(status -> sessions.save(base));
+        EndLoginSession logout = new EndLoginSession(sessions, Clock.fixed(NOW.plusSeconds(60), ZoneOffset.UTC));
+
+        CountDownLatch issuerLoaded = new CountDownLatch(1);
+        CountDownLatch logoutDone   = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            // Bên cấp nạp phiên rồi chờ đăng xuất xong (chờ có giới hạn: nếu nạp có khóa hàng thì đăng xuất bị chặn và bên cấp
+            // cứ đi tiếp sau thời gian chờ). Cả hai thứ tự kết thúc đều phải cho cùng kết quả cuối: phiên không còn.
+            Future<?> issuer = pool.submit(() -> tx.executeWithoutResult(status -> {
+                LoginSession loaded = loadForIssue(base.getId());
+                issuerLoaded.countDown();
+                awaitQuietly(logoutDone, 1500);
+                loaded.issueClientSession(seller, sid(), "auth-seller", "jti-2", NOW.plusSeconds(60));
+                sessions.save(loaded);
+            }));
+            assertThat(issuerLoaded.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<?> loggingOut = pool.submit(() -> {
+                tx.executeWithoutResult(status ->
+                        logout.handle(new EndLoginSession.Command(base.idpSessionId(), sidShop.getValueAsString())));
+                logoutDone.countDown();
+            });
+
+            Throwable issuerFailure = failureOf(issuer);
+            loggingOut.get(30, TimeUnit.SECONDS);
+
+            assertThat(jdbc.queryForObject("select count(*) from login_sessions where id = ?",
+                    Integer.class, base.getId().getValue())).as("login session resurrected").isZero();
+            assertThat(jdbc.queryForObject("select count(*) from client_sessions where login_session_id = ?",
+                    Integer.class, base.getId().getValue())).as("client session resurrected").isZero();
+            if (issuerFailure != null) assertThat(issuerFailure).isInstanceOf(LoginSessionException.class);
+        } finally {
+            pool.shutdownNow();
+            jdbc.update("delete from login_sessions where id = ?", base.getId().getValue());
+            jdbc.update("delete from user_accounts where id = ?", account.getValue());
+        }
+    }
+
+    private static void awaitQuietly(CountDownLatch latch, long millis) {
+        try {
+            latch.await(millis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static Throwable failureOf(Future<?> future) throws Exception {
+        try {
+            future.get(30, TimeUnit.SECONDS);
+            return null;
+        } catch (ExecutionException e) {
+            return e.getCause();
         }
     }
 

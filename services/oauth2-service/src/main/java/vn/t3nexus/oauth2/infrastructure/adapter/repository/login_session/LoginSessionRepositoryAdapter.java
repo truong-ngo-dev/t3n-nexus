@@ -66,6 +66,18 @@ public class LoginSessionRepositoryAdapter implements LoginSessionRepository {
     }
 
     @Override
+    public Optional<LoginSession> findByIdForUpdate(LoginSessionId id) {
+        if (jpaRepository.lockById(id.getValue()).isEmpty()) return Optional.empty();
+        return findById(id);   // đọc sau khi đã giữ khóa nên thấy trạng thái đã commit của bên giữ khóa trước
+    }
+
+    @Override
+    public Optional<LoginSession> findActiveByIdpSessionIdForUpdate(String idpSessionId, Instant now) {
+        return jpaRepository.lockActiveByIdpSessionId(idpSessionId, now).stream().findFirst()
+                .flatMap(id -> findById(LoginSessionId.of(id)));
+    }
+
+    @Override
     public List<LoginSession> findExpired(Instant now, int limit) {
         List<UUID> ids = jpaRepository.findExpiredIds(now, PageRequest.of(0, limit));
         if (ids.isEmpty()) return List.of();

@@ -1,6 +1,7 @@
 package vn.t3nexus.oauth2.application.login_session.record_client_session_issued;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.oauth2.domain.login_session.ClientId;
 import vn.t3nexus.oauth2.domain.login_session.ClientSession;
@@ -30,9 +31,12 @@ import java.util.Optional;
  * hòa giải được, nên thất bại để giao dịch quay lui. Vì vậy không có vòng thử lại khi vi phạm ràng buộc duy nhất: bên thua chỉ
  * có thể đăng nhập lại.
  *
+ * <p><b>Khóa hàng:</b> phiên được nạp bằng {@code findByIdForUpdate} (trong giao dịch của điểm móc), nên một đăng xuất chạy đồng thời không thể xóa phiên rồi để bên này ghi lại và tạo lại phiên đã đăng xuất (R7); phiên đã bị xóa thì "hết hạn".
+ *
  * <p>Kết quả báo mã {@code authorization_id} cũ (nếu có đổi liên kết) để bên gọi xóa bản ghi ủy quyền cũ trong cùng giao dịch.
  */
 @Slf4j
+@Service
 public class RecordClientSessionIssued
         implements CommandHandler<RecordClientSessionIssued.Command, RecordClientSessionIssued.Result> {
 
@@ -57,7 +61,7 @@ public class RecordClientSessionIssued
         Instant now = clock.instant();
         ClientSessionId sid = ClientSessionId.of(command.sid());
 
-        LoginSession session = loginSessionRepository.findById(LoginSessionId.of(command.loginSessionId()))
+        LoginSession session = loginSessionRepository.findByIdForUpdate(LoginSessionId.of(command.loginSessionId()))
                 .orElseThrow(LoginSessionException::sessionExpired);
 
         if (alreadyLinked(session, sid, command.authorizationId())) {

@@ -1,6 +1,7 @@
 package vn.t3nexus.oauth2.application.login_session.open_login_session;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.service.IdGenerator;
 import vn.t3nexus.lib.observability.logging.LogContext;
@@ -26,9 +27,10 @@ import java.time.Instant;
  * theo mã (một lần đọc khóa chính) thay vì tin dữ liệu đã nằm trong phiên HTTP, để tài khoản bị khóa giữa chừng không mở được
  * phiên. Hạn phiên tính theo vai (T1). Chỉ tạo phiên người dùng; phiên ứng dụng cấp lúc đổi mã lấy token (ADR-0003 mục 5).
  *
- * <p>Chưa gắn {@code @Service}: các cổng chưa có cài đặt trong ngữ cảnh Spring; gắn khi nối bộ xử lý thành công (bước 9a).
+ * <p>Không có {@code @Transactional}: ghi một lần qua kho, tự bảo đảm giao dịch.
  */
 @Slf4j
+@Service
 public class OpenLoginSession implements CommandHandler<OpenLoginSession.Command, OpenLoginSession.Result> {
 
     /**

@@ -33,5 +33,9 @@ public class LoginSessionRepositoryDelegate implements LoginSessionRepository {
     @Override public List<LoginSession> findActiveByAccountAndDevice(UserAccountId accountId, DeviceKeyHash deviceKey, Instant now) {
         return delegate.findActiveByAccountAndDevice(accountId, deviceKey, now);
     }
+    @Override public Optional<LoginSession> findByIdForUpdate(LoginSessionId id) { return delegate.findByIdForUpdate(id); }
+    @Override public Optional<LoginSession> findActiveByIdpSessionIdForUpdate(String idpSessionId, Instant now) {
+        return delegate.findActiveByIdpSessionIdForUpdate(idpSessionId, now);
+    }
     @Override public List<LoginSession> findExpired(Instant now, int limit) { return delegate.findExpired(now, limit); }
 }

@@ -102,6 +102,10 @@ public class LoginTestFixture {
             public List<LoginSession> findActiveByAccountAndDevice(UserAccountId accountId, DeviceKeyHash key, Instant now) {
                 return findActiveByAccount(accountId, now).stream().filter(s -> key.equals(s.deviceKey())).toList();
             }
+            public Optional<LoginSession> findByIdForUpdate(LoginSessionId id) { return findById(id); }
+            public Optional<LoginSession> findActiveByIdpSessionIdForUpdate(String idpSessionId, Instant now) {
+                return sessions.values().stream().filter(s -> idpSessionId.equals(s.idpSessionId()) && s.confirm(now)).findFirst();
+            }
             public List<LoginSession> findExpired(Instant now, int limit) {
                 return sessions.values().stream().filter(s -> !s.confirm(now)).limit(limit).toList();
             }

@@ -1,6 +1,6 @@
 # Xác thực: service (`oauth2-service`)
 
-> **Trạng thái:** Sống · **Cập nhật:** `2026-10-16` · **Mã BC:** `ATH`
+> **Trạng thái:** Sống · **Cập nhật:** `2026-10-17` · **Mã BC:** `ATH`
 >
 > Chỉ ghi kết luận, ở mức aggregate. Mỗi mục có nhãn **Dự kiến** hoặc **Đã làm**; **Đã làm** là phần của feature 01 (Đăng ký) và 02 (Đăng nhập và phiên), còn lại là Dự kiến. Cấu trúc lớp, chữ
 > ký hàm, lớp lỗi nằm ở mã. Aggregate Tài khoản đăng nhập đã chi tiết hóa theo feature 01; aggregate Phiên chi tiết hóa ở feature 02.
@@ -48,7 +48,7 @@ feature đăng nhập và C3c (xác thực nhiều lớp). Đăng ký công khai
 **Cổng (do miền khai báo, cài đặt ở hạ tầng):** kho tài khoản (lưu; kiểm email đã dùng); bộ băm mật khẩu; cổng sinh mã
 (ADR-0001); chính sách miền email nội bộ (INV-ATH-07). Đồng hồ là đầu vào của hàm tạo, không phải cổng của aggregate.
 
-### AGG-ATH-02 Phiên đăng nhập (`LoginSession`) · Đã làm: mở phiên, cấp và làm mới phiên ứng dụng, xác nhận, kết thúc trong miền (feature 02); use case đăng xuất ở feature 03, lý do kết thúc khác ở C1b, C3c
+### AGG-ATH-02 Phiên đăng nhập (`LoginSession`) · Đã làm: mở phiên, cấp và làm mới phiên ứng dụng, xác nhận, kết thúc trong miền (feature 02); use case tự đăng xuất (feature 03), lý do kết thúc khác ở C1b, C3c
 
 **Trách nhiệm:** giữ một phiên đăng nhập đang hoạt động của một tài khoản: phiên người dùng (gốc của aggregate, một lần nhập mật khẩu trên một thiết bị) cùng các phiên ứng dụng bên dưới nó (thực thể con, mỗi ứng dụng người dùng vào một phiên).
 **Bất biến giữ:** INV-ATH-05, 08, 10.
@@ -93,10 +93,12 @@ Phiên người dùng và phiên ứng dụng không giữ mốc hoạt động;
 
 **Hợp đồng danh tính** (`IdentityClaims`) không phải thuộc tính của aggregate: là giá trị miền gồm mã tài khoản, vai, mã phiên ứng dụng và hạn, dựng từ phiên và tài khoản lúc cấp mã (mục 6); hạ tầng chỉ ký và mã hóa nó thành mã đăng nhập.
 
-### Dữ liệu khởi tạo (không phải aggregate) · Dự kiến
+### Dữ liệu khởi tạo (không phải aggregate) · Đã làm
 
-Tài khoản Quản trị có sẵn: một bản ghi tài khoản vai `ADMIN`, mật khẩu băm, email miền nội bộ, tạo bằng script khởi tạo.
-Thỏa INV-ATH-01, 02, 06, 07.
+Tài khoản Quản trị có sẵn: một bản ghi tài khoản vai `ADMIN`, mật khẩu băm, email miền nội bộ, tạo bằng script SQL `infra/seed/admin.sql`
+(feature 04). Thỏa INV-ATH-01, 02, 06, 07, và là đường duy nhất tạo tài khoản nội bộ ở C0 (INV-ATH-11).
+
+Cách chạy: người vận hành chạy tay một lần khi dựng môi trường, **ngoài Flyway và không có bộ nạp trong mã** (mật khẩu băm không vào repo hay migration), truyền email, mật khẩu đã băm bcrypt và miền nội bộ làm tham số. Script kiểm đầu vào trước khi ghi (email thuộc miền nội bộ, đúng dạng bcrypt) và dừng nếu sai; ghi bằng một câu `INSERT ... ON CONFLICT (email) DO NOTHING` nên chạy lại không thêm dòng và không ghi đè mật khẩu; mã tài khoản là UUID v7 dựng bằng SQL. Hướng dẫn và lý do: `infra/seed/README.md`, `stage/c0-foundation/04-seed-admin/tech.md`.
 
 ## 3. Nghiệp vụ liên aggregate
 
@@ -124,7 +126,7 @@ Nghiệp vụ liên quan nhiều aggregate hoặc một aggregate với cấu h�
 | Cấp mã thiết bị (trang đăng nhập cấp cookie `DEVICE_KEY` nếu chưa có, trước khi nhập mật khẩu) | CAP-ATH-02 | C0 | Đã làm |
 | Ghi nhận đăng nhập thất bại (chỉ khi tìm ra tài khoản; phát `LoginFailed`) | CAP-ATH-02 | C0 | Đã làm |
 | Dọn phiên quá hạn và bản ghi ủy quyền mồ côi theo lô (viết ở C0; chạy định kỳ qua Lập lịch ở C2b) | CAP-ATH-03 | C0 viết, C2b chạy | Dự kiến |
-| Đăng xuất (kết thúc phiên người dùng của lần đăng nhập này, xóa bản ghi ủy quyền, báo từng BFF xóa mã) | CAP-ATH-04 | C0 | Dự kiến |
+| Đăng xuất (kết thúc phiên người dùng của lần đăng nhập này tìm theo cookie đăng nhập, xóa bản ghi ủy quyền cùng một giao dịch, báo từng BFF xóa mã sau khi giao dịch xong; luôn thành công) | CAP-ATH-04 | C0 | Đã làm |
 | Đăng xuất từ xa (một thiết bị, mọi thiết bị khác): kiểm mật khẩu, thêm mã một lần qua email khi thiết bị người gọi chưa xác minh; báo chủ tài khoản bằng email | | C3c | Dự kiến |
 | Xin và kiểm mã một lần cho hành động nhạy cảm (khuôn dùng chung, `identity-service/analysis/device.md` mục 3) | | C3c | Dự kiến |
 | Khóa, mở tài khoản | | C1b | Dự kiến |
@@ -140,7 +142,7 @@ Nghiệp vụ liên quan nhiều aggregate hoặc một aggregate với cấu h�
 | `UserAccountRegistered` | Sau khi tạo tài khoản | Mã event, mã tài khoản, email (chuẩn hóa), vai, thời điểm; không mang tên | Định danh, Khách hàng | C0 · C1b / C2a | Đã làm (chỉ ghi nhận trong miền; chưa lưu, chưa gửi) |
 | `SessionIssued` | Chỉ khi mở phiên người dùng (không phát khi cấp phiên ứng dụng hay làm mới) | Mã event, mã phiên người dùng, mã tài khoản, thời điểm, bản băm mã thiết bị, địa chỉ mạng, thông tin thiết bị | Định danh | C0 · C3c | Đã làm (chỉ ghi nhận trong miền; chưa lưu, chưa gửi) |
 | `ClientSessionIssued` (tên chờ chốt) | Mỗi lần cấp token cho một phiên ứng dụng: đổi mã lấy token (sau đăng nhập, xác thực im lặng) và làm mới; phát ở điểm móc lúc token đã được cấp | Mã event, mã phiên người dùng, mã phiên ứng dụng, mã tài khoản, ứng dụng, thời điểm, bản băm mã thiết bị (không có địa chỉ mạng: lời gọi làm mới đến từ BFF) | Định danh (cập nhật hoạt động của thiết bị) | C0 · C3c | Đã làm (chỉ ghi nhận trong miền; chưa lưu, chưa gửi) |
-| `SessionEnded` | Phiên người dùng kết thúc, kéo theo mọi phiên ứng dụng của nó; lý do: tự đăng xuất, bị đăng xuất từ xa, tài khoản bị khóa, đổi mật khẩu. Hết hạn không phát event | Mã event, mã phiên người dùng, mã tài khoản, lý do, thời điểm (không mang mốc hoạt động) | Định danh; Thông báo (khi lý do là bị đăng xuất từ xa, để báo chủ tài khoản) | C0 · C3c | Đã làm trong miền (chưa có use case gọi `end`, feature 03) |
+| `SessionEnded` | Phiên người dùng kết thúc, kéo theo mọi phiên ứng dụng của nó; lý do: tự đăng xuất, bị đăng xuất từ xa, tài khoản bị khóa, đổi mật khẩu. Hết hạn không phát event | Mã event, mã phiên người dùng, mã tài khoản, lý do, thời điểm (không mang mốc hoạt động) | Định danh; Thông báo (khi lý do là bị đăng xuất từ xa, để báo chủ tài khoản) | C0 · C3c | Đã làm (chỉ ghi nhận trong miền; chưa lưu, chưa gửi) |
 | `LoginFailed` | Chỉ khi tìm ra tài khoản | Mã event, mã tài khoản, lý do, địa chỉ mạng, thông tin thiết bị, bản băm mã thiết bị, thời điểm | Định danh | C0 · C3c | Đã làm (chỉ ghi nhận trong miền; chưa lưu, chưa gửi) |
 | Yêu cầu gửi mã một lần | Khi cần xác nhận hành động nhạy cảm bằng email | Mã tài khoản, email, mã, mục đích | Thông báo | C3c | Dự kiến |
 | `UserAccountLocked`, `UserAccountUnlocked` | Quản trị khóa hoặc mở | Mã event, mã tài khoản, người thao tác, thời điểm | Định danh, Nhật ký kiểm toán, và Phiên trong cùng BC (mục 3) | C1b | Dự kiến |
@@ -159,7 +161,7 @@ C0 không nhận event của BC khác. Các phản ứng với event trong cùng
 |---|---|---|---|---|
 | Hợp đồng danh tính | Xác thực công bố, BC khác đọc từ mã đăng nhập | Mã tài khoản (`sub`), vai (`role`), mã phiên của phiên ứng dụng (`sid`), hạn (`exp`). Không có tên, hồ sơ, trạng thái bán. Đúng tại lúc cấp; BC khác tham chiếu chủ sở hữu bằng mã tài khoản | C0 | Đã làm (phía Xác thực) |
 | Làm mới token | BFF gọi Xác thực | Refresh token kèm `sid` (mã phiên ứng dụng); Xác thực tra theo khóa chính; hết hạn phiên hoặc `sid` không khớp thì `invalid_grant` (ADR-0003 mục 8) | C0 | Đã làm (phía Xác thực; BFF gửi `sid` khi làm mới ở feature 05, 06) |
-| Báo BFF xóa mã | Xác thực gọi BFF | Khi phiên kết thúc: báo xóa mã của từng phiên ứng dụng, theo `sid`; không với tới được thì hạn token là lưới an toàn | C0 | Dự kiến |
+| Báo BFF xóa mã | Xác thực gọi BFF | Khi phiên kết thúc: một lời gọi nội bộ cho mỗi phiên ứng dụng của BFF, thân `{"sid": ...}`, sau khi giao dịch xong; không với tới được thì hạn token là lưới an toàn | C0 | Đã làm (phía Xác thực; bên nhận ở feature 06) |
 | Đăng xuất từ xa | Người dùng gọi Xác thực (qua BFF) | Một thiết bị, hoặc mọi thiết bị khác; xác nhận bằng mật khẩu (thêm mã một lần email khi thiết bị người gọi chưa xác minh); thành công cả khi phiên đã kết thúc | C3c | Dự kiến |
 | Thiết bị đã xác minh chưa | Xác thực hỏi Định danh (đọc) | Cho thiết bị của người gọi; lỗi hoặc quá hạn chờ thì coi là chưa xác minh | C3c | Dự kiến |
 | Các phiên đang sống của tài khoản | Định danh hỏi Xác thực (đọc) | Theo tài khoản, để hiển thị "đang đăng nhập" theo thiết bị | C3c | Dự kiến |
@@ -172,8 +174,9 @@ C0 không nhận event của BC khác. Các phản ứng với event trong cùng
 | Mã định danh thực thể | UUID v7 sinh trong miền qua cổng sinh mã, lưu kiểu `uuid` | ADR-0001 |
 | Băm mật khẩu | bcrypt hệ số 10, chuỗi băm tự mô tả; mật khẩu tối đa 64 ký tự ASCII; số lần đăng nhập/giây tối đa đo bằng bộ đo nền | ADR-0002 |
 | Mã đăng nhập và phiên hai tầng | Mã tự mô tả, các BC tự kiểm chữ ký; phiên người dùng ở nơi xác thực, phiên ứng dụng bên dưới trong cùng aggregate; một hạn phiên duy nhất, token cắt theo hạn phiên; refresh token xoay vòng, không phát hiện dùng lại | ADR-0003 |
-| Mã định danh trong token | Một claim `sid` là mã phiên ứng dụng của ta (UUID v7); mã phiên người dùng tra từ `sid`; mã cookie của Spring (`SESSION_ID`, lưu ở `idp_session_id`) chỉ nằm ở cookie và cơ sở dữ liệu của Xác thực, không vào token, event, log; mã `authorization_id` của Spring chỉ nằm ở cơ sở dữ liệu | ADR-0003 |
+| Mã định danh trong token | Một claim `sid` là mã phiên ứng dụng của ta (UUID v7), khác `sid` mặc định của Spring (băm mã session, không còn được sinh); mã phiên người dùng tra từ `sid`; mã cookie của Spring (`SESSION_ID`, lưu ở `idp_session_id`) chỉ nằm ở cookie và cơ sở dữ liệu của Xác thực, không vào token, event, log; mã `authorization_id` của Spring chỉ nằm ở cơ sở dữ liệu | ADR-0003 |
 | Làm mới token | BFF gửi thêm `sid`; Xác thực tra phiên ứng dụng theo khóa chính, lấy `authorization_id`, đọc bản ghi ủy quyền theo khóa chính rồi so refresh token; không chỉ mục trên giá trị token; bước đổi mã ủy quyền cần cách riêng | ADR-0003 |
+| Đăng xuất | Theo OIDC RP-Initiated Logout: BFF xóa phiên của nó rồi trình duyệt tới `/connect/logout` kèm `id_token_hint`; Xác thực tra bản ghi theo `sid` trong hint (kiểm chữ ký, không kiểm hạn), kết thúc phiên tìm theo cookie và xóa bản ghi ủy quyền trong một giao dịch có khóa hàng phiên (không hồi sinh khi đua với cấp token), rồi báo BFF theo `sid`; hint sai hoặc đã dùng thì về trang chủ và không động tới session nào. Sổ phiên của Spring để rỗng nên Spring không sinh `sid` (chọn nhầm khi nhiều thiết bị) và không kiểm `sid` | ADR-0003 |
 | Mã một lần | Mã MFA ở session; mã xác minh thiết bị và mã đăng xuất từ xa ở Redis (khóa theo mục đích và tài khoản, băm HMAC-SHA256, kiểm nguyên tử, hạn 5 phút); Redis lỗi thì từ chối | ADR-0004 |
 | Chống giả mạo yêu cầu | Bật CSRF cho chuỗi dùng cookie ở máy chủ xác thực (miễn `/oauth2/token`) và ở BFF (cookie `XSRF-TOKEN` và header); cookie phiên `HttpOnly`, `Secure`, `SameSite=Lax`; bắt buộc PKCE và `state` | ADR-0005 |
 | Đăng nhập chung giữa ứng dụng | Một máy chủ xác thực cho mọi ứng dụng; trang đăng nhập tùy biến theo ứng dụng | Chờ |
