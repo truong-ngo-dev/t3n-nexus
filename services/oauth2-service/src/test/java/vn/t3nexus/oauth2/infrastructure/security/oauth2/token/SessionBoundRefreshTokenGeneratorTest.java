@@ -36,7 +36,7 @@ class SessionBoundRefreshTokenGeneratorTest {
             new Lifetimes(Duration.ofMinutes(15), Duration.ofDays(7), Duration.ofDays(30)),
             new Lifetimes(Duration.ofMinutes(15), Duration.ofMinutes(30), Duration.ofHours(10)));
 
-    private static final RegisteredClient CLIENT = RegisteredClient.withId("rc-1").clientId("web-gateway")
+    private static final RegisteredClient CLIENT = RegisteredClient.withId("rc-1").clientId("storefront-web")
             .clientSecret("{noop}x").authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
             .redirectUri("http://localhost/cb")

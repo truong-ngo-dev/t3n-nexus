@@ -49,7 +49,7 @@ class DevIssuedTokenLoggerTest {
     }
 
     private static OAuth2Authorization issued() {
-        RegisteredClient client = RegisteredClient.withId("rc-1").clientId("web-gateway").clientSecret("{noop}x")
+        RegisteredClient client = RegisteredClient.withId("rc-1").clientId("storefront-web").clientSecret("{noop}x")
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE).redirectUri("http://localhost/cb").build();
         SessionBinding binding = new SessionBinding("login-1", SID, NOW.plusSeconds(3600), Role.USER);
         return OAuth2Authorization.withRegisteredClient(client).id("auth-1").principalName("user-1")
@@ -69,11 +69,11 @@ class DevIssuedTokenLoggerTest {
 
     @Test
     void the_line_carries_the_tokens_the_account_the_client_and_the_sid() {
-        new DevIssuedTokenLogger(clientsKnowing("rc-1", "web-gateway")).onTokenIssued(issued());
+        new DevIssuedTokenLogger(clientsKnowing("rc-1", "storefront-web")).onTokenIssued(issued());
 
         assertThat(appender.list).singleElement().satisfies(event -> {
             assertThat(event.getLevel()).isEqualTo(Level.INFO);
-            assertThat(event.getFormattedMessage()).contains("sub=user-1", "client=web-gateway", "sid=" + SID,
+            assertThat(event.getFormattedMessage()).contains("sub=user-1", "client=storefront-web", "sid=" + SID,
                     "access_token=ACCESS.TOKEN.VALUE", "refresh_token=REFRESH-TOKEN-VALUE", "id_token=-");
         });
     }

@@ -54,7 +54,7 @@ Chỉ mục: `(user_account_id)`, `(user_account_id, device_key)`, `(expires_at)
 |---|---|---|
 | `id` | `UUID` khóa chính | Mã phiên ứng dụng = `sid` trong hợp đồng danh tính |
 | `login_session_id` | `UUID` không rỗng | Khóa ngoại tới `login_sessions`, `ON DELETE CASCADE` |
-| `client_id` | `VARCHAR(100)` | Mã **nội bộ** của client đã đăng ký (`RegisteredClient.getId()`, ví dụ `web-gateway-client-id`), không phải `client_id` công khai (`web-gateway`); muốn biết ứng dụng nào thì tra lại client đã đăng ký |
+| `client_id` | `VARCHAR(100)` | Mã **nội bộ** của client đã đăng ký (`RegisteredClient.getId()`, ví dụ `storefront-web-client-id`), không phải `client_id` công khai (`storefront-web-bff`); muốn biết ứng dụng nào thì tra lại client đã đăng ký |
 | `authorization_id` | `VARCHAR(100)` | `oauth2_authorization.id` hiện hành, **đổi được** khi xác thực im lặng; không có khóa ngoại vì bảng đó do Spring quản lý |
 | `issued_at` | `TIMESTAMPTZ` | |
 

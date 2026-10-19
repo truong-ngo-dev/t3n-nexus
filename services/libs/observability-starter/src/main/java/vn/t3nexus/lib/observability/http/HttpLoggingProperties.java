@@ -17,6 +17,7 @@ import java.util.Set;
  * @param maskExact      tên trường (chữ thường) luôn che khi khớp đúng
  * @param maskContains   mảnh tên (chữ thường) che khi tên trường chứa nó
  * @param ignorePaths    tiền tố đường dẫn không ghi dòng hoàn tất
+ * @param trustedProxies địa chỉ IP hoặc dải CIDR của proxy mà tiêu đề {@code X-Client-Ip} được tin (mặc định loopback, xem {@link ClientIpResolver})
  */
 @ConfigurationProperties("observability.logging.http")
 public record HttpLoggingProperties(
@@ -28,7 +29,8 @@ public record HttpLoggingProperties(
         @DefaultValue({"otp", "pin", "pass", "cvc", "cvv"}) Set<String> maskExact,
         @DefaultValue({"password", "passwd", "secret", "token", "authorization", "apikey", "api_key", "credential", "cardnumber"})
         List<String> maskContains,
-        @DefaultValue("/actuator") List<String> ignorePaths) {
+        @DefaultValue("/actuator") List<String> ignorePaths,
+        @DefaultValue({"127.0.0.1", "::1"}) List<String> trustedProxies) {
 
     public BodySanitizer.Options sanitizerOptions() {
         return new BodySanitizer.Options(maxBodyBytes, maxValueLength, maxArrayItems, 1000, maskExact, maskContains);

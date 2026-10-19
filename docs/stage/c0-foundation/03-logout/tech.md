@@ -1,7 +1,7 @@
 # Feature 03: giải pháp kỹ thuật
 
 > Mỗi mục: quyết định, phương án đã loại, lý do. Quyết định đúng cho cả BC hoặc mọi BC nằm ở ADR; file này ghi kết quả thử và chi tiết riêng của feature.
-> **T1 đến T6 là kết quả bước 1 của `plan.md` (`2026-10-16`)**: các quan sát lấy từ yêu cầu thật tới `/connect/logout` trên miền phiên của feature 02 (Postgres Testcontainers, client `web-gateway`).
+> **T1 đến T6 là kết quả bước 1 của `plan.md` (`2026-10-16`)**: các quan sát lấy từ yêu cầu thật tới `/connect/logout` trên miền phiên của feature 02 (Postgres Testcontainers, client `storefront-web`).
 > Các cách sửa ghi "Đề xuất" chốt khi làm bước 5.
 
 ## Kết quả thử
@@ -88,8 +88,8 @@ Phần này giải thích nền của quyết định T2 (đọc mã Spring Secu
 
 ## T3. Trang đích sau đăng xuất đã đăng ký (R1) · chốt `2026-10-17`
 
-- **Hiện trạng (đã sửa nhận định ban đầu):** `web-gateway` **đã có** `post_logout_redirect_uris = http://localhost:4200` từ migration V4 (cột `post_logout_redirect_uris` của bảng client, không phải mã Java nên lần rà đầu bằng tìm tên `postLogoutRedirectUri` trong mã đã bỏ sót). Chỉ client dev `postman-dev` chưa có; bước đầu tiên của lần thử dùng trang `http://localhost:8000/web/` nên bị `invalid_request` là đúng.
-- **Quyết định:** giữ trang đích của `web-gateway` ở V4 (khớp `FRONTEND_URL` mặc định của BFF); `RegisteredClientSeeder` đăng ký thêm trang đích cho `postman-dev` (trùng redirect URI của Postman). Spring so khớp chính xác theo tập, không mẫu. Client dev đã tạo từ trước thì không được cập nhật (seed chỉ tạo khi chưa có).
+- **Hiện trạng (đã sửa nhận định ban đầu):** `storefront-web-bff` **đã có** `post_logout_redirect_uris = http://localhost:4200` từ migration V4 (cột `post_logout_redirect_uris` của bảng client, không phải mã Java nên lần rà đầu bằng tìm tên `postLogoutRedirectUri` trong mã đã bỏ sót). Chỉ client dev `postman-dev` chưa có; bước đầu tiên của lần thử dùng trang `http://localhost:8000/web/` nên bị `invalid_request` là đúng.
+- **Quyết định:** giữ trang đích của `storefront-web-bff` ở V4 (khớp `FRONTEND_URL` mặc định của BFF); `RegisteredClientSeeder` đăng ký thêm trang đích cho `postman-dev` (trùng redirect URI của Postman). Spring so khớp chính xác theo tập, không mẫu. Client dev đã tạo từ trước thì không được cập nhật (seed chỉ tạo khi chưa có).
 - **Test:** KT-09 (`an_unregistered_landing_page_or_a_missing_hint_is_refused_and_the_session_survives`; trang đích đăng ký hợp lệ được dùng ở mọi test đăng xuất đầu-cuối).
 
 ## T4. Hint đã mất bản ghi vẫn phải về trạng thái "đã đăng xuất" (R4) · chốt `2026-10-17`
@@ -115,11 +115,11 @@ Phần này giải thích nền của quyết định T2 (đọc mã Spring Secu
 
 ## T7. Hợp đồng báo ứng dụng khi phiên kết thúc (KT-07) · chốt `2026-10-17`
 
-- **Lời gọi:** `POST /webgw/internal/sessions/revoke` tới web-gateway, nội bộ (không qua api-gateway), thân JSON **chỉ có `sid`** (mã phiên ứng dụng, đúng giá trị claim `sid` trong token của phiên đó):
-  `{"sid": "<mã phiên ứng dụng>"}`. Một lời gọi cho mỗi phiên ứng dụng của client `web-gateway` vừa kết thúc; phiên của client khác chưa có BFF để báo ở C0.
-- **Xác thực:** token của service account `oauth2-service-internal` (scope `webgw.internal`), mint mới mỗi lần bằng `client_credentials`; bên nhận kiểm qua JWKS có sẵn.
+- **Lời gọi:** `POST /bff/internal/sessions/revoke` tới storefront-web-bff, nội bộ (không qua api-gateway), thân JSON **chỉ có `sid`** (mã phiên ứng dụng, đúng giá trị claim `sid` trong token của phiên đó):
+  `{"sid": "<mã phiên ứng dụng>"}`. Một lời gọi cho mỗi phiên ứng dụng của client `storefront-web` vừa kết thúc; phiên của client khác chưa có BFF để báo ở C0.
+- **Xác thực:** token của service account `oauth2-service-internal` (scope `storefront.internal`), mint mới mỗi lần bằng `client_credentials`; bên nhận kiểm qua JWKS có sẵn.
 - **Thời điểm:** sau khi giao dịch đăng xuất đã commit (phiên và bản ghi ủy quyền đã mất khỏi cơ sở dữ liệu), trước khi chuyển hướng. Đã kiểm bằng test đọc cơ sở dữ liệu ngay lúc bên báo được gọi.
-- **Lỗi:** không bao giờ ném ra ngoài: không mint được token, web-gateway lỗi hay không với tới được đều chỉ ghi log (mức INFO ở bên gọi HTTP) và đăng xuất vẫn thành công; lỗi còn lại ở bộ xử lý đăng xuất ghi một cảnh báo. Không thử lại ở C0; mã làm mới đã bị xóa và mã truy cập hết hạn ngắn (15 phút, cộng độ lệch 5 giây) là lưới an toàn.
+- **Lỗi:** không bao giờ ném ra ngoài: không mint được token, storefront-web-bff lỗi hay không với tới được đều chỉ ghi log (mức INFO ở bên gọi HTTP) và đăng xuất vẫn thành công; lỗi còn lại ở bộ xử lý đăng xuất ghi một cảnh báo. Không thử lại ở C0; mã làm mới đã bị xóa và mã truy cập hết hạn ngắn (15 phút, cộng độ lệch 5 giây) là lưới an toàn.
 - **Bên nhận (feature 06), việc đã giao:** thân đổi từ `ossId` sang `sid`; khóa Redis và bản ghi phiên của BFF phải tra theo `sid` (claim `sid` của token, thay `oss_id` đã không còn trong token), kể cả bước dọn khi đăng xuất phía BFF (`WebGatewayLogoutSuccessHandler.extractOssId` hiện đọc `oss_id` nên trả `null`). Xóa lặp phải idempotent (đã có: không có ánh xạ thì trả 200).
 - **Hướng sau (không làm ở C0):** Back-Channel Logout chuẩn OIDC (`logout_token`) thay cho lời gọi tự chế; mỗi phiên ứng dụng một `logout_token` mang `sid` này (`deferred.md` khi làm).
 - **Test:** `WebGatewayRevocationClientTest` (4: thân chỉ có `sid`, token mới, các lỗi không ném), `WebGatewayEndedSessionNotifierTest` (3), và đầu-cuối `the_applications_are_told_only_after_the_transaction_has_committed`, `a_failure_telling_the_applications_does_not_fail_the_logout_and_leaves_one_warning`, cộng kiểm `notifyEnded` đúng một lần với đúng `sid` ở test đăng xuất đầu-cuối. Đã phá thử đổi khóa về `ossId` và bỏ lọc client: test đỏ.
@@ -145,7 +145,7 @@ Phần này giải thích nền của quyết định T2 (đọc mã Spring Secu
 
 ## T10. Điều rút ra khi chạy thật bước 8 (`2026-10-17`)
 
-- **`client_sessions.client_id` giữ mã nội bộ của client đã đăng ký** (`RegisteredClient.getId()`, ví dụ `web-gateway-client-id`), không phải `client_id` công khai (`web-gateway`), vì điểm móc lúc cấp token chỉ có `OAuth2Authorization.getRegisteredClientId()`. Bộ báo BFF từng so thẳng chữ `web-gateway` với cột này nên không bao giờ khớp: test đơn vị (giả định tên công khai) và test đầu-cuối (giả ở bộ báo) đều xanh, chỉ lần chạy thật mới thấy log không có dòng báo. Đã sửa bằng tra client qua `RegisteredClientRepository` (T7); test đầu-cuối nay giả ở lời gọi HTTP để bộ báo thật chạy.
+- **`client_sessions.client_id` giữ mã nội bộ của client đã đăng ký** (`RegisteredClient.getId()`, ví dụ `storefront-web-client-id`), không phải `client_id` công khai (`storefront-web-bff`), vì điểm móc lúc cấp token chỉ có `OAuth2Authorization.getRegisteredClientId()`. Bộ báo BFF từng so thẳng chữ `storefront-web-bff` với cột này nên không bao giờ khớp: test đơn vị (giả định tên công khai) và test đầu-cuối (giả ở bộ báo) đều xanh, chỉ lần chạy thật mới thấy log không có dòng báo. Đã sửa bằng tra client qua `RegisteredClientRepository` (T7); test đầu-cuối nay giả ở lời gọi HTTP để bộ báo thật chạy.
   Hệ quả còn mở: sự kiện `ClientSessionIssued` ("ứng dụng") cũng mang mã nội bộ này; khi Định danh cần tên ứng dụng (C3c) thì ghi `client_id` công khai thay vào, hoặc tra lại lúc phát.
 - **Mỗi lần báo BFF để lại một hàng `oauth2_authorization`:** token service account được mint mới mỗi lần (`ClientCredentialsTokenClient`, cố ý không cache), và Spring lưu một bản ghi `client_credentials` cho mỗi token; 6 lần báo để lại 6 hàng của `oauth2-service-internal`, không hàng nào bị xóa. Tốc độ tăng bằng tốc độ đăng xuất. Hướng sửa (không làm ở C0): cache token tới gần hạn ở bên gọi, hoặc để job dọn bản ghi quá hạn (`02-login-session/deferred.md`) xóa luôn các bản ghi `client_credentials`. Đã dọn tay 6 hàng do lần chạy này tạo ở cơ sở dữ liệu dev.
 - **Test cũ chạm cơ sở dữ liệu dev:** `UserAccountApiTest`, `RequestLoggingIntegrationTest`, `UserAccountConcurrencyTest` dùng cơ sở dữ liệu cấu hình sẵn (cục bộ), không phải Testcontainers, nên chạy cả bộ test cũng áp migration lên cơ sở dữ liệu dev: V15 và V16 (bỏ `oauth_sessions`) đã được áp như vậy trước khi chạy thật.

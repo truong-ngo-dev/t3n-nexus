@@ -13,7 +13,7 @@
     <artifactId>reactive-rate-limiter-starter</artifactId>
     <packaging>jar</packaging>
     <name>reactive-rate-limiter-starter</name>
-    <description>Redis sliding window rate limiter — reactive (WebFlux) counterpart of rate-limiter-starter, for gateway-tier consumers (web-gateway, api-gateway)</description>
+    <description>Redis sliding window rate limiter — reactive (WebFlux) counterpart of rate-limiter-starter, for gateway-tier consumers (storefront-web-bff, api-gateway)</description>
 
     <dependencies>
         <dependency>
@@ -23,6 +23,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -42,6 +47,11 @@
         <dependency>
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

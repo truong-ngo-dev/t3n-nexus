@@ -185,6 +185,30 @@ C0 không nhận event của BC khác. Các phản ứng với event trong cùng
 | Event | Ghi nhận trong miền; hộp thư và bus làm ở chặng có bên nhận | Chờ |
 | Giới hạn tần suất | Đăng ký giới hạn theo địa chỉ mạng, do cổng truy cập thực hiện (feature 06); đăng nhập đếm mọi lần thử theo (email, địa chỉ mạng) và theo email, trong bước đăng nhập, Redis lỗi thì mở; mô hình ở `docs/global/3.technical/rate-limiting-layers.md` | Chờ |
 
+### 7.1 Hành vi lỗi theo người gọi
+
+Cùng một lỗi "chưa xác thực" cho kết quả khác nhau tùy người gọi là trình duyệt đang điều hướng hay client giao thức hay `fetch`. Quy tắc (cài ở `AuthenticationEntryPoints`, kiểm bằng `ErrorBehaviorTest`):
+
+1. **Điều hướng trình duyệt** là yêu cầu có `Accept` **nêu rõ** `text/html`. `*/*` và thiếu `Accept` **không** phải điều hướng (cấu hình mặc định của Spring coi chúng là HTML, làm client OIDC, công cụ dòng lệnh và `fetch` bị chuyển hướng sang `/login`).
+2. **Endpoint giao thức luôn 401, không bao giờ chuyển hướng**, kể cả khi `Accept` là HTML: `/userinfo` kèm `WWW-Authenticate: Bearer` (RFC 6750); `/oauth2/token`, `/oauth2/revoke`, `/oauth2/introspect` kèm `WWW-Authenticate: Basic` và thân `{"error":"invalid_client"}` (RFC 6749 mục 5.2).
+3. **403 không bao giờ dẫn tới đăng nhập.** CSRF sai luôn 403 (`dispatcherTypeMatchers(ERROR).permitAll()` để mã lỗi qua được dispatch `/error`).
+4. **Lỗi tham số ở điểm cấp mã** trả về `redirect_uri` đã đăng ký kèm `error`, theo Spring Authorization Server (giữ nguyên); chỉ client có `redirect_uri` hợp lệ mới nhận.
+5. **Trang lỗi cho trình duyệt** là `templates/error/4xx.html`, `5xx.html`, không phải trang Whitelabel của Spring Boot; yêu cầu JSON nhận khung lỗi chung hoặc JSON của Boot.
+
+| Yêu cầu (chưa xác thực, không CSRF) | Điều hướng trình duyệt (`Accept: text/html`) | `application/json`, `*/*`, thiếu `Accept` |
+|---|---|---|
+| `GET /oauth2/authorize` đủ tham số | 302 `/login` | 401 |
+| `GET /oauth2/authorize` thiếu `state` hoặc `code_challenge` | 302 về `redirect_uri` kèm `error=invalid_request` | như bên cạnh |
+| `POST /oauth2/token`, `/oauth2/revoke`, `/oauth2/introspect` thiếu xác thực client | 401 `invalid_client` + `WWW-Authenticate: Basic` | như bên cạnh |
+| `GET /userinfo` thiếu token | 401 + `WWW-Authenticate: Bearer` | như bên cạnh |
+| `GET /api/**` thiếu token | 401 (chuỗi Resource Server) | như bên cạnh |
+| Đường dẫn không tồn tại, `GET /error` | 302 `/login` | 401 |
+| `POST /login`, `/logout`, `PUT /login` thiếu hoặc sai CSRF | 403, trang lỗi | 403 |
+| `POST /register` thân hỏng | 400 | 400 khung lỗi chung |
+| `GET /login`, `/.well-known/openid-configuration`, `/oauth2/jwks` | 200 | 200 |
+
+Đường dẫn không tồn tại cho người chưa đăng nhập không lộ 404: `anyRequest().authenticated()` chặn trước khi tới bước tìm đường dẫn, nên cho điều hướng HTML thì tới đăng nhập, cho người gọi khác thì 401 (mặc định an toàn: đường dẫn thêm sau cần đăng nhập).
+
 ## 8. Hạ tầng cần ở C0
 
 Cơ sở dữ liệu quan hệ và cổng truy cập. Chưa cần bus sự kiện, chưa có hộp thư event.

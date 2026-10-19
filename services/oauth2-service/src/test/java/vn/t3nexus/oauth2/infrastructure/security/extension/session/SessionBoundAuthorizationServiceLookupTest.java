@@ -40,7 +40,7 @@ class SessionBoundAuthorizationServiceLookupTest {
     private static final String SID_B = "01938a5e-1c00-7000-8000-0000000000b1";
     private static final String SID_C = "01938a5e-1c00-7000-8000-0000000000c1";   // phiên ứng dụng mà bản ghi không có ID token
 
-    private static final RegisteredClient CLIENT = RegisteredClient.withId("rc-1").clientId("web-gateway")
+    private static final RegisteredClient CLIENT = RegisteredClient.withId("rc-1").clientId("storefront-web")
             .clientSecret("{noop}x").authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .redirectUri("http://localhost/cb").build();
 

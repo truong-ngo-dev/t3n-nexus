@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * Mint OAuth2 access token qua client_credentials grant — dùng cho service-to-service call cần
  * xác thực (VD internal endpoint bảo vệ bằng OAuth2 Resource Server, xem
- * SessionRevokeController/WebGatewayRevocationClient — oauth2-service tự mint token gọi web-gateway).
+ * SessionRevokeController/StorefrontWebBffRevocationClient — oauth2-service tự mint token gọi storefront-web-bff).
  *
  * Cố ý KHÔNG cache token — caller tần suất thấp (logout, revoke...) thì mint mới mỗi lần đơn giản
  * hơn, không đáng đánh đổi thêm state để tối ưu 1 round-trip. Nếu sau này có caller tần suất cao cần

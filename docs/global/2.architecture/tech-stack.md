@@ -15,7 +15,7 @@
 |--------------|--------------------------------|------------------------------------------------|
 | Framework    | Angular                        | 3 app: storefront, seller-portal, admin-portal |
 | Monorepo     | NX                             | Shared libs, build cache, affected-only CI     |
-| Auth pattern | Authorization Code Flow + PKCE | httpOnly cookie qua web-gateway                |
+| Auth pattern | Authorization Code Flow + PKCE | httpOnly cookie qua storefront-web-bff                |
 
 ## Databases & Storage
 
@@ -43,7 +43,7 @@
 | Hạng mục        | Công nghệ                        | Dùng ở đâu                                             |
 |-----------------|----------------------------------|--------------------------------------------------------|
 | API Gateway     | Spring Cloud Gateway             | Entry point, routing, rate limiting                    |
-| BFF             | Spring (web-gateway)             | Session cookie, token exchange cho 3 Angular app       |
+| BFF             | Spring (storefront-web-bff)             | Session cookie, token exchange cho 3 Angular app       |
 | Workflow engine | Temporal                         | Long-running flows: return, seller onboarding, dispute |
 | Rule engine     | Drools                           | pricing-service — shipping fee, commission             |
 | RPC             | gRPC (grpc-spring-boot-starter)  | pricing-service interface                              |

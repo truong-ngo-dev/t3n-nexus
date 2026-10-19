@@ -1,7 +1,7 @@
 # Spring Security 7 — BFF Login Flow with MFA
 
 **Status**: Implementation Reference  
-**Applies to**: `oauth2-service` (Spring Authorization Server 7.0.5), `web-gateway` (Spring Cloud Gateway)  
+**Applies to**: `oauth2-service` (Spring Authorization Server 7.0.5), `storefront-web-bff` (Spring Cloud Gateway)  
 **Spring Boot**: 4.0.x | **Spring Security**: 7.0.3 | **Spring Authorization Server**: 7.0.5  
 **Xem thêm**: [`spring-security-logout-bff.md`](spring-security-logout-bff.md) — Logout & Remote Revocation
 
@@ -14,7 +14,7 @@
 
 ```
 oauth2-service   # Spring Authorization Server + OAuth2 Client (social login)
-web-gateway      # Spring Cloud Gateway — OAuth2 Client (BFF pattern)
+storefront-web-bff      # Spring Cloud Gateway — OAuth2 Client (BFF pattern)
 ```
 
 ---
@@ -113,8 +113,8 @@ Hook vào persistence lifecycle của `OAuth2Authorization` — khi authorizatio
 
 | Location            | Key / Table                   | Content                                                                          | TTL             |
 |---------------------|-------------------------------|----------------------------------------------------------------------------------|-----------------|
-| Redis (web-gateway) | `spring:session:{wg-sid}`     | `OAuth2AuthorizedClient`, `SecurityContext`                                      | session timeout |
-| Redis (web-gateway) | session ↔ IDP session mapping | mapping giữa web-gateway session và auth session của AS — dùng cho logout/revoke | session timeout |
+| Redis (storefront-web-bff) | `spring:session:{wg-sid}`     | `OAuth2AuthorizedClient`, `SecurityContext`                                      | session timeout |
+| Redis (storefront-web-bff) | session ↔ IDP session mapping | mapping giữa storefront-web-bff session và auth session của AS — dùng cho logout/revoke | session timeout |
 | DB (oauth2-service) | `SPRING_SESSION`              | auth session — `SecurityContext`, OTP, saved request                             | configurable    |
 | DB (oauth2-service) | `OAuth2Authorization`         | `access_token`, `refresh_token`, `id_token`                                      | token lifetime  |
 
@@ -138,7 +138,7 @@ Lý do: OTP lifecycle = session lifecycle — nếu session hết hạn thì OTP
 **Session fixation protection** xảy ra tại:
 1. Sau authentication thành công (LOCAL password hoặc Google callback)
 2. Sau OTT verified (Spring Security `SessionAuthenticationStrategy`)
-3. Sau token exchange thành công tại web-gateway
+3. Sau token exchange thành công tại storefront-web-bff
 
 ---
 
@@ -217,7 +217,7 @@ GET /oauth2/authorize  →  MfaEnforcementFilter → pass → issue code
 
 **Trigger A** — User chủ động login:
 - Angular gọi `GET /oauth2/authorization/{registrationId}` (Spring Security OAuth2 Client tự expose)
-- web-gateway generate `state`, `nonce`, `code_verifier`, `code_challenge = SHA256(code_verifier)`
+- storefront-web-bff generate `state`, `nonce`, `code_verifier`, `code_challenge = SHA256(code_verifier)`
 - Lưu vào Redis session, redirect `/oauth2/authorize?...`
 
 **Trigger B** — Truy cập protected resource khi không có session:
@@ -254,7 +254,7 @@ GET /login/oauth2/code/{registrationId}?code=...&state=...
 
 ## Silent Re-authentication
 
-web-gateway session hết hạn, oauth2-service auth session còn hiệu lực:
+storefront-web-bff session hết hạn, oauth2-service auth session còn hiệu lực:
 - BFF redirect `/oauth2/authorize` (Trigger B)
 - `MfaEnforcementFilter`: authentication đủ factors → pass
 - AS issue authorization code ngay, không hiển thị login form
@@ -280,5 +280,5 @@ Không hoạt động nếu:
 - `MfaEnforcementFilter` đặt trong **AS filter chain** (Order 1), không phải default filter chain (Order 3) — chỉ gate các AS endpoints.
 - Sau OTT auth, principal chuyển từ `OidcUser`/`UserCredentialDetails` sang `UserCredentialDetails` (do `OAuth2UserDetailsService.loadUserByUsername()`). Session attributes (`auth_email`, `auth_device_hash`...) vẫn còn nguyên.
 - `app_mfa_enabled` là claim tạm thời trong `OidcIdToken` của `DefaultOidcUser` — không được publish ra ngoài (không có trong access token hay id token cuối cùng).
-- Auth session (oauth2-service) và web-gateway session dùng cùng tên cookie `SESSION` nhưng trên 2 server khác nhau — không conflict.
+- Auth session (oauth2-service) và storefront-web-bff session dùng cùng tên cookie `SESSION` nhưng trên 2 server khác nhau — không conflict.
 - `OAuth2Authorization` và auth session tồn tại độc lập: revoke token không xóa auth session → silent re-auth vẫn hoạt động.

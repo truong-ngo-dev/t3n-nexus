@@ -1,0 +1,154 @@
+openapi: 3.0.3
+info:
+  title: Cổng ứng dụng Cửa hàng, kênh web (BFF)
+  version: 0.1.0
+  description: |
+    DRAFT. Hệ quả của `service.md`. Phục vụ trình duyệt của ứng dụng Cửa hàng ở cùng nguồn gốc với giao diện (host `shop`, ADR-0006), nên mọi đường dẫn dưới đây là **tương đối**, không tiền tố `/web`.
+    Quy tắc chung: yêu cầu ghi (`POST`, `PUT`, `PATCH`, `DELETE`) của trình duyệt cần header `X-XSRF-TOKEN` khớp cookie `XSRF-TOKEN` (ADR-0005), thiếu hoặc sai trả 403 `CSRF_TOKEN_INVALID`. Cookie phiên `STOREFRONT_SESSION` do BFF đặt, `HttpOnly`.
+servers:
+  - url: /
+paths:
+  /oauth2/authorization/{registrationId}:
+    get:
+      summary: Bắt đầu đăng nhập (do Spring Security OAuth2 Client cung cấp)
+      description: |
+        Chuyển hướng tới điểm cấp mã của Xác thực (host `auth`) kèm `state` và PKCE (`code_challenge`, S256). Giao diện điều hướng cấp cao tới đây khi chưa đăng nhập. `registrationId` là `storefront-web`.
+      operationId: startLogin
+      parameters:
+        - { name: registrationId, in: path, required: true, schema: { type: string, example: storefront-web } }
+      responses:
+        '302': { description: Về điểm cấp mã của Xác thực }
+  /login/oauth2/code/{registrationId}:
+    get:
+      summary: Callback đăng nhập (do Spring Security OAuth2 Client cung cấp)
+      description: |
+        Nhận `code` và `state`, đổi mã lấy token, tạo phiên BFF, lưu token, ghi ánh xạ `sid`, xoay mã CSRF, rồi chuyển về trang đích. Cũng là đường của **xác thực im lặng** (phiên Xác thực còn sống nên cấp mã ngay không qua biểu mẫu); BFF không phân biệt hai trường hợp. `state` sai thì từ chối.
+      operationId: loginCallback
+      parameters:
+        - { name: registrationId, in: path, required: true, schema: { type: string } }
+        - { name: code, in: query, required: true, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+      responses:
+        '302': { description: "Về trang đích sau đăng nhập, kèm cookie `STOREFRONT_SESSION` và `XSRF-TOKEN` mới" }
+  /bff/auth/login:
+    get:
+      summary: Khởi tạo đăng nhập từ giao diện
+      operationId: login
+      responses:
+        '302': { description: "Về `/oauth2/authorization/storefront-web`" }
+  /bff/auth/session:
+    get:
+      summary: Trạng thái đăng nhập của phiên hiện tại, và điểm phát lại mã CSRF
+      description: |
+        Không chuyển hướng. Đã đăng nhập thì trả `userId` (`sub`) và `role` (claim `role`, chuỗi). Chưa đăng nhập thì 401. Phản hồi luôn kèm cookie `XSRF-TOKEN` nếu yêu cầu chưa có, nên giao diện gọi lại điểm này khi nhận 403 `CSRF_TOKEN_INVALID` rồi thử lại đúng một lần.
+      operationId: session
+      security: [{ cookieSession: [] }]
+      responses:
+        '200':
+          description: Phiên hợp lệ
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { description: "Chưa đăng nhập, kèm cookie `XSRF-TOKEN`" }
+  /bff/auth/ws-ticket:
+    get:
+      summary: Ticket dùng một lần cho WebSocket
+      description: Mã dùng một lần, 10 giây, để `websocket-gateway` đổi sang `userId` lúc bắt tay (WebSocket không mang được cookie phiên).
+      operationId: wsTicket
+      security: [{ cookieSession: [] }]
+      responses:
+        '200':
+          description: Ticket
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TicketResponse' }
+        '401': { description: Chưa đăng nhập }
+  /bff/auth/logout:
+    post:
+      summary: Đăng xuất ở BFF
+      description: |
+        Cần mã CSRF. Xóa phiên BFF, ánh xạ `sid` và cookie CSRF, rồi trả **202** (không phải 302, vì lời gọi từ `fetch` không điều hướng cấp cao) kèm `Location` tới `connect/logout` ở host `auth` (`id_token_hint`, `post_logout_redirect_uri`). Giao diện điều hướng tới đó; Xác thực kết thúc phiên và báo lại `{sid}`.
+      operationId: logout
+      security: [{ cookieSession: [], csrfHeader: [] }]
+      responses:
+        '202':
+          description: "Đã xóa phiên BFF (hoặc phiên đã mất, khi đó `Location` là trang đích vì không còn `id_token_hint`)"
+          headers:
+            Location: { description: URL đăng xuất của Xác thực, schema: { type: string } }
+        '403': { description: "`CSRF_TOKEN_INVALID`", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /bff/internal/sessions/revoke:
+    post:
+      summary: Xác thực báo phiên ứng dụng đã kết thúc
+      description: |
+        Chỉ cho Xác thực, bằng token dịch vụ phạm vi `storefront.internal`; không CSRF. Tra ánh xạ theo `sid`, xóa phiên BFF và ánh xạ. Lũy đẳng: không có ánh xạ vẫn 200.
+      operationId: revokeSession
+      security: [{ serviceJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RevokeRequest' }
+      responses:
+        '200': { description: Đã xử lý (kể cả không có ánh xạ) }
+        '400': { description: "`sid` không phải UUID" }
+        '401': { description: Thiếu token }
+        '403': { description: Sai phạm vi token }
+  /api/{service}/{path}:
+    x-hien-co: true
+    get:
+      summary: Chuyển tiếp tới dịch vụ sau kèm token (nhóm tuyến hiện có)
+      description: |
+        Nhóm tuyến `/api/<dịch vụ>/**` (`oauth2`, `identity`, `customer`, `catalog`, `order`) được viết lại thành `/api/**` và gắn token truy cập của phiên (`TokenRelay`); yêu cầu ghi cần CSRF. Cần đăng nhập, trừ nhóm đọc công khai của `catalog` (danh mục, thương hiệu, sản phẩm) và xác minh email của `identity`. Token hết hạn thì BFF làm mới kèm `sid` (tuần tự theo phiên); `invalid_grant` thì xóa phiên và 401; lỗi tạm thời 503.
+        **Tuyến hiện có, chưa thiết kế lại**: mỗi BC sửa tuyến và danh sách công khai của mình khi làm feature tương ứng (`service.md` `TD-05`).
+      operationId: proxyApi
+      parameters:
+        - { name: service, in: path, required: true, schema: { type: string, enum: [oauth2, identity, customer, catalog, order] } }
+        - { name: path, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Phản hồi của dịch vụ sau }
+        '401': { description: "Chưa có phiên, hoặc làm mới bị từ chối (xóa phiên); luôn khung lỗi chung `UNAUTHENTICATED`, không chuyển hướng", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: "Vượt giới hạn người dùng (`TOO_MANY_REQUESTS`), kèm `Retry-After`", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: "Lỗi tạm thời khi làm mới token, phiên được giữ" }
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: STOREFRONT_SESSION
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
+    serviceJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token dịch vụ phạm vi `storefront.internal`, cấp qua `client_credentials`
+  schemas:
+    SessionResponse:
+      type: object
+      required: [userId, role]
+      properties:
+        userId: { type: string, format: uuid, description: Mã tài khoản (`sub`) }
+        role: { type: string, nullable: true, description: "Vai (claim `role`): `USER` hoặc vai nội bộ" }
+    TicketResponse:
+      type: object
+      required: [ticket]
+      properties:
+        ticket: { type: string }
+    RevokeRequest:
+      type: object
+      required: [sid]
+      properties:
+        sid: { type: string, format: uuid, description: Mã phiên ứng dụng ở Xác thực }
+    Error:
+      description: Khung lỗi chung; `code` chữ ổn định để giao diện rẽ nhánh
+      type: object
+      required: [success, code, message]
+      properties:
+        success: { type: boolean, enum: [false] }
+        code:
+          type: string
+          description: "`CSRF_TOKEN_INVALID`, `TOO_MANY_REQUESTS`, `FORBIDDEN`, `UNAUTHENTICATED`, `SERVICE_UNAVAILABLE`"
+        message: { type: string }
+        traceId: { type: string }

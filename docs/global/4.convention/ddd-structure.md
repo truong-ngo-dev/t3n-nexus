@@ -1250,5 +1250,5 @@ public enum UserErrorCode {
 |-------------|------------------------------------------------|
 | admin       | `vn.truongngo.apartcom.one.service.admin`      |
 | oauth2      | `vn.truongngo.apartcom.one.service.oauth2`     |
-| web-gateway | `vn.truongngo.apartcom.one.service.webgateway` |
+| storefront-web-bff | `vn.truongngo.apartcom.one.service.webgateway` |
 | *(TBD)*     | `vn.truongngo.apartcom.one.service.{name}`     |

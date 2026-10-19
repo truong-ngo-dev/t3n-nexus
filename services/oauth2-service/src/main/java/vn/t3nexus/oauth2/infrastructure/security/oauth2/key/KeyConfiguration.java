@@ -80,7 +80,14 @@ public class KeyConfiguration {
         return decoder;
     }
 
+    /**
+     * Bộ sinh token duy nhất mà Spring Authorization Server dùng. Phải là {@code @Primary}: máy chủ tra bean kiểu {@code OAuth2TokenGenerator} bằng
+     * {@code getIfUnique()}, mà {@code SessionBoundRefreshTokenGenerator} cũng là bean cùng kiểu; có hai bean thì {@code getIfUnique()} trả null và
+     * máy chủ âm thầm dùng bộ sinh mặc định, làm refresh token mang TTL cố định của client (24 giờ ở seed V4) thay vì TTL theo vai, cắt theo hạn phiên
+     * (phát hiện khi chạy thật ở feature 06).
+     */
     @Bean
+    @org.springframework.context.annotation.Primary
     public OAuth2TokenGenerator<OAuth2Token> delegatingOAuth2TokenGenerator(
             NimbusJwtEncoder encoder, OAuth2TokenCustomizer<JwtEncodingContext> customizer,
             OAuth2TokenGenerator<OAuth2RefreshToken> refreshTokenGenerator) {

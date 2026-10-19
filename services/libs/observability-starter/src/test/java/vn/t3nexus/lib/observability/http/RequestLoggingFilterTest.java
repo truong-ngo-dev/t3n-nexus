@@ -33,8 +33,9 @@ class RequestLoggingFilterTest {
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
     private final HttpLoggingProperties properties = new HttpLoggingProperties(true, 4096, 200, 3,
             java.util.Set.of(401, 403, 404, 405, 429), java.util.Set.of("otp", "pin", "pass", "cvc", "cvv"),
-            List.of("password", "secret", "token", "authorization"), List.of("/actuator"));
-    private final RequestLoggingFilter filter = new RequestLoggingFilter(properties, new BodySanitizer(properties.sanitizerOptions()));
+            List.of("password", "secret", "token", "authorization"), List.of("/actuator"), List.of("127.0.0.1", "::1"));
+    private final RequestLoggingFilter filter = new RequestLoggingFilter(properties, new BodySanitizer(properties.sanitizerOptions()),
+            new ClientIpResolver(properties.trustedProxies()));
 
     @BeforeEach
     void attach() {
@@ -92,6 +93,21 @@ class RequestLoggingFilterTest {
 
     private static Map<String, String> mdc(ILoggingEvent event) {
         return event.getMDCPropertyMap();
+    }
+
+    @Test
+    void client_ip_comes_from_the_gateway_header_only_when_the_connection_is_from_a_trusted_proxy() throws Exception {
+        var fromGateway = post("/register", REGISTER_BODY);
+        fromGateway.setRemoteAddr("127.0.0.1");
+        fromGateway.addHeader("X-Client-Ip", "203.0.113.9");
+        filter.doFilter(fromGateway, new MockHttpServletResponse(), chain(201, "/register", "register"));
+        assertThat(mdc(appender.list.get(0))).containsEntry("client.ip", "203.0.113.9");
+
+        appender.list.clear();
+        var direct = post("/register", REGISTER_BODY);          // 10.0.0.7 không nằm trong danh sách tin cậy
+        direct.addHeader("X-Client-Ip", "203.0.113.9");
+        filter.doFilter(direct, new MockHttpServletResponse(), chain(201, "/register", "register"));
+        assertThat(mdc(appender.list.get(0))).containsEntry("client.ip", "10.0.0.7");
     }
 
     @Test
@@ -229,7 +245,7 @@ class RequestLoggingFilterTest {
                 throw new IllegalStateException("sanitizer bug");
             }
         };
-        var resilient = new RequestLoggingFilter(properties, brokenSanitizer);
+        var resilient = new RequestLoggingFilter(properties, brokenSanitizer, new ClientIpResolver(properties.trustedProxies()));
 
         resilient.doFilter(post("/orders", "{\"sku\":\"A1\"}"), new MockHttpServletResponse(), chain(400, "/orders", null));
 

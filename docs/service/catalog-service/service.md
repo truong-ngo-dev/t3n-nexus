@@ -220,7 +220,7 @@ N/A — upstream thuần (analysis §8.2).
 | Chiều | Đối tác | Giao thức | Endpoint | Timeout | Retry | Khi đối tác lỗi |
 |---|---|---|---|---|---|---|
 | Outbound | MinIO | S3 API | Tạo presigned PUT URL (TTL 5 phút); kiểm object tồn tại khi confirm | 2s | 1 lần (chỉ thao tác đọc) | Báo lỗi cho seller, không ghi `ProductImage` |
-| Inbound | web-gateway | REST | `/api/**` (gateway rewrite từ `/api/catalog/**`) | | | |
+| Inbound | storefront-web-bff | REST | `/api/**` (gateway rewrite từ `/api/catalog/**`) | | | |
 
 ---
 
@@ -300,10 +300,10 @@ L1 evict trên mọi instance qua Redis pub/sub `catalog:cache:invalidate`.
 
 | Hạng mục | Thiết kế | Phụ thuộc |
 |---|---|---|
-| Danh tính caller | JWT do web-gateway relay; `sub` là định danh người gọi | oauth2-service, web-gateway |
+| Danh tính caller | JWT do storefront-web-bff relay; `sub` là định danh người gọi | oauth2-service, storefront-web-bff |
 | Quyền sở hữu | Use case Seller nạp Product rồi gọi `Product.assertOwnedBy(sellerId)`; khác → 403 `NOT_PRODUCT_OWNER`. Thao tác trên variant còn kiểm variant thuộc đúng sản phẩm (không → 404) | — (nguồn `sellerId`: TQ-08) |
 | Role | Chưa kiểm role — chờ hệ phân quyền riêng (TQ-12). Hiện chỉ yêu cầu đã đăng nhập | — |
-| Truy cập công khai | 5 GET của §5 (`RM-CAT-01`…`05`) permitAll ở cả web-gateway lẫn service | web-gateway |
+| Truy cập công khai | 5 GET của §5 (`RM-CAT-01`…`05`) permitAll ở cả storefront-web-bff lẫn service | storefront-web-bff |
 
 ---
 
@@ -391,7 +391,7 @@ L1 evict trên mọi instance qua Redis pub/sub `catalog:cache:invalidate`.
 
 ## 17. Dependencies
 
-- **Services:** web-gateway (routing + token relay), oauth2-service (JWK). Không cần service nào khác để chạy.
+- **Services:** storefront-web-bff (routing + token relay), oauth2-service (JWK). Không cần service nào khác để chạy.
 - **Infrastructure:** PostgreSQL (`catalog_db`), Redis, MinIO (bucket ảnh), Kafka + Debezium (connector cho `outbox_events`
   và `integration_outbox_events`), các topic ở §7.1.
 
@@ -422,9 +422,9 @@ L1 evict trên mọi instance qua Redis pub/sub `catalog:cache:invalidate`.
 
 | ID | Hạng mục | Hiện trạng | Hệ quả nếu chưa trả | Vì sao hoãn | Trả khi nào | Liên quan |
 |---|---|---|---|---|---|---|
-| `TD-07` | Giới hạn theo seller cho hành động ghi | Chỉ có giới hạn chung 300 req/phút theo user ở web-gateway. Mỗi lần tạo sản phẩm, thêm đơn vị bán được hay sửa đều khuếch đại thành snapshot, xoá cache và (với đơn vị bán được) một dòng tồn kho ở inventory | Tài khoản bị lộ hoặc script lỗi tạo hàng loạt bản nháp và dòng tồn kho | Chưa có định danh seller đáng tin để làm key | Sau `TQ-08`/`TQ-12`. Ngưỡng đề xuất: tạo sản phẩm 60/giờ, thêm đơn vị bán được 600/giờ, sửa 120/phút, xác nhận ảnh 60/giờ (cộng trần số ảnh mỗi sản phẩm) | §13, `TQ-08`, `TQ-12` |
+| `TD-07` | Giới hạn theo seller cho hành động ghi | Chỉ có giới hạn chung 300 req/phút theo user ở storefront-web-bff. Mỗi lần tạo sản phẩm, thêm đơn vị bán được hay sửa đều khuếch đại thành snapshot, xoá cache và (với đơn vị bán được) một dòng tồn kho ở inventory | Tài khoản bị lộ hoặc script lỗi tạo hàng loạt bản nháp và dòng tồn kho | Chưa có định danh seller đáng tin để làm key | Sau `TQ-08`/`TQ-12`. Ngưỡng đề xuất: tạo sản phẩm 60/giờ, thêm đơn vị bán được 600/giờ, sửa 120/phút, xác nhận ảnh 60/giờ (cộng trần số ảnh mỗi sản phẩm) | §13, `TQ-08`, `TQ-12` |
 | `TD-08` | Cơ chế của `rate-limiter-starter` | 429 từ service không có `Retry-After`; lỗi Redis dẫn tới 500 thay vì cho request đi tiếp (chưa có tuỳ chọn `failOpen`); thời gian lấy từ đồng hồ app, không phải Redis; chưa có bộ đếm số lần bị chặn theo luật | Client không biết chờ bao lâu; sự cố Redis kéo theo lỗi ghi; không có số liệu để chỉnh ngưỡng | Chỉ ảnh hưởng vài luồng ghi tần suất thấp | Khi thêm giới hạn thứ hai ở bất kỳ service nào | `rate-limiting-layers.md` |
-| `TD-09` | Lớp gateway (ngoài catalog, ghi lại vì ảnh hưởng luồng duyệt hàng) | Ngưỡng theo IP 300 req/60s chung cho mọi path; IP lấy từ `remoteAddress` (cần xác nhận khi đứng sau load balancer/CDN, nếu không cả sàn dùng chung một bucket); thuật toán ZSET tốn bộ nhớ theo `limit` mỗi key; mỗi request một chuyến Redis | Người dùng chung NAT bị 429 oan; Redis dùng chung với cache L2 bị đè | Đang chạy local, chưa có sơ đồ triển khai | **Trước khi triển khai môi trường thật**: xác nhận cách lấy IP. Khi lên tải: tách ngưỡng theo loại request, đổi sang thuật toán bộ nhớ cố định, đặt `Cache-Control` cho GET công khai | `rate-limiting-layers.md`, api-gateway, web-gateway |
+| `TD-09` | Lớp gateway (ngoài catalog, ghi lại vì ảnh hưởng luồng duyệt hàng) | Ngưỡng theo IP 300 req/60s chung cho mọi path; IP lấy từ `remoteAddress` (cần xác nhận khi đứng sau load balancer/CDN, nếu không cả sàn dùng chung một bucket); thuật toán ZSET tốn bộ nhớ theo `limit` mỗi key; mỗi request một chuyến Redis | Người dùng chung NAT bị 429 oan; Redis dùng chung với cache L2 bị đè | Đang chạy local, chưa có sơ đồ triển khai | **Trước khi triển khai môi trường thật**: xác nhận cách lấy IP. Khi lên tải: tách ngưỡng theo loại request, đổi sang thuật toán bộ nhớ cố định, đặt `Cache-Control` cho GET công khai | `rate-limiting-layers.md`, api-gateway, storefront-web-bff |
 
 ## Tài liệu liên quan
 

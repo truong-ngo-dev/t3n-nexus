@@ -17,7 +17,7 @@ public class UserAccountController {
     private final RegisterUser registerUser;
 
     // Path trần, không tiền tố /api — khớp quy ước của /login, /mfa, /password/setup (cùng service)
-    // và api-gateway route /auth/** (stripPrefix 1 segment): public /auth/register → /register nội bộ.
+    // và host auth của api-gateway (ADR-0006, không tiền tố): địa chỉ công khai http://auth.<miền>/register chính là /register nội bộ.
     // Nằm ngoài /api/** nên không bị apiResourceServerFilterChain (JWT) chặn — xem defaultSecurityFilterChain.
     // Khi lỗi, chỉ email được ghi vào log (mật khẩu không bao giờ).
     @LogRequestFields("email")

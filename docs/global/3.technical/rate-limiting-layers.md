@@ -24,7 +24,7 @@ Phép thử: **quy tắc có nói về ý nghĩa của một hành động nghi�
 | Loại | Chạy ở | Khóa | Phủ | Không phủ |
 |---|---|---|---|---|
 | Theo IP | `api-gateway` | IP của client | Mọi đường dẫn, kể cả `/auth/**` | |
-| Theo người dùng | Mỗi BFF (hiện là `web-gateway`) | Mã tài khoản từ danh tính đã xác thực | `/api/**` đã đăng nhập | Yêu cầu chưa đăng nhập; `/auth/**` (đi thẳng từ `api-gateway`, không qua BFF) |
+| Theo người dùng | Mỗi BFF (hiện là `storefront-web-bff`) | Mã tài khoản từ danh tính đã xác thực | `/api/**` đã đăng nhập | Yêu cầu chưa đăng nhập; `/auth/**` (đi thẳng từ `api-gateway`, không qua BFF) |
 | Danh sách luật theo đường dẫn | `api-gateway` | IP, theo từng đường dẫn và phương thức | Các endpoint nhạy cảm (đăng ký) | |
 
 - Mức toàn cục (IP, người dùng) là lưới an toàn thô để chặn client lỗi hoặc chạy vòng lặp, không phải để chống lạm dụng.
@@ -121,7 +121,7 @@ nếu cần khóa hẹp hơn IP hoặc trạng thái của thực thể thì là
 | Phần | Vị trí | Ghi chú |
 |---|---|---|
 | Bộ đếm cửa sổ trượt qua Redis | `rate-limiter-starter` (`RateLimiter`), `reactive-rate-limiter-starter` cho gateway | Cơ chế dùng chung |
-| Bộ lọc theo IP / theo người dùng | `api-gateway`, `web-gateway` | Đọc `app.ratelimit.default.limit` và `window-seconds`, mặc định 300/60 giây |
+| Bộ lọc theo IP / theo người dùng | `api-gateway`, `storefront-web-bff` | Đọc `app.ratelimit.default.limit` và `window-seconds`, mặc định 300/60 giây. Ở cổng: luật theo đường dẫn trước, mức chung sau; mỗi tầng chỉ đếm yêu cầu nó cho qua; tuyến tới máy chủ giao diện không đếm; Redis lỗi hay im lặng thì mở cửa sau thời gian chờ ngắn (`app.ratelimit.redis-timeout-ms`) |
 | `@RateLimit` + `RateLimitAspect` | `rate-limiter-starter` | Đặt trên `handle()`; khóa là SpEL trên `Command`; ném `RateLimitExceededException` (429), cố ý không phải lỗi miền |
 
 Hạn chế hiện có: `@RateLimit(limit, windowSeconds)` nhận hằng số nên **chưa đọc được từ cấu hình**. Khi luật nhóm 2 đầu tiên
@@ -136,8 +136,8 @@ yêu cầu bị chặn không mở giao dịch.
 | Hành động | Nhóm | Khóa | Mức | Nơi cài | Trạng thái |
 |---|---|---|---|---|---|
 | Mọi yêu cầu | 1, theo IP | IP | 300 / 60 giây | `api-gateway` | Đã có |
-| `/api/**` đã đăng nhập | 1, theo người dùng | Mã tài khoản | 300 / 60 giây | `web-gateway` | Đã có |
-| `POST /auth/register` | 1, luật theo đường dẫn | IP | 10 / giờ | Danh sách luật theo đường dẫn ở `api-gateway` (feature 06) | Chưa làm |
+| `/api/**` đã đăng nhập | 1, theo người dùng | Mã tài khoản | 300 / 60 giây | `storefront-web-bff` | Đã có |
+| `POST /register` ở host `auth` | 1, luật theo đường dẫn | IP | 10 / giờ | Danh sách luật `app.ratelimit.rules` ở `api-gateway` (feature 06) | Đã có |
 | Gửi lại liên kết đặt mật khẩu | 2 | Mã tài khoản | chờ 60 giây giữa hai lần | `oauth2-service` | Đã có (cần sửa chiếm chỗ nguyên tử) |
 | Gửi lại xác minh | 2 | Email | 3 / giờ | BC Định danh | Chưa làm |
 | Đăng nhập | 2, đếm mọi lần thử | (Email, IP) mức thấp; riêng email mức cao hơn | (email, IP) 5 lần/5 phút; email 15 lần/15 phút (`02-login-session/tech.md` T3) | `oauth2-service`, bước đăng nhập | Chưa làm |

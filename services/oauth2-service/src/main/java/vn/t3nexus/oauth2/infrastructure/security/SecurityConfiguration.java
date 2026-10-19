@@ -6,7 +6,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -20,13 +19,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
-import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
@@ -75,7 +72,7 @@ public class SecurityConfiguration {
     private final DeviceKeyHasher                  deviceKeyHasher;
     private final java.time.Clock                  clock;
 
-    @Value("${app.cors.allowed-origins:http://localhost:4200}")
+    @Value("${app.cors.allowed-origins:http://*.localhost:*}")
     private String allowedOrigins;
 
     @Value("${server.servlet.session.cookie.secure:true}")
@@ -134,9 +131,7 @@ public class SecurityConfiguration {
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                         .anyRequest().authenticated())
                 .addFilterAfter(new UserIdLogContextFilter(), AuthorizationFilter.class)
-                .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
-                        new LoginUrlAuthenticationEntryPoint("/login"),
-                        new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(AuthenticationEntryPoints.browserAndProtocol()))
                 .addFilterBefore(new LoginRateLimitFilter(rateLimiter, loginRateLimitProperties), UsernamePasswordAuthenticationFilter.class)
                 .formLogin(conf -> conf
                         .loginPage("/login")
@@ -181,7 +176,7 @@ public class SecurityConfiguration {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+        configuration.setAllowedOriginPatterns(Arrays.stream(allowedOrigins.split(",")).map(String::strip).filter(s -> !s.isEmpty()).toList());
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowedMethods(List.of("*"));
         configuration.setAllowCredentials(true);

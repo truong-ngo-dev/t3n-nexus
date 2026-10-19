@@ -10,7 +10,7 @@ POST {{oauthUrl}}/oauth2/token
 Authorization: Basic oauth2-service-internal changeme-internal-client-secret
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=client_credentials&scope=webgw.internal
+grant_type=client_credentials&scope=storefront.internal
 
 ### 1. Tạo job ONE_OFF — SỬA "dueAt" thành thời điểm gần tương lai (vài chục giây sau "now") trước khi chạy
 # @name createOneOff

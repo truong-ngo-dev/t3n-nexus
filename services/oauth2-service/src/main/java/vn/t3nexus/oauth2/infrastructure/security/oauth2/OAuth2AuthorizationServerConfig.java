@@ -5,7 +5,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.MediaType;
+import vn.t3nexus.oauth2.infrastructure.security.AuthenticationEntryPoints;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthentication;
 import org.springframework.security.config.Customizer;
@@ -21,8 +21,6 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.transaction.support.TransactionOperations;
 import vn.t3nexus.oauth2.application.login_session.record_client_session_issued.RecordClientSessionIssued;
 import vn.t3nexus.oauth2.application.login_session.resolve_authorization_session.ResolveAuthorizationSession;
@@ -82,9 +80,7 @@ public class OAuth2AuthorizationServerConfig {
                 .addFilterAfter(new UserIdLogContextFilter(), AuthorizationFilter.class)
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .anonymous(AbstractHttpConfigurer::disable)
-                .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
-                        new LoginUrlAuthenticationEntryPoint("/login"),
-                        new MediaTypeRequestMatcher(MediaType.TEXT_HTML)));
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(AuthenticationEntryPoints.browserAndProtocol()));
 
         return http.build();
     }

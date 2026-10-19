@@ -15,13 +15,13 @@
         <processorPath useClasspath="false">
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.42/lombok-1.18.42.jar" />
         </processorPath>
-        <module name="web-gateway" />
         <module name="scheduler-service" />
         <module name="customer-service" />
         <module name="observability-starter" />
         <module name="catalog-service" />
         <module name="common-utils" />
         <module name="inapp-worker" />
+        <module name="storefront-web-bff" />
         <module name="event-sourcing-starter" />
         <module name="reactive-rate-limiter-starter" />
         <module name="notification-service" />
@@ -43,6 +43,7 @@
     <bytecodeTargetLevel>
       <module name="notification" target="21" />
       <module name="web-commons" target="21" />
+      <module name="web-gateway" target="21" />
     </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
@@ -69,6 +70,7 @@
       <module name="rate-limiter-starter" options="-parameters" />
       <module name="reactive-rate-limiter-starter" options="-parameters" />
       <module name="scheduler-service" options="-parameters" />
+      <module name="storefront-web-bff" options="-parameters" />
       <module name="web-gateway" options="-parameters" />
       <module name="websocket-gateway" options="-parameters" />
     </option>

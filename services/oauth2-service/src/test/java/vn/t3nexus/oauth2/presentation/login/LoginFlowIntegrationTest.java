@@ -59,9 +59,9 @@ class LoginFlowIntegrationTest {
     private static final String PASSWORD     = "Matkhau123";
     static final String LOG_FILE = "target/login-flow-test/oauth2-service.json";
 
-    private static final String CLIENT_ID    = "web-gateway";
+    private static final String CLIENT_ID    = "storefront-web";
     private static final String CLIENT_SECRET = "secret";
-    private static final String REDIRECT_URI = "http://localhost:8000/web/login/oauth2/code/web-gateway";
+    private static final String REDIRECT_URI = "http://shop.localhost:8000/login/oauth2/code/storefront-web";
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
@@ -71,8 +71,8 @@ class LoginFlowIntegrationTest {
     }
 
     @MockitoBean RateLimiter rateLimiter;
-    // Mock ở lời gọi HTTP sang web-gateway (không phải ở EndedSessionNotifier) để chạy thật bộ báo và việc tra client đã đăng ký
-    @MockitoBean vn.t3nexus.oauth2.infrastructure.adapter.http.WebGatewayRevocationClient webGatewayRevocationClient;
+    // Mock ở lời gọi HTTP sang storefront-web-bff (không phải ở EndedSessionNotifier) để chạy thật bộ báo và việc tra client đã đăng ký
+    @MockitoBean vn.t3nexus.oauth2.infrastructure.adapter.http.StorefrontWebBffRevocationClient storefrontWebBffRevocationClient;
 
     @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
@@ -355,6 +355,30 @@ class LoginFlowIntegrationTest {
                 .isEqualTo(400);
     }
 
+    /**
+     * Hạn refresh token lưu trong bản ghi ủy quyền phải theo cấu hình theo vai ({@code app.session.user.refresh-ttl}, mặc định 7 ngày), cắt theo hạn phiên,
+     * không phải TTL cố định của client đăng ký (24 giờ ở seed V4). Phát hiện khi chạy thật ở profile dev: refresh-ttl 3 phút mà cột
+     * {@code refresh_token_expires_at} ghi phát hành cộng 24 giờ. Kiểm cả lần cấp ban đầu và lần làm mới (xoay mã).
+     */
+    @Test
+    void the_stored_refresh_token_expiry_follows_the_role_ttl_not_the_clients_fixed_ttl() throws Exception {
+        newBrowser();
+        String accountId = registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+        String sid = claims(tokens.path("access_token").asString()).path("sid").asString();
+
+        long seconds = refreshTtlSeconds(accountId);
+        assertThat(seconds).as("lần cấp ban đầu").isEqualTo(7L * 24 * 3600);
+
+        token("grant_type=refresh_token&refresh_token=" + enc(tokens.path("refresh_token").asString()) + "&sid=" + enc(sid));
+        assertThat(refreshTtlSeconds(accountId)).as("sau khi làm mới").isEqualTo(7L * 24 * 3600);
+    }
+
+    private long refreshTtlSeconds(String accountId) {
+        return jdbc.queryForObject("select extract(epoch from (refresh_token_expires_at - refresh_token_issued_at))::bigint "
+                + "from oauth2_authorization where principal_name = ?", Long.class, accountId);
+    }
+
     @Test
     void a_refresh_with_the_sid_of_another_session_is_rejected() throws Exception {
         newBrowser();
@@ -539,6 +563,26 @@ class LoginFlowIntegrationTest {
         assertThat(jdbc.queryForObject("select count(*) from login_sessions", Integer.class)).isZero();
     }
 
+    /**
+     * Cách `sendError` của bộ lọc CSRF đi qua cấu hình: 403 bị chuyển sang `/error`, nên `/error` phải được phép (dòng
+     * {@code dispatcherTypeMatchers(ERROR).permitAll()} ở `SecurityConfiguration`). Thiếu thì yêu cầu HTML bị đẩy về `/login`, yêu cầu JSON
+     * (không khớp điểm vào `text/html`) mới ra 403. Test kiểm cả ba kiểu `Accept` đều ra 403 đúng.
+     */
+    @Test
+    void a_csrf_rejection_is_403_whatever_the_accept_header_and_never_a_redirect_to_login() throws Exception {
+        newBrowser();
+        registerAccount();
+        get(authorizeUrl("x"));
+
+        for (String accept : new String[] {"text/html", "application/json", "*/*"}) {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(base() + "/login"))
+                    .header("Content-Type", "application/x-www-form-urlencoded").header("Accept", accept)
+                    .POST(HttpRequest.BodyPublishers.ofString("username=" + enc(email) + "&password=" + enc(PASSWORD))).build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).as("Accept: %s, Location: %s", accept, response.headers().firstValue("Location").orElse("-")).isEqualTo(403);
+        }
+    }
+
     @Test
     void a_login_over_the_attempt_limit_gets_429_with_retry_after_and_never_reaches_the_password_check() throws Exception {
         newBrowser();
@@ -638,7 +682,7 @@ class LoginFlowIntegrationTest {
 
     // ───────────── Đăng xuất (feature 03): KT-01 đến KT-21 ─────────────
 
-    private static final String POST_LOGOUT_URI = "http://localhost:4200";   // đã đăng ký cho web-gateway ở V4
+    private static final String POST_LOGOUT_URI = "http://shop.localhost:8000/";   // đã đăng ký cho storefront-web (host shop, ADR-0006)
 
     private HttpResponse<String> logout(String hint, String postLogoutRedirectUri, String state) throws Exception {
         StringBuilder url = new StringBuilder(base() + "/connect/logout?state=" + state);
@@ -689,7 +733,7 @@ class LoginFlowIntegrationTest {
         assertThat(authorizations(accountId)).isZero();
         assertThat(rows("select count(*) from spring_session where principal_name = ?", accountId)).isZero();   // KT-11
         assertThat(cookies.getCookieStore().get(URI.create(base()))).extracting(HttpCookie::getName).contains("DEVICE_KEY");
-        org.mockito.Mockito.verify(webGatewayRevocationClient).revoke(sid);          // KT-07: bộ báo thật tra ra client web-gateway
+        org.mockito.Mockito.verify(storefrontWebBffRevocationClient).revoke(sid);          // KT-07: bộ báo thật tra ra client storefront-web-bff
 
         // KT-05: không còn dùng được gì
         assertThat(tokenResponse("grant_type=refresh_token&refresh_token=" + enc(tokens.path("refresh_token").asString())
@@ -724,7 +768,7 @@ class LoginFlowIntegrationTest {
         String accountId = registerAccount();
         JsonNode tokens = exchange(loginAndGetCode());
         JsonNode second = exchange(codeFrom(get(authorizeUrl("again")), "again"));   // hint mới nhất
-        org.mockito.Mockito.clearInvocations(webGatewayRevocationClient);
+        org.mockito.Mockito.clearInvocations(storefrontWebBffRevocationClient);
 
         newBrowser();   // trình duyệt khác, không cookie
         HttpResponse<String> response = logout(second.path("id_token").asString(), POST_LOGOUT_URI, "nocookie");
@@ -732,7 +776,7 @@ class LoginFlowIntegrationTest {
         assertThat(location(response)).startsWith(POST_LOGOUT_URI);
         assertThat(loginSessions(accountId)).isEqualTo(1);
         assertThat(authorizations(accountId)).isEqualTo(1);
-        org.mockito.Mockito.verifyNoInteractions(webGatewayRevocationClient);
+        org.mockito.Mockito.verifyNoInteractions(storefrontWebBffRevocationClient);
         assertThat(tokens.path("refresh_token").asString()).isNotEmpty();
     }
 
@@ -855,7 +899,7 @@ class LoginFlowIntegrationTest {
         org.mockito.Mockito.doAnswer(call -> {
             seen.set(new int[]{loginSessions(accountId), authorizations(accountId)});
             return null;
-        }).when(webGatewayRevocationClient).revoke(org.mockito.ArgumentMatchers.anyString());
+        }).when(storefrontWebBffRevocationClient).revoke(org.mockito.ArgumentMatchers.anyString());
 
         logout(tokens.path("id_token").asString(), POST_LOGOUT_URI, "after-commit");
 
@@ -868,7 +912,7 @@ class LoginFlowIntegrationTest {
         newBrowser();
         String accountId = registerAccount();
         JsonNode tokens = exchange(loginAndGetCode());
-        org.mockito.Mockito.doThrow(new IllegalStateException("bff down")).when(webGatewayRevocationClient)
+        org.mockito.Mockito.doThrow(new IllegalStateException("bff down")).when(storefrontWebBffRevocationClient)
                 .revoke(org.mockito.ArgumentMatchers.anyString());
 
         HttpResponse<String> response = logout(tokens.path("id_token").asString(), POST_LOGOUT_URI, "bff-down");
@@ -1009,5 +1053,66 @@ class LoginFlowIntegrationTest {
                 "%" + raw + "%")).isZero();
         assertThat(tokens.toString()).doesNotContain(raw);
         assertThat(jdbc.queryForObject("select count(*) from login_sessions where device_key = ?", Integer.class, raw)).isZero();
+    }
+
+    // ───────────── Nguồn gốc theo subdomain (feature 06, nhóm E, ADR-0006): KT-29, 30, 32, 35 ─────────────
+
+    private static final String ISSUER = "http://auth.localhost:8000";
+
+    @Test
+    void tokens_carry_the_auth_host_as_issuer_without_the_old_prefix() throws Exception {
+        // KT-29
+        newBrowser();
+        registerAccount();
+
+        JsonNode tokens = exchange(loginAndGetCode());
+
+        for (String name : new String[]{"access_token", "id_token"}) {
+            assertThat(claims(tokens.path(name).asString()).path("iss").asString()).as(name).isEqualTo(ISSUER);
+        }
+    }
+
+    @Test
+    void the_login_page_cookies_are_host_only_and_never_use_the_bff_cookie_names() throws Exception {
+        // KT-30: cookie của Xác thực không có Domain (không chia sẻ giữa subdomain) và khác tên cookie của BFF
+        newBrowser();
+
+        List<String> setCookies = get(base() + "/login").headers().allValues("Set-Cookie");
+
+        assertThat(setCookies).isNotEmpty().noneMatch(c -> c.toLowerCase().contains("domain="));
+        assertThat(setCookies).extracting(c -> c.substring(0, c.indexOf('=')))
+                .isSubsetOf("DEVICE_KEY", "XSRF-TOKEN", "OAUTH2_SESSION")
+                .doesNotContain("STOREFRONT_SESSION", "WEBGW_SESSION");
+    }
+
+    @Test
+    void the_storefront_client_accepts_only_the_shop_host_uris_and_the_old_ones_are_refused() throws Exception {
+        // KT-32: seeder đặt lại danh sách URI theo cấu hình, xóa URI cũ (localhost:8000/web, localhost:4200)
+        Map<String, Object> client = jdbc.queryForMap(
+                "select redirect_uris, post_logout_redirect_uris from oauth2_registered_client where client_id = ?", CLIENT_ID);
+        assertThat(client.get("redirect_uris")).isEqualTo(REDIRECT_URI);
+        assertThat(client.get("post_logout_redirect_uris")).isEqualTo(POST_LOGOUT_URI);
+
+        newBrowser();
+        String oldRedirect = "http://localhost:8000/web/login/oauth2/code/storefront-web";
+        assertNoCodeWasIssuedTo(get(authorizeUrlFor(CLIENT_ID, oldRedirect)), oldRedirect);
+
+        registerAccount();
+        JsonNode tokens = exchange(loginAndGetCode());
+        assertThat(logout(tokens.path("id_token").asString(), "http://localhost:4200", "x").statusCode()).isEqualTo(400);
+    }
+
+    @Autowired org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource;
+
+    @Test
+    void cors_allows_dev_subdomain_origins_with_credentials_and_nobody_else() {
+        // KT-35: mẫu http://*.localhost:*, vẫn cho cookie; nguồn gốc lạ không được cho phép; không bao giờ trả * kèm cookie
+        var request = new org.springframework.mock.web.MockHttpServletRequest("OPTIONS", "/api/v1/me/password/status");
+        var config = corsConfigurationSource.getCorsConfiguration(request);
+
+        assertThat(config).isNotNull();
+        assertThat(config.checkOrigin("http://shop.localhost:4200")).isEqualTo("http://shop.localhost:4200");
+        assertThat(config.checkOrigin("http://evil.example")).isNull();
+        assertThat(config.getAllowCredentials()).isTrue();
     }
 }

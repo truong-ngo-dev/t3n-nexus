@@ -122,7 +122,7 @@ consume các domain event mỏng của catalog (`ProductPublished`, `VariantPric
 |---|---|---|---|---|---|---|
 | Outbound | Elasticsearch | HTTP | Truy vấn tìm kiếm, ghi document | 300ms cho truy vấn *(đề xuất, `TD-01`)* | Không retry truy vấn (làm tăng tải đúng lúc quá tải) | Circuit breaker; trả bản cache cũ còn trong 60s nếu có, không thì 503 kèm `Retry-After` |
 | Outbound | Redis | RESP | Micro-cache | 20ms | Không | Bỏ qua cache, đi thẳng Elasticsearch (cache là tối ưu, không phải điều kiện) |
-| Inbound | web-gateway | REST | `/api/search/**` (công khai) | | | |
+| Inbound | storefront-web-bff | REST | `/api/search/**` (công khai) | | | |
 
 ---
 
@@ -231,7 +231,7 @@ khỏi phần cache được.
 |---|---|---|
 | Danh tính caller | Không dùng. Kết quả giống nhau cho Guest và người đã đăng nhập (analysis §4). Khi có cá nhân hoá: `SearchContext` mang `customerId` hoặc `guestId` (chưa dùng) | `Q-SRC-10` |
 | Quyền sở hữu | N/A | — |
-| Role | Không có; toàn bộ endpoint công khai, cần `permitAll` ở cả web-gateway và service | web-gateway |
+| Role | Không có; toàn bộ endpoint công khai, cần `permitAll` ở cả storefront-web-bff và service | storefront-web-bff |
 | Chặn lạm dụng truy vấn | Trần `size`; trần độ sâu trang; độ dài tối đa của `q`; số giá trị tối đa mỗi bộ lọc; số bộ lọc tối đa mỗi truy vấn — con số chốt ở `TQ-09` | `Q-SRC-09` |
 | Giới hạn tần suất | Dựa vào giới hạn theo IP ở api-gateway. Ngưỡng hiện tại rất chặt cho luồng duyệt hàng: `TD-03` | api-gateway |
 
@@ -281,7 +281,7 @@ khỏi phần cache được.
 
 ## 17. Dependencies
 
-- **Services:** catalog-service (snapshot, cây danh mục và metadata), inventory-service (mức tồn kho — chưa có), web-gateway
+- **Services:** catalog-service (snapshot, cây danh mục và metadata), inventory-service (mức tồn kho — chưa có), storefront-web-bff
   (định tuyến công khai `/api/search/**`).
 - **Infrastructure:** Elasticsearch (index `products` cùng alias đọc và ghi), Kafka (các topic ở §7.2 và consumer group
   `search-catalog`, `search-metadata`, `search-stock`), Redis (micro-cache).

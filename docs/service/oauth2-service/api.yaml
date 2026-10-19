@@ -4,9 +4,9 @@ info:
   version: 0.1.0
   description: |
     Sống. Đã làm: `POST /register` (feature 01); đăng nhập, cấp mã và đổi mã lấy token (feature 02); đăng xuất (`GET`, `POST` `/connect/logout`, feature 03). Giới hạn đăng ký theo địa chỉ mạng do cổng truy cập thực hiện (feature 06), chưa làm; giới hạn đăng nhập do chính dịch vụ này thực hiện.
-    Công khai qua cổng truy cập dưới tiền tố `/auth`.
+    Công khai qua cổng truy cập ở host `auth` (ví dụ `http://auth.localhost:8000`), không tiền tố đường dẫn (ADR-0006); `issuer` cũng là địa chỉ này.
 servers:
-  - url: /auth
+  - url: /
 paths:
   /register:
     post:
@@ -27,7 +27,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RegisterResponse' }
         '400':
-          description: Đầu vào không hợp lệ (`EMAIL_INVALID`, `EMAIL_RESERVED`, `PASSWORD_INVALID`, hoặc thiếu trường: `VALIDATION_FAILED`)
+          description: "Đầu vào không hợp lệ (`EMAIL_INVALID`, `EMAIL_RESERVED`, `PASSWORD_INVALID`, hoặc thiếu trường: `VALIDATION_FAILED`)"
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -93,7 +93,7 @@ paths:
     get:
       summary: Yêu cầu cấp mã ủy quyền (OIDC)
       description: |
-        Bắt buộc `state`; client trình duyệt (`web-gateway`) bắt buộc PKCE (`code_challenge`, `code_challenge_method=S256`). Thiếu thì chuyển hướng
+        Bắt buộc `state`; client trình duyệt (`storefront-web-bff`) bắt buộc PKCE (`code_challenge`, `code_challenge_method=S256`). Thiếu thì chuyển hướng
         tới `redirect_uri` đã đăng ký kèm `error=invalid_request`. Chưa đăng nhập thì chuyển hướng tới `/login`; phiên đã hết hạn hoặc đã bị xóa
         cũng vậy. Đã đăng nhập thì cấp mã ngay (SSO).
       operationId: authorize

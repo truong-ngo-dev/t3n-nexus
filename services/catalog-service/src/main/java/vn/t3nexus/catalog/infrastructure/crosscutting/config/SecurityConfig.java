@@ -11,7 +11,7 @@ import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
 // Trước đây không có SecurityFilterChain nào — Spring Boot auto-config mặc định áp
 // anyRequest().authenticated() cho toàn bộ endpoint, kể cả GET public (category tree,
-// product detail, brand list) mà Guest phải xem được không cần login. Route qua web-gateway
+// product detail, brand list) mà Guest phải xem được không cần login. Route qua storefront-web-bff
 // (RouteConfiguration) chỉ đúng khi tầng này permitAll đúng các endpoint public — nếu không,
 // toàn bộ luồng browse của Guest/Customer sẽ 401 dù route đã đúng.
 @Configuration

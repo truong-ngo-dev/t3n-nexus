@@ -22,15 +22,15 @@ Trong mỗi `<p>`, dùng tag inline để tăng khả năng scan nhanh:
 
 ```java
 /**
- * <p>Back-channel session revoke sang <b>web-gateway</b> (<code>POST /webgw/internal/sessions/revoke</code>) &mdash;
+ * <p>Back-channel session revoke sang <b>storefront-web-bff</b> (<code>POST /bff/internal/sessions/revoke</code>) &mdash;
  * server-to-server, <b>KHÔNG</b> qua api-gateway (cùng lý do các call nội bộ khác trong service này, xem
  * <code>app.oauth2.internal-base-url</code>).</p>
  *
  * <p>Xác thực bằng service-account JWT: mint token <b>MỚI</b> mỗi lần gọi qua OAuth2 <code>client_credentials</code> grant
- * (client <code>"oauth2-service-internal"</code>, scope <code>"webgw.internal"</code>, seed ở migration <code>V10</code>) &mdash;
- * xem {@link ClientCredentialsTokenClient} (<code>common-web</code>) cho phần mint token dùng chung. web-gateway
+ * (client <code>"oauth2-service-internal"</code>, scope <code>"storefront.internal"</code>, seed ở migration <code>V10</code>) &mdash;
+ * xem {@link ClientCredentialsTokenClient} (<code>common-web</code>) cho phần mint token dùng chung. storefront-web-bff
  * verify token qua JWKS đã có sẵn (<code>spring.security.oauth2.resourceserver.jwt.jwk-set-uri</code>,
- * web-gateway <code>SecurityConfiguration</code>).</p>
+ * storefront-web-bff <code>SecurityConfiguration</code>).</p>
  */
 ```
 

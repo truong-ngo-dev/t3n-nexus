@@ -34,7 +34,7 @@ class SessionBoundAuthorizationServiceTest {
 
     private static final String SID_A = "01938a5e-1c00-7000-8000-0000000000a1";
 
-    private static final RegisteredClient CLIENT = RegisteredClient.withId("rc-1").clientId("web-gateway")
+    private static final RegisteredClient CLIENT = RegisteredClient.withId("rc-1").clientId("storefront-web")
             .clientSecret("{noop}x").authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .redirectUri("http://localhost/cb").build();
 

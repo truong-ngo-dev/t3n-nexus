@@ -13,7 +13,7 @@
 	<version>1.0.0</version>
 	<packaging>jar</packaging>
 	<name>api-gateway</name>
-	<description>Edge Gateway — entry point duy nhất cho mọi client, routing thuần tới web-gateway/mobile-gateway/oauth2-service, rate limit per-IP</description>
+	<description>Edge Gateway — entry point duy nhất cho mọi client, routing thuần tới storefront-web-bff/mobile-gateway/oauth2-service, rate limit per-IP</description>
 
 	<properties>
 		<spring-cloud.version>2025.1.1</spring-cloud.version>
@@ -30,6 +30,11 @@
 		</dependency>
 
 		<!-- Internal libs -->
+		<dependency>
+			<groupId>vn.t3nexus</groupId>
+			<artifactId>observability-starter</artifactId>
+			<version>${project.version}</version>
+		</dependency>
 		<dependency>
 			<groupId>vn.t3nexus</groupId>
 			<artifactId>reactive-rate-limiter-starter</artifactId>
@@ -49,6 +54,11 @@
 		<dependency>
 			<groupId>io.projectreactor</groupId>
 			<artifactId>reactor-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

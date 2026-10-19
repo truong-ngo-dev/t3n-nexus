@@ -29,7 +29,7 @@
         <module>notification-service</module>
         <module>email-worker</module>
         <module>inapp-worker</module>
-        <module>web-gateway</module>
+        <module>storefront-web-bff</module>
         <module>api-gateway</module>
         <module>catalog-service</module>
         <module>inventory-service</module>

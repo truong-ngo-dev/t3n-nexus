@@ -9,26 +9,27 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
- * Bắt buộc phải có ở đây, không thể chỉ để web-gateway/oauth2-service tự lo CORS —
- * Spring Cloud Gateway tự trả lời request OPTIONS (preflight) ngay tại tầng routing
- * (AbstractHandlerMapping) TRƯỚC KHI proxy xuống downstream nếu không có CORS config ở
- * chính api-gateway. Route filter dedupeResponseHeader ở RouteConfiguration xử lý phần
- * request thật (non-preflight) để tránh duplicate header khi cả 2 lớp cùng set.
+ * Bắt buộc có ở cổng: Spring Cloud Gateway tự trả lời yêu cầu OPTIONS (preflight) ở tầng định tuyến trước khi chuyển xuống dịch vụ
+ * sau nếu cổng không có cấu hình CORS. Nguồn gốc cho phép đọc từ {@code app.cors.allowed-origins} (danh sách mẫu, cách nhau dấu
+ * phẩy); mặc định ở dev là {@code http://*.localhost:*}; đưa lên host thật chỉ đổi biến này. Dùng mẫu nguồn gốc chứ không dùng
+ * {@code *}: {@code *} kèm cookie bị trình duyệt từ chối và mở mọi nguồn gốc là lỗ hổng. Bộ lọc {@code dedupeResponseHeader} ở
+ * từng tuyến xử lý việc cả cổng lẫn dịch vụ sau cùng đặt tiêu đề CORS.
  */
 @Configuration
 public class CorsConfiguration {
 
-    @Value("${app.cors.allowed-origins:http://localhost:4200}")
+    @Value("${app.cors.allowed-origins:http://*.localhost:*}")
     private String allowedOrigins;
 
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     public CorsWebFilter corsWebFilter() {
         org.springframework.web.cors.CorsConfiguration config = new org.springframework.web.cors.CorsConfiguration();
-        config.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+        config.setAllowedOriginPatterns(Arrays.stream(allowedOrigins.split(",")).map(String::strip).filter(s -> !s.isEmpty()).toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of(HttpHeaders.LOCATION));

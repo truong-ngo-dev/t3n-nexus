@@ -44,15 +44,15 @@ Dedicated websocket-gateway giải quyết clean hơn: tất cả browser connec
 
 **Auth cho WebSocket handshake — ticket ngắn hạn qua BFF, không dùng JWT:**
 
-Browser không giữ JWT (BFF pattern, xem `project/frontend.md`), và WebSocket handshake không đi qua `web-gateway` (xem `4. communication.md`) nên session cookie không tự động có mặt ở `websocket-gateway`. Giải quyết bằng ticket dùng 1 lần thay vì để `websocket-gateway` tự đọc JWT hay tự đọc session Redis của `web-gateway`:
+Browser không giữ JWT (BFF pattern, xem `project/frontend.md`), và WebSocket handshake không đi qua `storefront-web-bff` (xem `4. communication.md`) nên session cookie không tự động có mặt ở `websocket-gateway`. Giải quyết bằng ticket dùng 1 lần thay vì để `websocket-gateway` tự đọc JWT hay tự đọc session Redis của `storefront-web-bff`:
 
-1. Angular gọi `GET /web/bff/ws-ticket` — qua `web-gateway`, request REST bình thường nên cookie tự đi kèm, xác thực như mọi API khác
-2. `web-gateway` sinh ticket ngẫu nhiên, `SET wsticket:{ticket} {userId} EX 10` (Redis, TTL 10s)
+1. Angular gọi `GET /bff/auth/ws-ticket` — qua `storefront-web-bff`, request REST bình thường nên cookie tự đi kèm, xác thực như mọi API khác
+2. `storefront-web-bff` sinh ticket ngẫu nhiên, `SET wsticket:{ticket} {userId} EX 10` (Redis, TTL 10s)
 3. Trả `{ ticket }` về Angular
 4. Angular connect `wss://websocket-gateway/inapp?ticket={ticket}`
 5. `websocket-gateway` lúc handshake: `GET wsticket:{ticket}` → resolve `userId`, xoá ngay (one-time use) → key không tồn tại (hết hạn hoặc đã dùng) → reject handshake
 
-Chỉ mượn `web-gateway` cho bước mint ticket — một REST call bình thường, không phải proxy liên tục. Toàn bộ data-plane sau đó (connection lifetime, message) vẫn đi thẳng vào `websocket-gateway`, đúng tinh thần "WS không đi qua BFF" đã chốt. `websocket-gateway` không cần hiểu format Spring Session của `web-gateway` — chỉ đọc 1 key Redis dạng `ticket → userId`, tách biệt hoàn toàn khỏi session store nội bộ của service kia (tránh coupling ngầm qua schema nội bộ của lib).
+Chỉ mượn `storefront-web-bff` cho bước mint ticket — một REST call bình thường, không phải proxy liên tục. Toàn bộ data-plane sau đó (connection lifetime, message) vẫn đi thẳng vào `websocket-gateway`, đúng tinh thần "WS không đi qua BFF" đã chốt. `websocket-gateway` không cần hiểu format Spring Session của `storefront-web-bff` — chỉ đọc 1 key Redis dạng `ticket → userId`, tách biệt hoàn toàn khỏi session store nội bộ của service kia (tránh coupling ngầm qua schema nội bộ của lib).
 
 **Tại sao Spring WebFlux, không phải Spring MVC:**
 
@@ -530,4 +530,4 @@ Templates Thymeleaf tại `src/main/resources/templates/email/` trong email-work
 | Spring WebFlux             | Reactive WebSocket server trên Netty                                                         |
 | Spring Data Redis Reactive | `listenToChannel()` → Flux pipeline vào WebSocket; `getAndDelete()` resolve ticket handshake |
 
-Không phụ thuộc `web-gateway` — chỉ đọc key `wsticket:{ticket}` do `web-gateway` ghi vào Redis, không gọi API hay hiểu schema nội bộ của `web-gateway`.
+Không phụ thuộc `storefront-web-bff` — chỉ đọc key `wsticket:{ticket}` do `storefront-web-bff` ghi vào Redis, không gọi API hay hiểu schema nội bộ của `storefront-web-bff`.

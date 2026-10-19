@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Có lỗi xảy ra — T3E Nexus</title>
+    <link rel="icon" href="data:,">
+</head>
+<body style="font-family: Inter, system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1rem;">
+    <h1 th:text="${status}">4xx</h1>
+    <p>Yêu cầu không thực hiện được. Hãy quay lại trang đăng nhập và thử lại.</p>
+    <p><a href="/login">Về trang đăng nhập</a></p>
+</body>
+</html>

@@ -38,7 +38,7 @@ import static vn.t3nexus.oauth2.application.login_session.LoginTestFixture.USER_
  */
 class AuthorizationSessionGateFilterTest {
 
-    private static final RegisteredClient CLIENT = RegisteredClient.withId("rc-1").clientId("web-gateway")
+    private static final RegisteredClient CLIENT = RegisteredClient.withId("rc-1").clientId("storefront-web")
             .clientSecret("{noop}x").authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .redirectUri("http://localhost/cb").build();
 
@@ -96,7 +96,7 @@ class AuthorizationSessionGateFilterTest {
     void a_live_session_passes_the_gate_and_leaves_the_result_for_the_authorization_service() throws Exception {
         authenticate();
         MockHttpSession session = sessionWith(loginSessionId, "IDP-1");
-        MockHttpServletRequest request = authorize(session, "web-gateway");
+        MockHttpServletRequest request = authorize(session, "storefront-web");
 
         MockFilterChain chain = run(filter(fx.sessionRepository), request);
 
@@ -113,7 +113,7 @@ class AuthorizationSessionGateFilterTest {
     @Test
     void the_gate_uses_the_registered_client_id_not_the_client_id_parameter() throws Exception {
         authenticate();
-        MockHttpServletRequest request = authorize(sessionWith(loginSessionId, "IDP-1"), "web-gateway");
+        MockHttpServletRequest request = authorize(sessionWith(loginSessionId, "IDP-1"), "storefront-web");
 
         run(filter(fx.sessionRepository), request);
 
@@ -123,7 +123,7 @@ class AuthorizationSessionGateFilterTest {
         fx.sessions.get(LoginSessionId.of(loginSessionId)).issueClientSession(
                 new vn.t3nexus.oauth2.domain.login_session.ClientId("rc-1"),
                 vn.t3nexus.oauth2.domain.login_session.ClientSessionId.of(first.sid()), "auth-1", "jti-1", NOW);
-        MockHttpServletRequest second = authorize(sessionWith(loginSessionId, "IDP-1"), "web-gateway");
+        MockHttpServletRequest second = authorize(sessionWith(loginSessionId, "IDP-1"), "storefront-web");
         run(filter(fx.sessionRepository), second);
 
         assertThat(((ResolveAuthorizationSession.Result) second.getAttribute(RequestAttributeAuthorizationSessionSource.ATTRIBUTE)).sid())
@@ -134,7 +134,7 @@ class AuthorizationSessionGateFilterTest {
     void a_changed_spring_session_id_is_written_back() throws Exception {
         authenticate();
 
-        run(filter(fx.sessionRepository), authorize(sessionWith(loginSessionId, "IDP-ROTATED"), "web-gateway"));
+        run(filter(fx.sessionRepository), authorize(sessionWith(loginSessionId, "IDP-ROTATED"), "storefront-web"));
 
         assertThat(fx.sessions.get(LoginSessionId.of(loginSessionId)).idpSessionId()).isEqualTo("IDP-ROTATED");
     }
@@ -147,7 +147,7 @@ class AuthorizationSessionGateFilterTest {
         MockHttpSession session = sessionWith(loginSessionId, "IDP-1");
         fx.sessions.clear();                                              // cookie Spring còn sống, phiên của ta đã mất
 
-        MockFilterChain chain = run(filter(fx.sessionRepository), authorize(session, "web-gateway"));
+        MockFilterChain chain = run(filter(fx.sessionRepository), authorize(session, "storefront-web"));
 
         assertThat(chain.getRequest()).isNotNull();                       // vẫn đi tiếp để Spring chuyển về trang đăng nhập
         assertThat(session.isInvalid()).isTrue();
@@ -163,7 +163,7 @@ class AuthorizationSessionGateFilterTest {
                 new ResolveAuthorizationSession(fx.sessionRepository, fx.accountRepository, fx.ids, afterExpiry),
                 new InMemoryRegisteredClientRepository(CLIENT));
 
-        run(late, authorize(session, "web-gateway"));
+        run(late, authorize(session, "storefront-web"));
 
         assertThat(session.isInvalid()).isTrue();
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
@@ -174,7 +174,7 @@ class AuthorizationSessionGateFilterTest {
         authenticate();
         MockHttpSession session = sessionWith(null, "IDP-1");             // ví dụ đăng nhập bằng đường không mở phiên của ta
 
-        run(filter(fx.sessionRepository), authorize(session, "web-gateway"));
+        run(filter(fx.sessionRepository), authorize(session, "storefront-web"));
 
         assertThat(session.isInvalid()).isTrue();
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
@@ -191,7 +191,7 @@ class AuthorizationSessionGateFilterTest {
         fx.sessionRepository.save(forPending);
         MockHttpSession session = sessionWith(forPending.getId().getValueAsString(), "IDP-9");
 
-        run(filter(fx.sessionRepository), authorize(session, "web-gateway"));
+        run(filter(fx.sessionRepository), authorize(session, "storefront-web"));
 
         assertThat(session.isInvalid()).isTrue();
     }
@@ -201,7 +201,7 @@ class AuthorizationSessionGateFilterTest {
     @Test
     void an_unauthenticated_request_goes_through_untouched() throws Exception {
         MockHttpSession session = sessionWith(null, "IDP-1");
-        MockHttpServletRequest request = authorize(session, "web-gateway");
+        MockHttpServletRequest request = authorize(session, "storefront-web");
 
         MockFilterChain chain = run(filter(fx.sessionRepository), request);
 
@@ -216,7 +216,7 @@ class AuthorizationSessionGateFilterTest {
                 new AnonymousAuthenticationToken("key", "anonymous", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
         MockHttpSession session = sessionWith(null, "IDP-1");
 
-        run(filter(fx.sessionRepository), authorize(session, "web-gateway"));
+        run(filter(fx.sessionRepository), authorize(session, "storefront-web"));
 
         assertThat(session.isInvalid()).isFalse();
     }
@@ -255,7 +255,7 @@ class AuthorizationSessionGateFilterTest {
         };
         MockHttpSession session = sessionWith(loginSessionId, "IDP-1");
 
-        assertThatThrownBy(() -> run(filter(failing), authorize(session, "web-gateway")))
+        assertThatThrownBy(() -> run(filter(failing), authorize(session, "storefront-web")))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(session.isInvalid()).isFalse();
     }

@@ -40,10 +40,12 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     private final HttpLoggingProperties properties;
     private final BodySanitizer sanitizer;
+    private final ClientIpResolver clientIps;
 
-    public RequestLoggingFilter(HttpLoggingProperties properties, BodySanitizer sanitizer) {
+    public RequestLoggingFilter(HttpLoggingProperties properties, BodySanitizer sanitizer, ClientIpResolver clientIps) {
         this.properties = properties;
         this.sanitizer = sanitizer;
+        this.clientIps = clientIps;
     }
 
     @Override
@@ -97,7 +99,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             fields.put("url.path", request.getRequestURI());
             long length = request.getContentLengthLong();
             if (length >= 0) fields.put("http.request.body.bytes", String.valueOf(length));
-            fields.put("client.ip", request.getRemoteAddr());
+            fields.put("client.ip", clientIps.resolve(request.getRemoteAddr(), request.getHeader(ClientIpResolver.HEADER)));
             emit(fields, false, "received " + request.getMethod() + " " + request.getRequestURI());
         } catch (RuntimeException ignored) {
             // log không được làm hỏng yêu cầu
@@ -121,7 +123,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             if (requestBytes >= 0) fields.put("http.request.body.bytes", String.valueOf(requestBytes));
             String responseBytes = response.getHeader("Content-Length");
             if (responseBytes != null) fields.put("http.response.body.bytes", responseBytes);
-            fields.put("client.ip", request.getRemoteAddr());
+            fields.put("client.ip", clientIps.resolve(request.getRemoteAddr(), request.getHeader(ClientIpResolver.HEADER)));
             Object errorCode = request.getAttribute(ERROR_CODE_ATTRIBUTE);
             if (errorCode != null) fields.put("error.code", errorCode.toString());
 

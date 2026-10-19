@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Kiểm `id_token_hint`: chữ ký và issuer của chính ta, không kiểm hạn (KT-18, `tech.md` T1). */
 class NimbusIdTokenHintVerifierTest {
 
-    private static final String ISSUER = "http://localhost:8000/auth";
+    private static final String ISSUER = "http://auth.localhost:8000";
 
     private static JWKSource<SecurityContext> ours;
     private static JWKSource<SecurityContext> someoneElses;

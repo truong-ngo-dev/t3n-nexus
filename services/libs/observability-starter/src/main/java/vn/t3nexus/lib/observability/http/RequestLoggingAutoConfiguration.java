@@ -45,9 +45,31 @@ public class RequestLoggingAutoConfiguration {
         @Bean
         FilterRegistrationBean<RequestLoggingFilter> requestLoggingFilter(HttpLoggingProperties properties) {
             FilterRegistrationBean<RequestLoggingFilter> registration = new FilterRegistrationBean<>(
-                    new RequestLoggingFilter(properties, new BodySanitizer(properties.sanitizerOptions())));
+                    new RequestLoggingFilter(properties, new BodySanitizer(properties.sanitizerOptions()), new ClientIpResolver(properties.trustedProxies())));
             registration.setOrder(FILTER_ORDER);
             return registration;
+        }
+    }
+
+    /**
+     * Ứng dụng reactive (cổng, BFF): đăng ký cấu hình và bộ chọn địa chỉ người gọi dùng chung với bộ lọc servlet. Bộ lọc WebFlux ghi dòng hoàn tất
+     * là {@code ReactiveRequestLoggingFilter}.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
+    @EnableConfigurationProperties(HttpLoggingProperties.class)
+    static class ReactiveRequestLogging {
+
+        @Bean
+        @ConditionalOnProperty(prefix = "observability.logging.http", name = "enabled", matchIfMissing = true)
+        ReactiveRequestLoggingFilter reactiveRequestLoggingFilter(HttpLoggingProperties properties, ClientIpResolver clientIps) {
+            return new ReactiveRequestLoggingFilter(properties, clientIps);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        ClientIpResolver clientIpResolver(HttpLoggingProperties properties) {
+            return new ClientIpResolver(properties.trustedProxies());
         }
     }
 }

@@ -1,84 +1,60 @@
 package vn.t3nexus.apigateway.infrastructure.configuration;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * api-gateway routing thuần — mỗi client type ứng với đúng 1 downstream, path-prefix strip 1 segment.
- * Không TokenRelay, không session, không business logic — xem adr/009-mobile-gateway.md.
- * <p>
- * /web/**    → web-gateway    (browser BFF — session cookie, business API + Spring Security
- *                               OAuth2 Client callback paths: /login/oauth2/code/**,
- *                               /oauth2/authorization/** đều nằm gọn dưới prefix này)
- * /mobile/** → mobile-gateway (mobile BFF — chưa có service thật, route giữ chỗ theo ADR-009)
- * /auth/**   → oauth2-service (login form, MFA, register, OIDC logout — bypass cả 2 BFF)
+ * Định tuyến theo {@code Host} (ADR-0006), không tiền tố đường dẫn, không {@code X-Forwarded-Prefix}. Cổng chỉ định tuyến thuần:
+ * không TokenRelay, không phiên, không nghiệp vụ.
+ * <ul>
+ *   <li>host {@code auth}: toàn bộ tới Xác thực;</li>
+ *   <li>host {@code shop}: đường dẫn của BFF ({@code /api/**}, {@code /oauth2/authorization/**}, {@code /login/oauth2/code/**},
+ *       {@code /bff/**}) tới BFF của ứng dụng Cửa hàng, đường dẫn còn lại tới máy chủ giao diện Cửa hàng; giao diện không dùng các
+ *       tiền tố của BFF;</li>
+ *   <li>host {@code ops}: chưa có tuyến (làm khi có ứng dụng Vận hành); host ngoài danh sách không khớp tuyến nào nên nhận 404.</li>
+ * </ul>
+ * Tiêu đề {@code X-Forwarded-*} do bộ lọc có sẵn của Gateway đặt từ yêu cầu thật sau khi {@code ForwardedHeadersSanitizer} xóa giá trị
+ * client tự gửi.
  */
 @Configuration
+@EnableConfigurationProperties(GatewayProperties.class)
 public class RouteConfiguration {
 
-    @Value("${apigateway.routes.web-gateway.uri}")
-    private String webGatewayUri;
+    /** Mã tuyến tới máy chủ giao diện: tài nguyên tĩnh, không bị giới hạn tần suất theo địa chỉ (xem IpRateLimitFilter). */
+    public static final String FRONTEND_ROUTE_ID = "storefront-frontend";
 
-    @Value("${apigateway.routes.mobile-gateway.uri}")
-    private String mobileGatewayUri;
+    static final String[] BFF_PATHS = {"/api/**", "/oauth2/authorization/**", "/login/oauth2/code/**", "/bff/**"};
+
+    private static final String DEDUPE_CORS = "Access-Control-Allow-Origin Access-Control-Allow-Credentials "
+            + "Access-Control-Expose-Headers Vary";
 
     @Value("${apigateway.routes.oauth2-service.uri}")
     private String oauth2ServiceUri;
 
-    /**
-     * Địa chỉ public mà browser thực sự gõ vào — dùng để set X-Forwarded-Host/Proto thủ công.
-     * Spring Cloud Gateway server-webflux KHÔNG tự inject 2 header này (đã verify thực tế: thiếu
-     * chúng, {baseUrl} phía downstream vẫn resolve ra host:port nội bộ dù X-Forwarded-Prefix đã set
-     * đúng) — khác với X-Forwarded-For vốn có global filter riêng tự thêm.
-     */
-    @Value("${apigateway.public-host}")
-    private String publicHost;
-
-    @Value("${apigateway.public-proto}")
-    private String publicProto;
+    @Value("${apigateway.routes.storefront-web-bff.uri}")
+    private String storefrontWebBffUri;
 
     @Bean
-    public RouteLocator gateway(RouteLocatorBuilder builder) {
+    public RouteLocator gateway(RouteLocatorBuilder builder, GatewayProperties properties) {
+        String auth = properties.hosts().auth();
+        String shop = properties.hosts().shop();
         return builder.routes()
-                .route("web-gateway", rs -> rs
-                        .path("/web/**")
-                        .filters(f -> f
-                                .stripPrefix(1)
-                                .addRequestHeader("X-Forwarded-Prefix", "/web")
-                                .addRequestHeader("X-Forwarded-Host", publicHost)
-                                .addRequestHeader("X-Forwarded-Proto", publicProto)
-                                .dedupeResponseHeader(
-                                        "Access-Control-Allow-Origin Access-Control-Allow-Credentials "
-                                                + "Access-Control-Expose-Headers Vary",
-                                        "RETAIN_FIRST"))
-                        .uri(webGatewayUri))
-                .route("mobile-gateway", rs -> rs
-                        .path("/mobile/**")
-                        .filters(f -> f
-                                .stripPrefix(1)
-                                .addRequestHeader("X-Forwarded-Prefix", "/mobile")
-                                .addRequestHeader("X-Forwarded-Host", publicHost)
-                                .addRequestHeader("X-Forwarded-Proto", publicProto)
-                                .dedupeResponseHeader(
-                                        "Access-Control-Allow-Origin Access-Control-Allow-Credentials "
-                                                + "Access-Control-Expose-Headers Vary",
-                                        "RETAIN_FIRST"))
-                        .uri(mobileGatewayUri))
-                .route("oauth2-service", rs -> rs
-                        .path("/auth/**")
-                        .filters(f -> f
-                                .stripPrefix(1)
-                                .addRequestHeader("X-Forwarded-Prefix", "/auth")
-                                .addRequestHeader("X-Forwarded-Host", publicHost)
-                                .addRequestHeader("X-Forwarded-Proto", publicProto)
-                                .dedupeResponseHeader(
-                                        "Access-Control-Allow-Origin Access-Control-Allow-Credentials "
-                                                + "Access-Control-Expose-Headers Vary",
-                                        "RETAIN_FIRST"))
+                .route("auth", r -> r.order(0)
+                        .predicate(exchange -> HostMatcher.matches(exchange, auth))
+                        .filters(f -> f.dedupeResponseHeader(DEDUPE_CORS, "RETAIN_FIRST"))
                         .uri(oauth2ServiceUri))
+                .route("storefront-web-bff", r -> r.order(0)
+                        .predicate(exchange -> HostMatcher.matches(exchange, shop)).and().path(BFF_PATHS)
+                        .filters(f -> f.dedupeResponseHeader(DEDUPE_CORS, "RETAIN_FIRST"))
+                        .uri(storefrontWebBffUri))
+                .route(FRONTEND_ROUTE_ID, r -> r.order(1)
+                        .predicate(exchange -> HostMatcher.matches(exchange, shop))
+                        .filters(f -> f.dedupeResponseHeader(DEDUPE_CORS, "RETAIN_FIRST"))
+                        .uri(properties.frontends().shop()))
                 .build();
     }
 }
