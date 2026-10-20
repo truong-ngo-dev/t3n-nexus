@@ -1,0 +1,11 @@
+<mat-card>
+  <mat-card-header><mat-card-title>Đăng nhập</mat-card-title></mat-card-header>
+  <mat-card-content>
+    @if (failed) {
+      <p role="alert" data-testid="login-error">Đăng nhập không thành công. Hãy thử lại.</p>
+    }
+  </mat-card-content>
+  <mat-card-actions>
+    <a mat-flat-button [href]="loginUrl" data-testid="login">{{ failed ? 'Thử lại' : 'Đăng nhập' }}</a>
+  </mat-card-actions>
+</mat-card>

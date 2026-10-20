@@ -1,0 +1,24 @@
+<mat-toolbar>
+  <a routerLink="/" class="brand">T3N Storefront</a>
+  <span class="spacer"></span>
+  @if (session(); as s) {
+    <span class="role-label" data-testid="role-label">{{ roleLabel[s.role] }}</span>
+    <button mat-button type="button" data-testid="logout" [disabled]="loggingOut()" (click)="logout()">Đăng xuất</button>
+  } @else if (isGuest()) {
+    <a mat-button routerLink="/register" href="/register">Đăng ký</a>
+    <a mat-button routerLink="/login" href="/login">Đăng nhập</a>
+  }
+</mat-toolbar>
+<main>
+  @if (logoutFailed()) {
+    <p role="alert" data-testid="logout-error">Không đăng xuất được. Hãy thử lại.</p>
+  }
+  @if (sessionService.state().kind === 'unknown') {
+    <section role="alert" data-testid="session-error">
+      <p>Không kiểm tra được phiên đăng nhập. Hãy thử lại.</p>
+      <button mat-flat-button type="button" data-testid="retry" (click)="retry()">Thử lại</button>
+    </section>
+  } @else {
+    <router-outlet />
+  }
+</main>

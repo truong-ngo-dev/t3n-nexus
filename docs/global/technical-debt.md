@@ -56,7 +56,7 @@ Spring relaxed binding (`APP_CORS_ALLOWED_ORIGINS`) nhưng không tường minh,
 |---|---|
 | `email-worker` | `app.frontend.url` |
 | `oauth2-service` | `app.frontend.url`, `app.cors.allowed-origins` |
-| `storefront-web-bff` | `app.cors.allowed-origins`, `app.login.success-redirect-uri` (+ `/customer`), `app.logout.post-redirect-uri` |
+| `storefront-web-bff` | `app.cors.allowed-origins`, `app.login.success-redirect-uri` (+ `/account`), `app.logout.post-redirect-uri` |
 | `api-gateway` | `app.cors.allowed-origins` |
 
 Set 1 biến `FRONTEND_URL` lúc deploy là đủ cho 7 chỗ này. Chỗ còn thiếu là mục 1 ở trên (DB-seeded).

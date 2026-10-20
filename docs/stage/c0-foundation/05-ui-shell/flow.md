@@ -1,6 +1,6 @@
 # Feature 05: Khung giao diện
 
-> **Trạng thái:** Đã thiết kế `2026-10-19`, chưa làm · **Chặng:** C0 · **Loại:** Giao diện
+> **Trạng thái:** Đã làm `2026-10-20` · **Chặng:** C0 · **Loại:** Giao diện
 >
 > **Nguồn:** `stage.md` mục 3 (giao diện cho H1, H3, H5 và một khung trang cho người đã đăng nhập), `5-ui-analysis.md` (ứng dụng Cửa hàng), ADR-0003, ADR-0005, ADR-0006, việc giao từ feature 06 ·
 > **Kiểm chứng bằng:** S1, S2, S4, S5 (nhìn thấy qua giao diện)
@@ -98,13 +98,14 @@ flowchart TD
 | R7 | Bấm đăng ký hai lần liên tiếp | Khóa nút khi đang gửi; phía Xác thực email trùng là 409 nên tối đa một tài khoản | KT-07, 10 |
 | R8 | Đăng xuất: 403 CSRF, mạng lỗi, hoặc phiên đã mất | 403: phục hồi rồi thử lại một lần; mạng lỗi: giữ nguyên trạng thái và báo, cho bấm lại; phiên đã mất: vẫn 202 kèm trang đích nên không cần xử lý riêng | KT-08, 12 |
 | R9 | Hết phiên khi đang dùng (phiên BFF mất hoặc refresh token hết hạn) | API trả 401: đi đăng nhập một lần (R2); phiên Xác thực còn thì SSO im lặng đưa về, hết thì hỏi mật khẩu | KT-16 |
-| R10 | Thăm dò phiên lúc khởi động lỗi 5xx hoặc mạng | Trạng thái "không xác định": báo lỗi và nút thử lại; không coi là khách | KT-02 |
+| R10 | Thăm dò phiên lúc khởi động lỗi 5xx hoặc mạng | Trạng thái "không xác định": báo lỗi và nút thử lại; không coi là khách | KT-02, 20 |
 | R11 | Token lọt vào chỗ JavaScript đọc được (`localStorage`, biến toàn cục) | SPA không bao giờ nhận token (BFF giữ); chỉ có cờ R2 trong `sessionStorage` | KT-17 |
 | R12 | Mở giao diện trực tiếp ở `localhost:4201` (không qua cổng) | Cookie và CSRF thuộc host `shop`; mở thẳng thì lời gọi BFF không tới đúng nơi. Ghi ở README và `environment`; không xử lý bằng mã | |
-| R13 | Mã copy từ `web/` mang theo hành vi cũ (gửi `fullName` và `role: 'CUSTOMER'` khi đăng ký, đọc `res.data.userId`, mọi 401 gọi đăng nhập, route `/customer`) | Quy tắc copy: mỗi tệp copy qua rà theo `flow.md` này; hành vi cũ nào không có trong mục 2, 3 thì bỏ | Rà ở `plan.md` từng bước |
+| R13 | Mã copy từ `web/` mang theo hành vi cũ (gửi `fullName` và `role: 'CUSTOMER'` khi đăng ký, đọc `res.data.userId`, mọi 401 gọi đăng nhập, route `/customer`) | Quy tắc copy: mỗi tệp copy qua rà theo `flow.md` này; hành vi cũ nào không có trong mục 2, 3 thì bỏ | KT-18 (lint từ vựng cũ), rà ở `plan.md` từng bước |
 | R14 | Thư viện logic bị kéo vào giao diện hoặc ngược lại | `projects/auth`, `http`, `model` không import `@angular/material` hay mã trong `projects/storefront-web` (ESLint, `no-restricted-imports`) | KT-18 |
-| R15 | Địa chỉ BFF chuyển về sau đăng nhập đang là `/customer` (cấu hình cố định `app.login.success-redirect-uri`) | Đổi mặc định thành `/account` ở BFF (test `OriginsTest` đi kèm) | KT-09 |
+| R15 | Địa chỉ BFF chuyển về sau đăng nhập đang là `/customer` (cấu hình cố định `app.login.success-redirect-uri`) | Đổi mặc định thành `/account` ở BFF (KT-22 ở `LoginRedirectTest` của BFF) | KT-09, 22 |
 | R16 | Địa chỉ lạ, trang không tìm thấy | Trang riêng trong khung; không chuyển hướng ngầm về trang chủ như giao diện cũ | KT-19 |
+| R17 | Bộ đầu-cuối đăng ký nhiều tài khoản từ một địa chỉ: luật đăng ký ở cổng 10 lần mỗi giờ mỗi địa chỉ, đăng nhập 5 lần mỗi 5 phút mỗi (email, địa chỉ) ở Xác thực; bộ test nhận 429 giữa chừng hoặc chỉ xanh lần đầu | Chọn ở `tech.md` T1: chạy cổng với giới hạn đăng ký đủ cao qua biến môi trường của cổng, hoặc xóa khóa `ratelimit:*` và `login_*` trước mỗi lần chạy; không đổi giá trị mặc định của cổng | Chạy bộ đầu-cuối hai lần liên tiếp đều xanh (bước 11) |
 
 ## 5. Trạng thái sau khi xong
 
@@ -113,7 +114,7 @@ flowchart TD
 | `frontends/` | Dự án Angular CLI 19 với `projects/storefront-web`, `auth`, `http`, `model`; Jest và Playwright cấu hình; ESLint ranh giới thư viện |
 | `storefront-web` | Trang chủ, Đăng ký, Đăng nhập (kèm `?error`), Tài khoản (cần đăng nhập, hiện mã và vai), khung trang với nút Đăng xuất, trang không tìm thấy |
 | BFF | `app.login.success-redirect-uri` mặc định `/account` |
-| `web/` | Không sửa; quyết định giữ hay xóa ở bước đóng feature |
+| `web/` | Không sửa; **giữ** (quyết định `2026-10-20`): còn nhiều phân hệ cần copy sang `frontends/` và style của `frontends/` chưa tối ưu; xóa khi hết giá trị tham chiếu |
 | Tài liệu | ADR-0007 (cấu trúc `frontends/`), `5-ui-analysis.md` mục 3.2 cập nhật, `tech-stack.md`, `deferred.md`, hàng 05 và điều học được ở `00-features.md` |
 
 ## 6. Test cần có (viết từ kịch bản và các rủi ro trên, trước khi viết mã)
@@ -130,7 +131,7 @@ flowchart TD
 | KT-06 | Lỗi 429, 503, mạng thành thông báo, không đổi trạng thái đăng nhập | R6, R8 |
 | KT-07 | Đăng ký chỉ gửi `{email, password}`; ánh xạ 400, 409, 429 sang thông báo; nút bị khóa khi đang gửi | R6, R7, R13 |
 | KT-08 | Đăng xuất: 202 thì điều hướng tới `Location`; 403 CSRF thì phục hồi; mạng lỗi thì báo và giữ trạng thái | R8 |
-| KT-18 | Lint ranh giới: thư viện logic không import Angular Material hay mã ứng dụng | R14 |
+| KT-18 | Lint ranh giới: thư viện logic không import Angular Material hay mã ứng dụng; lint từ vựng cũ: không còn `CUSTOMER`, `SELLER`, `GUEST`, `SHIPPER`, `webgw`, `oss_id`, `fullName` trong `projects/` | R13, R14 |
 
 **Đầu-cuối (Playwright, ba dịch vụ thật qua cổng `shop.localhost:8000`, Chrome):**
 
@@ -146,6 +147,13 @@ flowchart TD
 | KT-16 | Xóa phiên BFF khi đang dùng rồi thao tác: được đưa đi đăng nhập một lần; phiên Xác thực còn thì không hỏi mật khẩu | R9 |
 | KT-17 | JavaScript thấy `XSRF-TOKEN`, không thấy `STOREFRONT_SESSION`; `localStorage` không có token, `sessionStorage` chỉ có cờ R2 | R11 |
 | KT-19 | Địa chỉ lạ hiện trang không tìm thấy trong khung | R16 |
+| KT-20 | Thăm dò phiên lúc khởi động trả 503 (chặn bằng Playwright): hiện lỗi và nút thử lại, không coi là khách, không chuyển hướng; bấm thử lại khi dịch vụ hồi phục thì vào được | R10 |
+
+**Cổng (BFF, Testcontainers, thêm ở bước 8):**
+
+| # | Kiểm | Chứng minh |
+|---|---|---|
+| KT-22 | Callback đăng nhập thành công chuyển hướng về `${FRONTEND_URL}/account` ở host `shop` (hiện test của BFF chỉ kiểm mã 302, không kiểm địa chỉ) | R15 |
 
 KT-04 và KT-05 phải có ca "gửi hai lần" và "vòng lặp" làm điều kiện đỏ trước khi viết mã (R2, R4 đã gặp thật khi thử).
 

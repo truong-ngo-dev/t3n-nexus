@@ -1,0 +1,9 @@
+<mat-card>
+  <mat-card-header><mat-card-title>Tài khoản</mat-card-title></mat-card-header>
+  <mat-card-content>
+    @if (session(); as s) {
+      <p>Mã tài khoản: <strong data-testid="user-id">{{ s.userId }}</strong></p>
+      <p>Vai: <strong data-testid="role">{{ roleLabel[s.role] }}</strong></p>
+    }
+  </mat-card-content>
+</mat-card>

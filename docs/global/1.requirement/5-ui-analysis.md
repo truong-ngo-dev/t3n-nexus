@@ -42,7 +42,8 @@ giảm chi phí. Chia riêng khi một trong các điều kiện sau đúng:
 | C. Một cổng gộp          | Tất cả                                                                               | Một mã nguồn                                   | Lộ chức năng chéo vai; thiết bị khác nhau không dung hòa được                 |
 
 **Chốt B**, vì A đẩy shipper vào giao diện sai ngữ cảnh (mâu thuẫn nguyên tắc 2), còn C vi phạm tiêu chí quyền. Cái giá
-(bốn ứng dụng) giảm bằng cách: dùng chung bộ thành phần giao diện và quy ước chung giữa ba ứng dụng web, và **làm ứng dụng
+(bốn ứng dụng) giảm bằng cách: **chỉ dùng chung logic** giữa ba ứng dụng web (thư viện `model`, `auth`, `http` trong
+`frontends/`, ADR-0007), không dùng chung thành phần giao diện cho tới khi có màn hình thứ hai cần dùng lại; và **làm ứng dụng
 Shipper tối giản** (vài màn hình, phục vụ đúng việc giao hàng).
 
 ### 3.3 Shipper

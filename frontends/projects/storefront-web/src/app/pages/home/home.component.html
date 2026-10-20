@@ -1,0 +1,10 @@
+<mat-card>
+  <mat-card-header><mat-card-title>T3N Storefront</mat-card-title></mat-card-header>
+  <mat-card-content><p>Chào mừng đến cửa hàng.</p></mat-card-content>
+  @if (isGuest()) {
+    <mat-card-actions>
+      <a mat-flat-button routerLink="/register" href="/register">Đăng ký</a>
+      <a mat-button routerLink="/login" href="/login">Đăng nhập</a>
+    </mat-card-actions>
+  }
+</mat-card>

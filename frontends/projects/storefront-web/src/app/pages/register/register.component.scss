@@ -1,0 +1,10 @@
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 360px;
+}
+
+[role='alert'] {
+  color: var(--mat-sys-error);
+}

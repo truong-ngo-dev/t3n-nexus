@@ -12,3 +12,4 @@ file: `NNNN-<slug>.md`.
 | 0004 | Mã một lần | Proposed |
 | 0005 | Bảo vệ yêu cầu từ trình duyệt và cookie mã thiết bị | Proposed |
 | 0006 | Nguồn gốc của các ứng dụng và định tuyến theo `Host` | Accepted |
+| 0007 | Cấu trúc workspace giao diện `frontends/` | Accepted |
