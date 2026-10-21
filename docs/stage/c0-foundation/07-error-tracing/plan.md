@@ -158,7 +158,7 @@ Xong khi: đầu ra thật đúng với danh sách trên.
 
 ## Bước 11. Đo overhead · Người
 
-**Trạng thái:** Chưa làm. Phụ thuộc feature 08.
+**Trạng thái:** Chưa làm. Feature 08 đã xong (`2026-10-20`): có trần điểm cuối rỗng khoảng 65.000 yêu cầu/giây (khung Spring Boot trong container 4 CPU, log WARN, không bảo mật; `08-baseline-bench/tech.md` T6) và bộ chạy lại được (`bench/run-empty.sh`) để đo phần chênh.
 
 Đo trần của điểm cuối rỗng khi tắt rồi bật bộ lọc, và khi bật ghi bất đồng bộ; ghi chênh lệch và điều kiện đo vào `nfr.md`. Mục tiêu thiết kế: dưới nửa mili-giây mỗi yêu cầu
 (hiện là Chỉ thiết kế).

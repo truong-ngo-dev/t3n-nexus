@@ -181,10 +181,10 @@ Xong khi: chạy lặp 100 lần vẫn đúng => **Đã đạt.** Nếu sau này
 
 ## Bước 11. Đo NFR · Người
 
-**Trạng thái:** Hoãn · `2026-10-09`: chờ bộ đo nền (feature 08), ghi ở `deferred.md`. Đã đo phần tính đúng khi đồng thời (bước 10).
+**Trạng thái:** Hoãn · `2026-10-09`, ghi ở `deferred.md`. Bộ đo nền (feature 08) đã xong `2026-10-20`: trần máy đã có ở `nfr.md`; phép đo ứng dụng chưa làm. Đã đo phần tính đúng khi đồng thời (bước 10).
 
 Theo `nfr.md`: tải duy trì 1 yêu cầu/giây trong 5 phút rồi tăng dần tới điểm gãy, sinh 3 triệu tài khoản (băm tính trước) để
-đo tra trùng và kích thước chỉ mục. Phụ thuộc feature 08 để biết trần băm của máy.
+đo tra trùng và kích thước chỉ mục. Trần băm của máy đã có từ feature 08 (khoảng 227 lần/giây ở hệ số 10).
 
 Xong khi: nhãn ở `nfr.md` đổi từ Chỉ thiết kế sang Đã đo kèm điều kiện đo.
 

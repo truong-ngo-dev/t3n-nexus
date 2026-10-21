@@ -44,8 +44,9 @@ public class GlobalExceptionHandler {
     public ApiResponse<?> handleMalformed(HttpMessageNotReadableException ex, HttpServletRequest request, HttpServletResponse response) {
         response.setStatus(HttpStatus.BAD_REQUEST.value());
         tag(request, "MALFORMED_REQUEST");
-        // Không đưa chi tiết bộ phân tích ra client; chi tiết nằm ở log (mức INFO, không stack trace)
-        log.info("[GlobalExceptionHandler] MALFORMED_REQUEST (400): {}", rootMessage(ex));
+        // Không đưa chi tiết bộ phân tích ra client. Log chỉ ghi LOẠI lỗi, không ghi thông báo: Jackson đưa giá trị của nội dung vào thông báo
+        // (ví dụ nội dung là một chuỗi JSON mã hóa hai lần thì cả mật khẩu bên trong nằm trong thông báo), nên thông báo không bao giờ vào log.
+        log.info("[GlobalExceptionHandler] MALFORMED_REQUEST (400): {}", rootType(ex));
         return ApiResponse.error("Nội dung yêu cầu không đúng định dạng", "MALFORMED_REQUEST");
     }
 
@@ -115,9 +116,10 @@ public class GlobalExceptionHandler {
         };
     }
 
-    private static String rootMessage(Throwable ex) {
+    /** Tên loại của nguyên nhân gốc, không kèm thông báo (thông báo của bộ phân tích có thể chứa dữ liệu của người dùng). */
+    private static String rootType(Throwable ex) {
         Throwable root = ex;
         while (root.getCause() != null && root.getCause() != root) root = root.getCause();
-        return root.getClass().getSimpleName() + ": " + root.getMessage();
+        return root.getClass().getSimpleName();
     }
 }

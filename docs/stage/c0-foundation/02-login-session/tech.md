@@ -85,7 +85,7 @@
 
 ## T5. Hệ số băm, hạn ID token, hạn cookie đăng nhập (chốt `2026-10-13`, bước 1)
 
-- **Hệ số băm:** giữ **10** (ADR-0002); chỉnh theo trần băm đo ở feature 08. Băm lại sau đăng nhập đúng khi hệ số lưu cũ hơn (KT-07).
+- **Hệ số băm:** giữ **10** (ADR-0002). Trần băm đã đo ở feature 08 (`2026-10-20`): hệ số 10 cho khoảng 227 lần/giây và một lần băm 45–65 ms; hệ số 11 giảm một nửa (khoảng 113 lần/giây, P50 một lần băm 102–129 ms), hệ số 12 giảm còn một phần tư (khoảng 59 lần/giây, P50 184–266 ms). Số đo không đòi đổi hệ số, và tăng hệ số chỉ làm đăng nhập flash sale thiếu thêm, nên giữ 10. Băm lại sau đăng nhập đúng khi hệ số lưu cũ hơn (KT-07).
 - **TTL của ID token:** **bằng TTL access token** (15 phút; dev 1 phút), cắt theo hạn phiên như access token. ID token chỉ BFF dùng lúc đăng nhập để lấy claim, nên không cần sống lâu hơn; mặc định cố định 30 phút của thư viện không dùng.
 - **Cookie đăng nhập của Spring (`OAUTH2_SESSION`):** cookie **bền**, `Max-Age` = **30 ngày** (hạn phiên lớn nhất), session Spring mặc định chỉ 30 phút không hoạt động nên được nới đúng bằng hạn phiên lúc đăng nhập thành công (session vô danh giữ 30 phút). Hạn thật của từng phiên do cửa kiểm hạn của ta quyết (vai nội bộ 10 giờ vẫn bị từ chối sau 10 giờ dù cookie còn). Cờ `HttpOnly`, `Secure`, `SameSite=Lax` (ADR-0005).
 - **Lý do cookie bền:** đăng nhập chung phải sống qua việc đóng và mở lại trình duyệt, nếu không người dùng phải nhập lại mật khẩu mỗi lần mở. Đánh đổi chấp nhận: máy dùng chung có cookie sống tới 30 ngày; giảm thiểu bằng nhập lại mật khẩu cho hành động nhạy cảm và đăng xuất từ xa (`analysis/login-session.md` mục 7).

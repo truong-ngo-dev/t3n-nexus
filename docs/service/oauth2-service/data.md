@@ -65,7 +65,7 @@ Cách ghi: upsert gốc theo khóa chính; chỉ `idp_session_id` (phiên ngư�
 Cách đọc: JPQL kèm phiên ứng dụng bằng một câu truy vấn; tra theo `sid` qua `client_sessions.id`.
 Tra phiên còn sống theo cookie đăng nhập (đăng xuất): khóa hàng theo `idp_session_id` và `expires_at > now` (mới nhất trước), rồi nạp phiên kèm phiên ứng dụng.
 
-Bảng `oauth_sessions` của mô hình phiên cũ đã bỏ ở V16 (không còn ai đọc hay ghi). Bảng `oauth2_authorization` do Spring quản lý; mỗi phiên ứng dụng trỏ tới một bản ghi qua `authorization_id`, và đăng xuất xóa các bản ghi đó cùng giao dịch với việc xóa phiên.
+Bảng `oauth_sessions` của mô hình phiên cũ đã bỏ ở V16 (không còn ai đọc hay ghi). Bảng `oauth2_authorization` do Spring quản lý; mỗi phiên ứng dụng trỏ tới một bản ghi qua `authorization_id`, và đăng xuất xóa các bản ghi đó cùng giao dịch với việc xóa phiên. Bảng có `fillfactor = 70` (V18) vì làm mới token cập nhật cùng một dòng nên chừa chỗ trong trang cho phiên bản dòng mới (cập nhật tại chỗ); 70 là số khởi đầu, chưa đo (ADR-0003 mục 8). Chỉ mục một phần cho mã ủy quyền ở V14.
 
 ## 3. Dữ liệu khởi tạo · Đã làm
 

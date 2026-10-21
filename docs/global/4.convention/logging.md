@@ -107,12 +107,12 @@ chẩn đoán yêu cầu treo.
 `Authorization`, `Cookie`, `Set-Cookie` không bao giờ.
 
 **Danh sách trường được phép** khai báo bằng chú thích `@LogRequestFields("email")` trên method của controller. Nội dung không phân tích được (JSON
-hỏng hoặc bị cắt) mà đường dẫn có danh sách trường được phép thì chỉ ghi kích thước, vì danh sách không áp dụng được; đường dẫn không có danh sách thì vẫn
+hỏng hoặc bị cắt), hoặc phân tích được nhưng không phải một đối tượng (chuỗi, số, mảng; chuỗi có thể là JSON mã hóa hai lần chứa cả mật khẩu) mà đường dẫn có danh sách trường được phép thì chỉ ghi kích thước, vì danh sách không áp dụng được; đường dẫn không có danh sách thì vẫn
 che giá trị của cặp `tên: giá trị` có tên nhạy cảm trong chuỗi.
 
 **Xử lý nội dung trước khi ghi**, theo thứ tự: chỉ JSON hoặc chữ (tệp, nhị phân chỉ ghi loại và kích thước); đệm tối đa khoảng 4 KB; che
 trường có tên nhạy cảm ở mọi độ sâu (`password`, `token`, `accessToken`, `refreshToken`, `otp`, `secret`, `authorization`, `cardNumber`...);
-đường dẫn nhạy cảm chỉ giữ các trường được phép; quét mẫu bí mật (`Bearer …`, JWT, mã băm) trên giá trị còn lại; cắt giá trị dài; đóng gói thành
+đường dẫn nhạy cảm chỉ giữ các trường được phép; quét mẫu bí mật (`Bearer …`, JWT, mã băm) trên giá trị còn lại và che giá trị của cặp `tên nhạy cảm: giá trị` nằm trong một giá trị chuỗi (JSON mã hóa hai lần); cắt giá trị dài; đóng gói thành
 **một chuỗi**, không trải khóa của nội dung thành trường (tránh bùng nổ số trường ở Elasticsearch). Lỗi khi xử lý không bao giờ làm hỏng yêu cầu.
 
 **Cờ gỡ lỗi hiện bí mật.** Lớp quét `Bearer`, JWT, mã băm ở đầu ra file JSON (message, lỗi, stack trace) tắt được bằng
@@ -162,7 +162,7 @@ Quy tắc:
 - MDC gắn với luồng xử lý: khi chuyển việc sang luồng khác, khóa không tự theo sang.
 - Không có trong dòng log: `event.original`, header, token, các trường nội bộ của bộ ghi (`endOfBatch`, `loggerFqcn`, `threadPriority`, `@version`).
 - Phản hồi lỗi cho client trả thêm `traceId` (lấy từ MDC) để người dùng đọc lại cho bên rà log, và `code` chữ ổn định; `GlobalExceptionHandler` đặt mã lỗi vào thuộc tính
-  `error.code` của yêu cầu để dòng hoàn tất mang mã. Lỗi nghiệp vụ ghi INFO, lỗi hệ thống ghi ERROR kèm stack trace; nội dung không đọc được là 400 `MALFORMED_REQUEST`;
+  `error.code` của yêu cầu để dòng hoàn tất mang mã. Lỗi nghiệp vụ ghi INFO, lỗi hệ thống ghi ERROR kèm stack trace; nội dung không đọc được là 400 `MALFORMED_REQUEST` và log chỉ ghi loại lỗi của bộ phân tích, không ghi thông báo (Jackson đưa giá trị của nội dung vào thông báo);
   lỗi framework có sẵn mã trạng thái (405, 415...) là `HTTP_<mã>`, không phải 500.
 - Bộ quét ở đầu ra che `Bearer …`, JWT, mã băm trong `message`, `error.message` và `error.stack_trace` (lưới an toàn cuối).
 

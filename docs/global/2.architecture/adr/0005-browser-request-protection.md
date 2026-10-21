@@ -1,6 +1,8 @@
 # ADR-0005: Bảo vệ yêu cầu từ trình duyệt và cookie mã thiết bị
 
-> **Trạng thái:** Proposed · **Ngày:** `2026-10-13` (rà lại `2026-10-14`) · **Phạm vi:** `oauth2-service`, `storefront-web-bff` (BFF) và các ứng dụng web
+> **Trạng thái:** Accepted `2026-10-21` · **Ngày:** `2026-10-13` (rà lại `2026-10-14`) · **Phạm vi:** `oauth2-service`, `storefront-web-bff` (BFF) và các ứng dụng web
+>
+> Chuyển Accepted sau khi các điều khoản đã cài chạy thật: CSRF ở BFF kiểm bằng `CsrfTest` (cổng, Redis thật) và bộ thật qua cổng (giao diện gửi `X-XSRF-TOKEN`, KT-13 phục hồi mã rồi thử lại một lần, KT-17 JavaScript đọc được `XSRF-TOKEN` nhưng không đọc được cookie phiên); PKCE bật và bắt buộc `state` (`StateRequiredValidator`) qua luồng đăng nhập của bộ thật; cờ cookie cài ở `oauth2-service`. Hai điều chưa kiểm khi chuyển: cờ `Secure` chưa thử dưới HTTPS thật (mặc định bật, chỉ tắt ở profile `dev`; thuộc triển khai, C8) và điều khoản Mobile là quyết định cho tương lai, chưa có mã.
 
 ## Bối cảnh
 

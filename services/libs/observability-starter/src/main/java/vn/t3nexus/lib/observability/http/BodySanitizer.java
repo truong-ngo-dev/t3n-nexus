@@ -85,6 +85,11 @@ public class BodySanitizer {
             if (isJson(contentType) || looksLikeJson(text)) {
                 try {
                     JsonNode tree = mapper.readTree(text);
+                    // Danh sách trường được phép chỉ có nghĩa với một đối tượng. Nội dung là chuỗi, số hoặc mảng thì không có tên trường để lọc
+                    // (một chuỗi có thể là JSON mã hóa hai lần chứa cả mật khẩu; phần tử của mảng không qua danh sách), nên chỉ ghi kích thước.
+                    if (allowFields != null && !allowFields.isEmpty() && !tree.isObject()) {
+                        return "[nội dung không phân tích được: " + body.length + " byte]";
+                    }
                     JsonNode cleaned = clean(tree, 0, allowFields);
                     return mapper.writeValueAsString(cleaned);
                 } catch (RuntimeException notParseable) {
@@ -145,14 +150,15 @@ public class BodySanitizer {
 
     /**
      * Làm sạch một giá trị chuỗi. Thứ tự có ý nghĩa: chuỗi dài và giống base64 chỉ ghi độ dài (kiểm trước vì quét mẫu trên chuỗi rất dài vô ích);
-     * sau đó che {@code Bearer ...}, JWT, mã băm bằng {@link SecretPatterns#scrub}; cuối cùng cắt nếu vẫn dài hơn {@code maxValueLength}.
+     * sau đó che {@code Bearer ...}, JWT, mã băm bằng {@link SecretPatterns#scrub}, và giá trị của cặp tên nhạy cảm nằm trong chuỗi ({@link #maskNamedValues}); cuối cùng cắt nếu vẫn dài hơn {@code maxValueLength}.
      */
     private String cleanValue(String value) {
         int length = value.length();
         if (length >= options.maxValueLength() && BASE64_LIKE.matcher(value).matches()) {
             return "[dữ liệu nhị phân " + length + " ký tự]";
         }
-        String scrubbed = SecretPatterns.scrub(value);
+        // Che cả cặp "tên nhạy cảm: giá trị" nằm trong chuỗi: giá trị chuỗi có thể là JSON mã hóa hai lần (cả nội dung hoặc một trường)
+        String scrubbed = maskNamedValues(SecretPatterns.scrub(value));
         if (scrubbed.length() > options.maxValueLength()) {
             return scrubbed.substring(0, options.maxValueLength()) + "…(cắt, tổng " + length + " ký tự)";
         }

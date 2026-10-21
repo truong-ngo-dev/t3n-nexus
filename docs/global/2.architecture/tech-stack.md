@@ -68,5 +68,6 @@
 | Distributed tracing | OpenTelemetry → Jaeger                         |
 | Metrics             | Prometheus → Grafana                           |
 | Logging             | ELK Stack (structured logs với traceId/spanId) |
+| Đo tải (bộ đo nền)  | k6 (Docker), bcrypt và JDBC tự viết trong `bench/` (feature 08) |
 | Container           | Docker Compose (local dev + demo)              |
 | IaC                 | Terraform (demo environment trên AWS)          |

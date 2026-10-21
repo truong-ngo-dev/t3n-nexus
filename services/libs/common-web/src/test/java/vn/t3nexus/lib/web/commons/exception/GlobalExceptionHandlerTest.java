@@ -124,6 +124,28 @@ class GlobalExceptionHandlerTest {
         assertThat(appender.list.get(0).getThrowableProxy()).isNull();
     }
 
+
+    @Test
+    void a_json_string_body_holding_a_password_does_not_put_the_password_in_the_log() throws Exception {
+        // JSON bị mã hóa hai lần: nội dung là một chuỗi JSON hợp lệ. Jackson đưa giá trị chuỗi vào thông báo lỗi giải mã.
+        String doubleEncoded = "\"{\\\"email\\\":\\\"a@b.com\\\",\\\"password\\\":\\\"SuperSecret99\\\"}\"";
+
+        MvcResult result = mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON).content(doubleEncoded)).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(appender.list).isNotEmpty();
+        assertThat(appender.list).allSatisfy(e -> assertThat(e.getFormattedMessage()).doesNotContain("SuperSecret99"));
+    }
+
+    @Test
+    void a_truncated_body_holding_a_password_does_not_put_the_password_in_the_log() throws Exception {
+        MvcResult result = mvc.perform(post("/echo").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"a@b.com\",\"password\":\"SuperSecret99")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(appender.list).isNotEmpty();
+        assertThat(appender.list).allSatisfy(e -> assertThat(e.getFormattedMessage()).doesNotContain("SuperSecret99"));
+    }
     @Test
     void error_responses_carry_the_trace_id_from_the_logging_context() throws Exception {
         MvcResult result = mvc.perform(get("/domain-409")).andReturn();

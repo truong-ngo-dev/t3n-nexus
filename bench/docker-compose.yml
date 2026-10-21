@@ -1,0 +1,12 @@
+# Postgres riêng của bộ đo nền (feature 08). Không dùng chung với infra/ và không giữ dữ liệu: `docker compose down -v` xóa sạch.
+services:
+  postgres-bench:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bench_db
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+    ports:
+      - "5440:5432"
+    cpus: 4
+    mem_limit: 2g

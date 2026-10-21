@@ -43,6 +43,10 @@ export default async function globalSetup(config: FullConfig): Promise<() => voi
     throw new Error(`Còn tài khoản thử "${TEST_PREFIX}*" từ lần chạy trước. Dọn tay rồi chạy lại: DELETE FROM user_accounts WHERE email LIKE '${TEST_PREFIX}%' (và phiên liên quan).`);
   }
 
+  // Mức giới hạn tần suất của cổng còn sót (kể cả do chính các yêu cầu kiểm tra ở trên tạo ra) sẽ bị ghi vào "trước" rồi không bao giờ được dọn,
+  // và cộng dồn giữa hai lần chạy liền nhau trong cùng một cửa sổ (mức chung 300 mỗi phút): xóa trước khi ghi số đầu. Chỉ khóa tiền tố ratelimit:.
+  redisDelete(redisKeys().filter((k) => k.startsWith('ratelimit:')));
+
   const before = counts();
   const maxOutboxId = Number(sql('SELECT coalesce(max(id), 0) FROM outbox_events')[0]);
   const redisBefore = new Set(redisKeys());

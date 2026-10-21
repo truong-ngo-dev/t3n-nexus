@@ -128,4 +128,27 @@ class BodySanitizerTest {
         assertThat(clean("42")).isEqualTo("42");
         assertThat(clean("{\"a\":null,\"b\":true,\"c\":1.5}")).isEqualTo("{\"a\":null,\"b\":true,\"c\":1.5}");
     }
+
+    @Test
+    void json_that_is_encoded_twice_has_its_embedded_password_masked() {
+        String out = clean("\"{\\\"email\\\":\\\"a@x.com\\\",\\\"password\\\":\\\"SuperSecret99\\\"}\"");
+
+        assertThat(out).doesNotContain("SuperSecret99").contains("a@x.com").contains("***");
+    }
+
+    @Test
+    void json_encoded_inside_a_nested_string_value_has_its_password_masked() {
+        String out = clean("{\"data\":\"{\\\"password\\\":\\\"SuperSecret99\\\",\\\"x\\\":1}\"}");
+
+        assertThat(out).doesNotContain("SuperSecret99").contains("***");
+    }
+
+    @Test
+    void a_body_that_is_not_a_json_object_with_an_allow_list_logs_only_its_size() {
+        byte[] doubleEncoded = "\"{\\\"email\\\":\\\"a@x.com\\\",\\\"password\\\":\\\"SuperSecret99\\\"}\"".getBytes(StandardCharsets.UTF_8);
+        byte[] array = "[{\"email\":\"a@x.com\",\"address\":\"1 Nguyen Hue\"}]".getBytes(StandardCharsets.UTF_8);
+
+        assertThat(sanitizer.sanitize(doubleEncoded, JSON, Set.of("email"))).isEqualTo("[nội dung không phân tích được: " + doubleEncoded.length + " byte]");
+        assertThat(sanitizer.sanitize(array, JSON, Set.of("email"))).isEqualTo("[nội dung không phân tích được: " + array.length + " byte]");
+    }
 }

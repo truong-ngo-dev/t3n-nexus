@@ -62,7 +62,7 @@ APP_RATELIMIT_RULES_0_ENABLED=true java -jar api-gateway/target/api-gateway-1.0.
 npm start    # ở frontends/
 ```
 
-`globalSetup` kiểm trước từng thứ và báo rõ cái nào thiếu. Một ca (KT-15) mở cổng `8002` (customer-service giả trả 401); cổng này phải trống. Hai ca `api.real` gọi API bằng `HttpClient` thật của ứng dụng qua công cụ gỡ lỗi Angular (`ng.getComponent`), nên chỉ chạy với bản `ng serve` (không phải bản build sản xuất), và phụ thuộc tên trường `SessionService.http`.
+`globalSetup` kiểm trước từng thứ và báo rõ cái nào thiếu. Một ca (KT-15) mở cổng `8002` (customer-service giả trả 401); cổng này phải trống. Hai ca `api.real` gọi API bằng `HttpClient` thật của ứng dụng qua công cụ gỡ lỗi Angular (`ng.getComponent`), nên chỉ chạy với bản `ng serve` (không phải bản build sản xuất), và phụ thuộc tên trường `SessionService.http`. `globalSetup` cũng xóa khóa `ratelimit:` của cổng trước khi ghi số đầu, để mức chung (300 yêu cầu mỗi phút) không cộng dồn giữa hai lần chạy liền nhau. KT-21 và KT-22 (`s3.real.spec.ts`) kiểm S3: cùng kết quả khi sai email và sai mật khẩu, và thời gian cùng bậc. `ratelimit.real.spec.ts` (KT-25, 429 của đăng ký) chỉ chạy khi cổng chạy luật mặc định và đặt `E2E_GATEWAY_RULES=default` (`scenarios/up.sh --rules default`); ở cổng luật nâng nó bị bỏ qua.
 
 ## Kiểm ranh giới (KT-18)
 

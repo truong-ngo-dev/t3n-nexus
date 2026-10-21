@@ -1,8 +1,8 @@
 # ADR-0003: Phiên đăng nhập hai tầng, hợp đồng danh tính và làm mới token
 
-> **Trạng thái:** Proposed · **Ngày:** `2026-10-13` (rà lại `2026-10-14` sau khi dựng miền) · **Phạm vi:** Xác thực (`oauth2-service`) và mọi bên nhận mã đăng nhập
+> **Trạng thái:** Proposed · **Ngày:** `2026-10-13` (rà lại `2026-10-14` sau khi dựng miền, và `2026-10-21` sau feature 09: mục 8 khớp mã) · **Phạm vi:** Xác thực (`oauth2-service`) và mọi bên nhận mã đăng nhập
 >
-> Chuyển Accepted sau khi cài và đo ở feature 02. Hai chỗ còn mở ghi ở mục "Còn mở".
+> Chuyển Accepted sau khi cài và đo ở feature 02. Chỗ còn mở (phép đo) ghi ở mục "Còn mở".
 
 ## Bối cảnh
 
@@ -68,8 +68,13 @@ thẳng từ yêu cầu của trình duyệt. Sau này xác thực nhiều lớp
 **8. Làm mới token tra theo khóa chính, không chỉ mục trên giá trị token.**
 - BFF gửi thêm `sid` ở `/oauth2/token`. Xác thực đọc phiên ứng dụng theo khóa chính `sid`, lấy `authorization_id`, đọc bản ghi
   ủy quyền theo khóa chính, rồi so refresh token bằng phép so thời gian hằng. `sid` sai thì không khớp và bị từ chối.
-- Cần tùy biến điểm tra authorization theo token. Mọi kiểu tra cứu khác (access token, ID token, `state`, mã thiết bị, kiểu không
-  xác định) trả không tìm thấy; chặn `/oauth2/revoke`, `/oauth2/introspect`. `fillfactor` thấp cho bảng để cập nhật tại chỗ rẻ.
+- Cần tùy biến điểm tra authorization theo token (`SidAuthorizationLookup`), mọi kiểu tra cứu đều đi bằng khóa chính, không quét cột token:
+  mã ủy quyền qua chỉ mục một phần (V14); refresh token qua `sid` trong tham số yêu cầu; access token và ID token (`id_token_hint`) qua `sid`
+  trong claim; kiểu không xác định (`/oauth2/revoke`, `/oauth2/introspect` không nói loại) tra theo hình dạng token (JWT thì `sid` trong claim,
+  chuỗi mờ thì như refresh token). Kiểu khác (`state`, mã thiết bị...) trả không tìm thấy. **Hai điểm cuối `revoke` và `introspect` không bị
+  chặn**: nhờ tra theo khóa chính nên chúng không còn quét bảng, và cùng cơ chế tra cứu này làm chúng hoạt động với token do ta cấp; client vẫn
+  phải xác thực và được phép gọi. Lúc đầu ADR định chặn hai điểm cuối vì tra theo giá trị token phải quét cột `TEXT`; lý do đó hết khi có tra theo `sid`.
+  `fillfactor` 70 cho `oauth2_authorization` (migration V18) để cập nhật tại chỗ rẻ khi làm mới token; 70 là số khởi đầu, chưa đo.
 
 **9. Điểm móc lúc token được cấp** (`save()` của lớp bọc `SessionBoundAuthorizationService`, use case `RecordClientSessionIssued`, cùng giao dịch với bản ghi ủy quyền) gọi `issueClientSession` hoặc `refreshClientSession` của aggregate (chọn theo việc phiên ứng dụng `sid` đã trỏ tới đúng bản ghi ủy quyền này chưa), và aggregate phát `ClientSessionIssued`. Với `issueClientSession`, điểm móc truyền `sid` đã chọn lúc cấp mã (mục 3) làm mã phiên ứng dụng mới, **so `sid` aggregate trả về với `sid` đã nằm trong token và quay lui giao dịch nếu khác** (đua nhau), rồi xóa bản ghi ủy quyền cũ nếu kết quả báo có đổi liên kết. **Không thử lại khi vi phạm ràng buộc duy nhất**: bên thua đã ký token mang `sid` riêng nên không thể hòa giải với phiên của bên thắng, chỉ có thể thất bại và đăng nhập lại. Chỉ có một nơi phát: khi bản ghi có access token chưa bị vô hiệu
 và có mã phiên của ta (loại dịch vụ gọi dịch vụ, loại lần lưu dọn dẹp của thư viện). Mã event lấy từ `jti`. Định danh ghi
@@ -77,11 +82,10 @@ và có mã phiên của ta (loại dịch vụ gọi dịch vụ, loại lần 
 
 ## Còn mở
 
-- **Đổi mã ủy quyền chưa có `sid`** (bộ sinh mã chạy khi `authorization = null`): cần cách riêng (chỉ mục một phần trên `authorization_code_value`,
-  hoặc dựa vào mã sống 5 phút nên bảng nhỏ). Chốt khi cài và đo.
-- **Cách chèn `sid` ở điểm tra** (bọc `OAuth2AuthorizationService` đọc `sid` từ request, hay converter và provider tùy biến cho grant
-  `refresh_token`). Chốt khi cài.
-- Đo (bộ đo nền, feature 08): nạp khoảng 187 nghìn bản ghi, tải làm mới 100 đến 250 lần/giây, `EXPLAIN (ANALYZE, BUFFERS)`, p99.
+- Đo (bộ đo nền, feature 08 đã có trần máy: băm khoảng 227 lần/giây, ghi một dòng khoảng 11.000 giao dịch/giây, `08-baseline-bench/tech.md`):
+  nạp khoảng 187 nghìn bản ghi, tải làm mới 100 đến 250 lần/giây, `EXPLAIN (ANALYZE, BUFFERS)`, p99; so `fillfactor` 70 với mặc định 100
+  để xem bảng có phình dưới tải làm mới hay không. Việc còn lại ở `02-login-session/plan.md` bước 14; ADR chuyển Accepted sau phép đo này.
+- Hai điểm mở ban đầu (đổi mã ủy quyền chưa có `sid`; cách chèn `sid` ở điểm tra) đã chốt khi cài, xem mục Hệ quả.
 
 ## Phương án đã loại
 

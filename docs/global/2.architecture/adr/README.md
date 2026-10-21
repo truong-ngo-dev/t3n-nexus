@@ -10,6 +10,6 @@ file: `NNNN-<slug>.md`.
 | 0002 | Băm mật khẩu | Accepted |
 | 0003 | Phiên đăng nhập hai tầng, hợp đồng danh tính và làm mới token | Proposed |
 | 0004 | Mã một lần | Proposed |
-| 0005 | Bảo vệ yêu cầu từ trình duyệt và cookie mã thiết bị | Proposed |
+| 0005 | Bảo vệ yêu cầu từ trình duyệt và cookie mã thiết bị | Accepted |
 | 0006 | Nguồn gốc của các ứng dụng và định tuyến theo `Host` | Accepted |
 | 0007 | Cấu trúc workspace giao diện `frontends/` | Accepted |

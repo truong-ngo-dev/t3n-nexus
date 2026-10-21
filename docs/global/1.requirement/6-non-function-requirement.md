@@ -123,11 +123,16 @@ và tìm kiếm đo khi hạ tầng đó được bật.
 
 | Đại lượng                                | Trần máy (bộ đo nền) | Trần ứng dụng | Ghi chú |
 |------------------------------------------|----------------------|---------------|---------|
-| Đọc/giây                                 | _chưa đo_            | _chưa đo_     |         |
-| Ghi/giây                                 | _chưa đo_            | _chưa đo_     |         |
-| Băm mật khẩu/giây                        | _chưa đo_            | _chưa đo_     | Điểm nóng đăng nhập (làn sóng trước flash sale) |
+| Đọc/giây                                 | ~65.000 (điểm cuối rỗng, khung Spring Boot 4 CPU) **Đã đo** | _chưa đo_     | Trần của khung, cận dưới nhẹ; dịch vụ thật thấp hơn |
+| Ghi/giây                                 | ~11.000 (1 dòng mỗi giao dịch, Postgres 4 CPU) **Đã đo** | _chưa đo_     | Nghẽn CPU của Postgres; bảng nhỏ, cấu hình mặc định |
+| Băm mật khẩu/giây                        | ~227 (bcrypt hệ số 10, cả máy 16 luồng) **Đã đo** | _chưa đo_     | Điểm nóng đăng nhập (làn sóng trước flash sale). Một lần băm 45–65 ms |
 | Thao tác giữ chỗ trên mặt hàng nóng/giây | _chưa đo_            | _chưa đo_     | Điểm nóng đồng thời cao |
 | Truy vấn tìm kiếm ở quy mô dữ liệu       | _chưa đo_            | _chưa đo_     | Điểm đo dữ liệu lớn     |
+
+Điều kiện đo ba trần trên (`2026-10-20`, feature 08): laptop Ryzen AI 7 H 450 (8 nhân, 16 luồng), 31 GB RAM, gói điện Balanced có cắm sạc, Docker
+Desktop (WSL2); khung và Postgres trong container 4 CPU, bộ sinh tải k6 8 CPU, JDK 21, Postgres 16.15. Mỗi số là giá trị giữa của ba lần. Chi tiết
+bảng, hạn chế và cách chạy lại ở `stage/c0-foundation/08-baseline-bench/tech.md` (T5, T6, T7). Thao tác bộ đệm, giữ chỗ mặt hàng nóng và truy vấn tìm
+kiếm chưa đo (hạ tầng đó chưa bật).
 
 Dung lượng dữ liệu ước lượng (theo kích thước dòng, chưa đo): 5 triệu SKU ≈ 5 GB cơ sở dữ liệu + 4–8 GB chỉ mục tìm kiếm;
 18 triệu đơn ≈ 15–30 GB; GPS ≈ 1,2 GB/ngày thiết kế (cần phân vùng theo ngày và thời hạn giữ). Quy mô đo nhỏ hơn theo §4.3.
