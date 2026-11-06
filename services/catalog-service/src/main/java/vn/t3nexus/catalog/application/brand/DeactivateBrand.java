@@ -1,41 +1,26 @@
 package vn.t3nexus.catalog.application.brand;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.brand.Brand;
-import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
-import vn.t3nexus.catalog.domain.brand.BrandId;
-import vn.t3nexus.catalog.domain.brand.BrandRepository;
+import vn.t3nexus.catalog.domain.CatalogActor;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
-import vn.t3nexus.lib.common.domain.exception.DomainException;
 
-@Slf4j
+import java.util.UUID;
+
+/**
+ * Ngừng dùng thương hiệu: chỉ chặn chọn cho sản phẩm mới. Sản phẩm đang dùng giữ nhãn; không kiểm có sản phẩm dùng hay
+ * không (INV-CAT-21).
+ */
 @Service
 @RequiredArgsConstructor
-public class DeactivateBrand implements CommandHandler<DeactivateBrand.Command, DeactivateBrand.Result> {
+public class DeactivateBrand implements CommandHandler<DeactivateBrand.Command, BrandView> {
 
-    private final BrandRepository brandRepository;
+    private final BrandUpdater updater;
 
     @Override
-    @Transactional
-    public Result handle(Command command) {
-        Brand brand = brandRepository.findById(BrandId.of(command.id()))
-                .orElseThrow(() -> new DomainException(BrandErrorCode.BRAND_NOT_FOUND));
-
-        // Không guard theo "đang có Product dùng hay không": tắt chỉ chặn chọn mới (analysis.md AGG-CAT-02).
-        // Product cũ tham chiếu brand đã tắt vẫn hiển thị tên bình thường.
-        brand.deactivate();
-        brandRepository.save(brand);
-
-        log.info("[DeactivateBrand] deactivated: brandId={}, traceId={}", command.id(), MDC.get("traceId"));
-
-        return new Result();
+    public BrandView handle(Command c) {
+        return updater.update(c.actor(), c.brandId(), (b, ctx) -> b.deactivate(ctx));
     }
 
-    public record Command(String id) {}
-
-    public record Result() {}
+    public record Command(CatalogActor actor, UUID brandId) {}
 }

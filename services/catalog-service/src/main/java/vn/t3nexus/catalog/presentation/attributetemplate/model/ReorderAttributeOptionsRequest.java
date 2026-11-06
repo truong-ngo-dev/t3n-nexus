@@ -1,8 +1,8 @@
 package vn.t3nexus.catalog.presentation.attributetemplate.model;
 
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
+import java.util.UUID;
 
-/** Mọi optionId của template, theo thứ tự mong muốn — mỗi option đúng 1 lần. */
-public record ReorderAttributeOptionsRequest(@NotEmpty List<String> optionIds) {}
+public record ReorderAttributeOptionsRequest(@NotNull List<UUID> optionIds) {}

@@ -6,20 +6,23 @@ import java.util.List;
 
 public interface BrandRepository extends Repository<Brand, BrandId> {
 
-    boolean existsBySlug(String slug);
+    /** Tên đã có (so theo khóa tên). Kiểm sớm để trả lỗi rõ; ràng buộc duy nhất của cơ sở dữ liệu là chốt cuối (ADR-0011). */
+    boolean existsByNameKey(String nameKey);
 
-    boolean existsByName(String name);
+    /** Như {@link #existsByNameKey} nhưng bỏ qua chính thương hiệu đang đổi tên. */
+    boolean existsByNameKeyExcludingId(String nameKey, BrandId excludingId);
 
-    boolean existsByNameExcludingId(String name, BrandId excludingId);
+    /**
+     * Danh sách theo từ khóa trên khóa tên (không phân biệt hoa thường, dấu); {@code status == null}: mọi trạng thái
+     * (danh sách quản trị). Từ khóa là khóa tên đã chuẩn hóa hoặc null = không lọc. {@code page} bắt đầu từ 0.
+     */
+    List<Brand> search(String keywordKey, BrandStatus status, int page, int size);
 
-    /** {@code status == null}: mọi trạng thái (dùng cho danh sách quản trị). */
-    List<Brand> search(String keyword, BrandStatus status, int page, int size);
+    long count(String keywordKey, BrandStatus status);
 
-    long count(String keyword, BrandStatus status);
-
-    /** Thương hiệu không bao giờ bị xoá — chỉ tắt/bật (sản phẩm cũ còn tham chiếu). */
+    /** Thương hiệu không bao giờ bị xóa, chỉ ngừng dùng (INV-CAT-21). */
     @Override
     default void delete(BrandId id) {
-        throw new UnsupportedOperationException("Brand is never deleted — deactivate instead");
+        throw new UnsupportedOperationException("Brand is never deleted: deactivate instead");
     }
 }

@@ -3,13 +3,15 @@ package vn.t3nexus.catalog.domain.variant;
 import vn.t3nexus.lib.common.domain.model.AbstractId;
 import vn.t3nexus.lib.common.domain.model.Id;
 
-public class VariantId extends AbstractId<String> implements Id<String> {
+import java.util.UUID;
 
-    private VariantId(String value) {
+public class VariantId extends AbstractId<UUID> implements Id<UUID> {
+
+    private VariantId(UUID value) {
         super(value);
     }
 
-    public static VariantId of(String id) {
+    public static VariantId of(UUID id) {
         return new VariantId(id);
     }
 }

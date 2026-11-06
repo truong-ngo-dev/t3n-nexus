@@ -159,6 +159,8 @@ sẽ lệch, nên mỗi tài sản phải được chạy ở bước đóng ch�
 Agent viết test từ kịch bản và INV, không từ code vừa viết; người duyệt kịch bản kỹ hơn duyệt code. Lý do: test viết
 theo code dễ mang cùng hiểu lầm với code.
 
+Giải thích các cấp test (đơn vị, tích hợp một dịch vụ, chạy thật, phá thử) và vì sao chia như vậy: [`../3.technical/testing-levels.md`](../3.technical/testing-levels.md).
+
 ### 6.4 Công cụ kiểm thử
 
 Công cụ được xây khi thiếu nó buộc phải kiểm tay lặp lại từ ba lần, hoặc không có nó thì không phát biểu được một con

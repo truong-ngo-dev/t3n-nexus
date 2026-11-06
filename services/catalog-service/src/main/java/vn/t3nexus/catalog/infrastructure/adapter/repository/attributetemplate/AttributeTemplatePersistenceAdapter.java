@@ -3,6 +3,7 @@ package vn.t3nexus.catalog.infrastructure.adapter.repository.attributetemplate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplate;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
@@ -19,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Component
@@ -30,11 +32,8 @@ public class AttributeTemplatePersistenceAdapter implements AttributeTemplateRep
 
     @Override
     public Optional<AttributeTemplate> findById(AttributeTemplateId id) {
-        return jpaRepository.findById(id.getValue()).map(entity -> {
-            List<AttributeOptionJpaEntity> options =
-                    optionRepository.findByTemplateId(entity.getId());
-            return AttributeTemplateMapper.toDomain(entity, options);
-        });
+        return jpaRepository.findById(id.getValue()).map(entity ->
+                AttributeTemplateMapper.toDomain(entity, optionRepository.findByTemplateId(entity.getId())));
     }
 
     @Override
@@ -44,7 +43,7 @@ public class AttributeTemplatePersistenceAdapter implements AttributeTemplateRep
 
     @Override
     public List<AttributeTemplate> findAllByIds(Collection<AttributeTemplateId> ids) {
-        List<String> rawIds = ids.stream().map(AttributeTemplateId::getValue).toList();
+        List<UUID> rawIds = ids.stream().map(AttributeTemplateId::getValue).toList();
         if (rawIds.isEmpty()) return List.of();
         return withOptions(jpaRepository.findAllById(rawIds));
     }
@@ -61,25 +60,24 @@ public class AttributeTemplatePersistenceAdapter implements AttributeTemplateRep
     }
 
     /**
-     * Lưu theo TỪNG DÒNG: template (optimistic lock qua {@code version} — 2 Admin sửa cùng lúc thì bên sau lỗi) + upsert
-     * từng option theo id. KHÔNG xoá option nào: option không bao giờ bị xoá cứng (chỉ tắt), và dòng option đang được
-     * {@code variant_combination_item} tham chiếu bằng FK nên xoá-rồi-chèn-lại là không an toàn.
+     * Lưu theo từng dòng: dòng mẫu trước ({@code saveAndFlush}: khóa lạc quan qua {@code version}, vi phạm ràng buộc
+     * nổ ngay trong giao dịch), rồi ghi từng tùy chọn theo mã. Không xóa tùy chọn nào: tùy chọn chỉ ngừng, không xóa.
+     * Dòng mẫu luôn đổi ({@code updated_at}) nên mọi thay đổi tùy chọn đều tăng phiên bản của mẫu.
      */
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public void save(AttributeTemplate template) {
-        jpaRepository.save(AttributeTemplateMapper.toJpaEntity(template));
+        jpaRepository.saveAndFlush(AttributeTemplateMapper.toJpaEntity(template));
         List<AttributeOptionJpaEntity> optionEntities = AttributeTemplateMapper.toOptionEntities(template);
         if (!optionEntities.isEmpty()) {
-            optionRepository.saveAll(optionEntities);
+            optionRepository.saveAllAndFlush(optionEntities);
         }
     }
 
-    // 1 round-trip cho option của đúng các template cần.
     private List<AttributeTemplate> withOptions(List<AttributeTemplateJpaEntity> entities) {
         if (entities.isEmpty()) return List.of();
-        List<String> ids = entities.stream().map(AttributeTemplateJpaEntity::getId).toList();
-        Map<String, List<AttributeOptionJpaEntity>> optionsByTemplate =
+        List<UUID> ids = entities.stream().map(AttributeTemplateJpaEntity::getId).toList();
+        Map<UUID, List<AttributeOptionJpaEntity>> optionsByTemplate =
                 optionRepository.findByTemplateIdIn(ids).stream()
                         .collect(Collectors.groupingBy(AttributeOptionJpaEntity::getTemplateId));
         return entities.stream()

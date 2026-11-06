@@ -20,11 +20,17 @@ public abstract class GatewayTestBase {
 
     protected static final String AUTH_HOST = "auth.localhost:8000";
     protected static final String SHOP_HOST = "shop.localhost:8000";
+    protected static final String SELLER_HOST = "seller.localhost:8000";
+    protected static final String OPS_HOST = "ops.localhost:8000";
     protected static final String REDIS_PORT_OVERRIDE = "test.redis.port.override";
 
     protected static final FakeHttpServer OAUTH2 = new FakeHttpServer();
     protected static final FakeHttpServer BFF = new FakeHttpServer();
     protected static final FakeHttpServer FRONTEND = new FakeHttpServer();
+    protected static final FakeHttpServer SELLER_BFF = new FakeHttpServer();
+    protected static final FakeHttpServer OPS_BFF = new FakeHttpServer();
+    protected static final FakeHttpServer SELLER_FRONTEND = new FakeHttpServer();
+    protected static final FakeHttpServer OPS_FRONTEND = new FakeHttpServer();
 
     @DynamicPropertySource
     static void gatewayProperties(DynamicPropertyRegistry registry) {
@@ -33,7 +39,11 @@ public abstract class GatewayTestBase {
         registry.add("spring.data.redis.port", () -> System.getProperty(REDIS_PORT_OVERRIDE, String.valueOf(RedisContainerHolder.port())));
         registry.add("apigateway.routes.oauth2-service.uri", OAUTH2::url);
         registry.add("apigateway.routes.storefront-web-bff.uri", BFF::url);
+        registry.add("apigateway.routes.seller-web-bff.uri", SELLER_BFF::url);
+        registry.add("apigateway.routes.ops-web-bff.uri", OPS_BFF::url);
         registry.add("app.gateway.frontends.shop", FRONTEND::url);
+        registry.add("app.gateway.frontends.seller", SELLER_FRONTEND::url);
+        registry.add("app.gateway.frontends.ops", OPS_FRONTEND::url);
     }
 
     @LocalServerPort
@@ -44,6 +54,10 @@ public abstract class GatewayTestBase {
         OAUTH2.reset();
         BFF.reset();
         FRONTEND.reset();
+        SELLER_BFF.reset();
+        OPS_BFF.reset();
+        SELLER_FRONTEND.reset();
+        OPS_FRONTEND.reset();
         RedisContainerHolder.flush();
     }
 

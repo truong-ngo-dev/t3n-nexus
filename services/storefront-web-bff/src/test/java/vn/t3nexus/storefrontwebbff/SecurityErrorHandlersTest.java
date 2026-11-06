@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.security.access.AccessDeniedException;
-import vn.t3nexus.storefrontwebbff.infrastructure.web.SecurityErrorHandlers;
+import vn.t3nexus.lib.webbff.infrastructure.web.SecurityErrorHandlers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

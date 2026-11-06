@@ -1,5 +1,6 @@
 package vn.t3nexus.oauth2.infrastructure.security.oauth2;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 
 import org.springframework.security.core.session.SessionInformation;
@@ -18,15 +19,15 @@ import java.util.List;
 @Component
 public class NoSessionRegistry implements SessionRegistry {
 
-    @Override public List<Object> getAllPrincipals() { return List.of(); }
+    @Override public @NonNull List<Object> getAllPrincipals() { return List.of(); }
 
-    @Override public List<SessionInformation> getAllSessions(Object principal, boolean includeExpiredSessions) { return List.of(); }
+    @Override public @NonNull List<SessionInformation> getAllSessions(@NonNull Object principal, boolean includeExpiredSessions) { return List.of(); }
 
-    @Override public SessionInformation getSessionInformation(String sessionId) { return null; }
+    @Override public SessionInformation getSessionInformation(@NonNull String sessionId) { return null; }
 
-    @Override public void refreshLastRequest(String sessionId) { }
+    @Override public void refreshLastRequest(@NonNull String sessionId) { }
 
-    @Override public void registerNewSession(String sessionId, Object principal) { }
+    @Override public void registerNewSession(@NonNull String sessionId, @NonNull Object principal) { }
 
-    @Override public void removeSessionInformation(String sessionId) { }
+    @Override public void removeSessionInformation(@NonNull String sessionId) { }
 }

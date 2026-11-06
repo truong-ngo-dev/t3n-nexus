@@ -8,13 +8,13 @@ import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateStatus;
 import vn.t3nexus.catalog.domain.attributetemplate.InputType;
 
 import java.util.List;
+import java.util.UUID;
 
-public interface AttributeTemplateJpaRepository extends JpaRepository<AttributeTemplateJpaEntity, String> {
+public interface AttributeTemplateJpaRepository extends JpaRepository<AttributeTemplateJpaEntity, UUID> {
 
     boolean existsByName(String name);
 
-    // CAST(:keyword AS string): tham số null không suy ra được kiểu lúc prepare → lower(bytea) (cùng lỗi đã gặp ở
-    // scheduler-service ScheduledJobJpaRepository).
+    // CAST(:keyword AS string): tham số null không suy ra được kiểu lúc chuẩn bị câu lệnh, Postgres hiểu thành bytea.
     @Query("""
             SELECT t FROM AttributeTemplateJpaEntity t
             WHERE (:keyword IS NULL

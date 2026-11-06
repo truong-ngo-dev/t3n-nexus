@@ -36,11 +36,11 @@ public abstract class GatewayTestBase {
     static void gatewayProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.host", RedisContainerHolder::host);
         registry.add("spring.data.redis.port", RedisContainerHolder::port);
-        registry.add("storefront.routes.oauth2-service.uri", OAUTH2::url);
-        registry.add("storefront.routes.identity-service.uri", IDENTITY::url);
-        registry.add("storefront.routes.customer-service.uri", CUSTOMER::url);
-        registry.add("storefront.routes.catalog-service.uri", CATALOG::url);
-        registry.add("storefront.routes.order-service.uri", ORDER::url);
+        registry.add("bff.routes.oauth2-service.uri", OAUTH2::url);
+        registry.add("bff.routes.identity-service.uri", IDENTITY::url);
+        registry.add("bff.routes.customer-service.uri", CUSTOMER::url);
+        registry.add("bff.routes.catalog-service.uri", CATALOG::url);
+        registry.add("bff.routes.order-service.uri", ORDER::url);
         // Kênh máy chủ tới Xác thực (đổi mã, làm mới, khóa công khai): trỏ vào máy chủ giả để test tự dựng phản hồi
         registry.add("spring.security.oauth2.client.provider.storefront-web.token-uri", () -> OAUTH2.url() + "/oauth2/token");
         registry.add("spring.security.oauth2.client.provider.storefront-web.jwk-set-uri", () -> OAUTH2.url() + "/oauth2/jwks");

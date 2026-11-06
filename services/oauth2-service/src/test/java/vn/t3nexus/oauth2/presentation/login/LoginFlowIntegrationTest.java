@@ -72,7 +72,7 @@ class LoginFlowIntegrationTest {
 
     @MockitoBean RateLimiter rateLimiter;
     // Mock ở lời gọi HTTP sang storefront-web-bff (không phải ở EndedSessionNotifier) để chạy thật bộ báo và việc tra client đã đăng ký
-    @MockitoBean vn.t3nexus.oauth2.infrastructure.adapter.http.StorefrontWebBffRevocationClient storefrontWebBffRevocationClient;
+    @MockitoBean vn.t3nexus.oauth2.infrastructure.adapter.http.BffRevocationClient bffRevocationClient;
 
     @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
@@ -733,7 +733,7 @@ class LoginFlowIntegrationTest {
         assertThat(authorizations(accountId)).isZero();
         assertThat(rows("select count(*) from spring_session where principal_name = ?", accountId)).isZero();   // KT-11
         assertThat(cookies.getCookieStore().get(URI.create(base()))).extracting(HttpCookie::getName).contains("DEVICE_KEY");
-        org.mockito.Mockito.verify(storefrontWebBffRevocationClient).revoke(sid);          // KT-07: bộ báo thật tra ra client storefront-web-bff
+        org.mockito.Mockito.verify(bffRevocationClient).revoke("storefront-web", sid);          // KT-07: bộ báo thật tra ra client storefront-web-bff
 
         // KT-05: không còn dùng được gì
         assertThat(tokenResponse("grant_type=refresh_token&refresh_token=" + enc(tokens.path("refresh_token").asString())
@@ -768,7 +768,7 @@ class LoginFlowIntegrationTest {
         String accountId = registerAccount();
         JsonNode tokens = exchange(loginAndGetCode());
         JsonNode second = exchange(codeFrom(get(authorizeUrl("again")), "again"));   // hint mới nhất
-        org.mockito.Mockito.clearInvocations(storefrontWebBffRevocationClient);
+        org.mockito.Mockito.clearInvocations(bffRevocationClient);
 
         newBrowser();   // trình duyệt khác, không cookie
         HttpResponse<String> response = logout(second.path("id_token").asString(), POST_LOGOUT_URI, "nocookie");
@@ -776,7 +776,7 @@ class LoginFlowIntegrationTest {
         assertThat(location(response)).startsWith(POST_LOGOUT_URI);
         assertThat(loginSessions(accountId)).isEqualTo(1);
         assertThat(authorizations(accountId)).isEqualTo(1);
-        org.mockito.Mockito.verifyNoInteractions(storefrontWebBffRevocationClient);
+        org.mockito.Mockito.verifyNoInteractions(bffRevocationClient);
         assertThat(tokens.path("refresh_token").asString()).isNotEmpty();
     }
 
@@ -899,7 +899,7 @@ class LoginFlowIntegrationTest {
         org.mockito.Mockito.doAnswer(call -> {
             seen.set(new int[]{loginSessions(accountId), authorizations(accountId)});
             return null;
-        }).when(storefrontWebBffRevocationClient).revoke(org.mockito.ArgumentMatchers.anyString());
+        }).when(bffRevocationClient).revoke(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
 
         logout(tokens.path("id_token").asString(), POST_LOGOUT_URI, "after-commit");
 
@@ -912,8 +912,8 @@ class LoginFlowIntegrationTest {
         newBrowser();
         String accountId = registerAccount();
         JsonNode tokens = exchange(loginAndGetCode());
-        org.mockito.Mockito.doThrow(new IllegalStateException("bff down")).when(storefrontWebBffRevocationClient)
-                .revoke(org.mockito.ArgumentMatchers.anyString());
+        org.mockito.Mockito.doThrow(new IllegalStateException("bff down")).when(bffRevocationClient)
+                .revoke(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
 
         HttpResponse<String> response = logout(tokens.path("id_token").asString(), POST_LOGOUT_URI, "bff-down");
 

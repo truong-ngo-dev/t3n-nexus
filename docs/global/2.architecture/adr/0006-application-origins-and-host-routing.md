@@ -24,7 +24,8 @@ Cách này lộ ba vấn đề:
   |---|---|---|
   | `auth.localhost` | Xác thực (đăng ký, đăng nhập, cấp mã, đổi mã, đăng xuất, JWKS), không có tiền tố | không có |
   | `shop.localhost` | Giao diện Cửa hàng **và** BFF của vai Người dùng, cùng nguồn gốc | `storefront-web-bff` |
-  | `ops.localhost` | Giao diện Vận hành **và** BFF của vai nội bộ, cùng nguồn gốc (chuẩn bị chỗ; BFF và client của Vận hành làm sau) | `ops-web-bff` (về sau) |
+  | `seller.localhost` | Giao diện Người bán và BFF của vai Người dùng bán hàng, cùng nguồn gốc | `seller-web-bff` |
+  | `ops.localhost` | Giao diện Vận hành **và** BFF của vai nội bộ, cùng nguồn gốc | `ops-web-bff` |
 
   **Đặt tên BFF theo mẫu `<ứng dụng>-<kênh>-bff`** (`storefront-web-bff`, `storefront-mobile-bff`, `seller-web-bff`, `ops-web-bff`, `shipper-mobile-bff`); tên ứng dụng theo yêu cầu (Cửa hàng, Người bán, Vận hành, Shipper) bằng tiếng Anh kỹ thuật: `storefront` (không dùng `shop` vì trong sàn thương mại "shop" thường là gian hàng của người bán; không dùng `marketplace` vì đó là cả nền tảng). Host công khai có thể ngắn hơn tên module (`shop.` cho `storefront`). **Mã client OAuth2 là tên BFF bỏ hậu tố `-bff`** (`storefront-web`, `storefront-mobile`...): `sid` tạo theo cặp (phiên người dùng, client) nên mỗi kênh có phiên ứng dụng độc lập và đăng xuất từng kênh được.
 

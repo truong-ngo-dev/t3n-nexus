@@ -3,13 +3,15 @@ package vn.t3nexus.catalog.domain.brand;
 import vn.t3nexus.lib.common.domain.model.AbstractId;
 import vn.t3nexus.lib.common.domain.model.Id;
 
-public class BrandId extends AbstractId<String> implements Id<String> {
+import java.util.UUID;
 
-    private BrandId(String value) {
+public class BrandId extends AbstractId<UUID> implements Id<UUID> {
+
+    private BrandId(UUID value) {
         super(value);
     }
 
-    public static BrandId of(String id) {
+    public static BrandId of(UUID id) {
         return new BrandId(id);
     }
 }

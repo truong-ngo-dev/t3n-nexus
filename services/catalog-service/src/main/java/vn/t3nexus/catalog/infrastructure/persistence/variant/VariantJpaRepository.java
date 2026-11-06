@@ -1,21 +1,29 @@
 package vn.t3nexus.catalog.infrastructure.persistence.variant;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.variant.VariantStatus;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
-public interface VariantJpaRepository extends JpaRepository<VariantJpaEntity, String> {
+@Repository
+public interface VariantJpaRepository extends JpaRepository<VariantJpaEntity, UUID> {
 
-    List<VariantJpaEntity> findByProductId(String productId);
+    Optional<VariantJpaEntity> findByIdAndProductId(UUID id, UUID productId);
 
-    boolean existsByProductId(String productId);
+    List<VariantJpaEntity> findByProductIdOrderByCreatedAtAscIdAsc(UUID productId);
 
-    boolean existsByProductIdAndStatus(String productId, VariantStatus status);
+    long countByProductId(UUID productId);
 
-    boolean existsByProductIdAndCombinationHash(String productId, String combinationHash);
+    boolean existsByProductIdAndCombinationKey(UUID productId, String combinationKey);
 
-    @Transactional
-    void deleteByProductId(String productId);
+    boolean existsBySellerIdAndSku(UUID sellerId, String sku);
+
+    boolean existsBySellerIdAndSkuAndIdNot(UUID sellerId, String sku, UUID id);
+
+    /** Xóa ngay bằng một câu lệnh; tổ hợp xóa theo khóa ngoại CASCADE. */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("DELETE FROM VariantJpaEntity v WHERE v.productId = :productId")
+    void deleteByProductId(@org.springframework.data.repository.query.Param("productId") java.util.UUID productId);
 }

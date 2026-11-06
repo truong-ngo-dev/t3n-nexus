@@ -3,6 +3,7 @@ package vn.t3nexus.catalog.application.category;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.t3nexus.catalog.domain.CatalogActor;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryRepository;
 import vn.t3nexus.catalog.domain.category.CategoryStatus;
@@ -13,68 +14,52 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
-/** Cây quản trị — MỌI trạng thái (kèm cờ), để Admin thấy và bật lại danh mục đã tắt. Không cache — chỉ admin dùng. */
+/**
+ * Cây đầy đủ cho quản trị: mọi trạng thái, kèm cờ {@code usable} (chính nó và mọi tổ tiên đang dùng, INV-CAT-97),
+ * {@code sortOrder} và {@code version}. Cây tối đa ba cấp nên cờ tính ngay khi đi xuống, không cần tra thêm.
+ */
 @Service
 @RequiredArgsConstructor
-public class GetAdminCategoryTree implements QueryHandler<GetAdminCategoryTree.Query, GetAdminCategoryTree.Result> {
+public class GetAdminCategoryTree implements QueryHandler<GetAdminCategoryTree.Query, List<GetAdminCategoryTree.Node>> {
 
-    private final CategoryRepository categoryRepository;
+    private final CategoryRepository repository;
 
     @Override
     @Transactional(readOnly = true)
-    public Result handle(Query query) {
-        List<Category> allCategories = categoryRepository.findAll();
-
-        Map<String, List<Category>> childrenByParent = new HashMap<>();
+    public List<Node> handle(Query query) {
+        query.actor().requireAdmin();
+        Map<UUID, List<Category>> childrenByParent = new HashMap<>();
         List<Category> roots = new ArrayList<>();
-        for (Category category : allCategories) {
+        for (Category category : repository.findAll()) {
             if (category.getParentId() == null) {
                 roots.add(category);
             } else {
-                childrenByParent
-                        .computeIfAbsent(category.getParentId().getValue(), k -> new ArrayList<>())
+                childrenByParent.computeIfAbsent(category.getParentId().getValue(), k -> new ArrayList<>())
                         .add(category);
             }
         }
-
-        List<CategoryTreeNode> tree = roots.stream()
-                .sorted(Comparator.comparingInt(Category::getSortOrder))
-                .map(c -> buildNode(c, childrenByParent))
-                .toList();
-
-        return new Result(tree);
+        return sorted(roots).stream().map(c -> node(c, true, childrenByParent)).toList();
     }
 
-    private CategoryTreeNode buildNode(Category category, Map<String, List<Category>> childrenByParent) {
-        List<Category> childCategories = childrenByParent.getOrDefault(category.getId().getValue(), List.of());
-        List<CategoryTreeNode> children = childCategories.stream()
-                .sorted(Comparator.comparingInt(Category::getSortOrder))
-                .map(child -> buildNode(child, childrenByParent))
+    private Node node(Category category, boolean ancestorsActive, Map<UUID, List<Category>> childrenByParent) {
+        boolean usable = ancestorsActive && category.isActive();
+        List<Node> children = sorted(childrenByParent.getOrDefault(category.getId().getValue(), List.of())).stream()
+                .map(child -> node(child, usable, childrenByParent))
                 .toList();
-
-        return new CategoryTreeNode(
-                category.getId().getValue(),
-                category.getName(),
-                category.getSlug(),
-                category.getLevel().getValue(),
-                category.getImageUrl(),
-                category.getStatus(),
-                children
-        );
+        return new Node(category.getId().getValue(), category.getName(), category.getLevel().getValue(),
+                category.getSortOrder(), category.getStatus(), usable, category.version(), children);
     }
 
-    public record Query() {}
+    private static List<Category> sorted(List<Category> categories) {
+        return categories.stream()
+                .sorted(Comparator.comparingInt(Category::getSortOrder).thenComparing(c -> c.getId().getValue()))
+                .toList();
+    }
 
-    public record Result(List<CategoryTreeNode> roots) {}
+    public record Query(CatalogActor actor) {}
 
-    public record CategoryTreeNode(
-            String id,
-            String name,
-            String slug,
-            int level,
-            String imageUrl,
-            CategoryStatus status,
-            List<CategoryTreeNode> children
-    ) {}
+    public record Node(UUID id, String name, int level, int sortOrder, CategoryStatus status, boolean usable,
+                       long version, List<Node> children) {}
 }

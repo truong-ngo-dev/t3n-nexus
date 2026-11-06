@@ -1,8 +1,8 @@
 # ADR-0003: Phiên đăng nhập hai tầng, hợp đồng danh tính và làm mới token
 
-> **Trạng thái:** Proposed · **Ngày:** `2026-10-13` (rà lại `2026-10-14` sau khi dựng miền, và `2026-10-21` sau feature 09: mục 8 khớp mã) · **Phạm vi:** Xác thực (`oauth2-service`) và mọi bên nhận mã đăng nhập
+> **Trạng thái:** Accepted `2026-10-21` · **Ngày:** `2026-10-13` (rà lại `2026-10-14` sau khi dựng miền, và `2026-10-21` sau feature 09: mục 8 khớp mã) · **Phạm vi:** Xác thực (`oauth2-service`) và mọi bên nhận mã đăng nhập
 >
-> Chuyển Accepted sau khi cài và đo ở feature 02. Chỗ còn mở (phép đo) ghi ở mục "Còn mở".
+> Chuyển Accepted sau khi cài và chạy thật ở feature 02, 03, 06 và 09 (đăng nhập, đăng xuất, làm mới token, hạn phiên và hợp đồng danh tính đều qua cổng thật; 323 test của `oauth2-service` tại lúc đóng feature 03). Tiêu chí gốc là "cài và đo"; **phép đo hiệu năng dời sang kịch bản flash sale ở C5** theo quyết định của người (số làm mới 100 đến 250 lần/giây là suy ra từ số thiết kế flash sale, đo riêng điểm cuối làm mới trên dữ liệu nạp sẵn cho số thiếu ngữ cảnh; mức dữ liệu chọn khi đó). Hệ quả: hiệu năng của quyết định tra theo khóa chính và `fillfactor` 70 **chưa có bằng chứng**; nếu số đo C5 cho thấy sai thì tạo ADR mới thay thế ADR này, còn riêng `fillfactor` chỉnh bằng migration mới. Xem mục "Còn mở".
 
 ## Bối cảnh
 
@@ -82,9 +82,8 @@ và có mã phiên của ta (loại dịch vụ gọi dịch vụ, loại lần 
 
 ## Còn mở
 
-- Đo (bộ đo nền, feature 08 đã có trần máy: băm khoảng 227 lần/giây, ghi một dòng khoảng 11.000 giao dịch/giây, `08-baseline-bench/tech.md`):
-  nạp khoảng 187 nghìn bản ghi, tải làm mới 100 đến 250 lần/giây, `EXPLAIN (ANALYZE, BUFFERS)`, p99; so `fillfactor` 70 với mặc định 100
-  để xem bảng có phình dưới tải làm mới hay không. Việc còn lại ở `02-login-session/plan.md` bước 14; ADR chuyển Accepted sau phép đo này.
+- **Đo hiệu năng, dời sang kịch bản flash sale ở C5** (bộ đo nền feature 08 đã có trần máy: băm khoảng 227 lần/giây, ghi một dòng khoảng 11.000 giao dịch/giây, `08-baseline-bench/tech.md`): tải làm mới 100 đến 250 lần/giây
+  đi cùng đăng nhập dồn và các thao tác khác, `EXPLAIN (ANALYZE, BUFFERS)`, p99; so `fillfactor` 70 với mặc định 100 để xem bảng có phình hay không. Mức dữ liệu (ADR từng ghi khoảng 187 nghìn bản ghi, `02/tech.md` T2 ghi tới hàng triệu) chọn lúc đó theo dữ liệu của kịch bản. Ghi ở `02-login-session/deferred.md`.
 - Hai điểm mở ban đầu (đổi mã ủy quyền chưa có `sid`; cách chèn `sid` ở điểm tra) đã chốt khi cài, xem mục Hệ quả.
 
 ## Phương án đã loại
@@ -111,8 +110,8 @@ và có mã phiên của ta (loại dịch vụ gọi dịch vụ, loại lần 
 
 - Phải viết: bộ sinh refresh token, lớp bọc `OAuth2AuthorizationService` (điểm móc), tùy biến điểm tra, bộ tùy biến JWT, kho phiên, use case dọn (chạy qua Lập lịch, C2b). Miền (`LoginSession`, `SessionLifetimePolicy`) và các use case `AuthenticateWithPassword`, `OpenLoginSession`, `ResolveAuthorizationSession` đã có và có test (feature 02, bước 3 đến 6).
 - Mất `lastActiveAt` ở phiên: hiển thị hoạt động phải đi qua Định danh (từ `ClientSessionIssued`).
-- Mỗi lần làm mới nạp phiên theo `sid` (một truy vấn theo khóa, cộng một đọc và một ghi `oauth2_authorization`); số liệu ở `tech.md` T2, đo ở bước 14.
-- Rủi ro chưa biết lớn nhất: hành vi của `oauth2_authorization` dưới tải làm mới; đo ở feature 02 (kế hoạch bước 14).
+- Mỗi lần làm mới nạp phiên theo `sid` (một truy vấn theo khóa, cộng một đọc và một ghi `oauth2_authorization`); số liệu ở `tech.md` T2, đo ở kịch bản flash sale (C5).
+- Rủi ro chưa biết lớn nhất: hành vi của `oauth2_authorization` dưới tải làm mới; **chưa đo**, đo ở kịch bản flash sale (C5).
 - Đã cài ở bước 9a (`2026-10-14`) và kiểm bằng luồng đầy đủ qua HTTP thật. Hai điểm mở ban đầu đã chốt: `sid` chèn bằng việc lớp bọc đọc tham số của yêu cầu (refresh) hoặc claim của JWT (userinfo); đổi mã ủy quyền dùng chỉ mục một phần V14 (mã 16 ký tự, sống 5 phút). Ba điều khi nối Spring ghi ở `docs/stage/c0-foundation/02-login-session/tech.md` T6 (chép `details`, `FactorGrantedAuthority`, giao dịch của kho).
 
 ## Tham khảo

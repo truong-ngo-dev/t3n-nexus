@@ -1,8 +1,6 @@
 package vn.t3nexus.catalog.presentation.category.model;
 
-import jakarta.validation.constraints.NotBlank;
+import java.util.UUID;
 
-public record CreateCategoryRequest(
-        @NotBlank String name,
-        String parentId
-) {}
+/** Tạo danh mục; {@code parentId} rỗng là cấp một. Quy tắc nội dung (rỗng, độ dài) kiểm ở miền: 400 {@code CATALOG_FIELD_INVALID}. */
+public record CreateCategoryRequest(String name, UUID parentId) {}

@@ -207,7 +207,7 @@ Ghi dần khi mỗi feature đóng; tổng kết khi đóng chặng.
 - **Script dựng chuỗi chạy nền phải tách khỏi ống dẫn của người gọi.** `( cd dir && nohup cmd > file & )` vẫn giữ đầu ghi của `| tail` vì chỉ `nohup` được chuyển hướng, nhóm bao ngoài thì không; treo hơn 9 phút. Thêm `>/dev/null 2>&1` ngoài mỗi nhóm.
 - **Jar đóng gói có thể cũ hơn mã** (hai trong ba dịch vụ có tệp nguồn mới hơn jar): `up.sh` luôn đóng gói lại trước khi chạy, nên một lần chạy cuối chặng kiểm đúng mã hiện tại.
 - **Bảng truy vết buộc nói thật.** Hai bất biến chứng minh chưa trọn qua cổng (INV-ATH-02: chưa quét bí mật toàn bộ; INV-ATH-08: chưa có hết hạn thật qua cổng) ghi thành phần hoãn có lý do thay vì ghi "đã chứng minh".
-- **Còn nợ:** `09-e2e-check/deferred.md` (hai phần hoãn); ADR-0005 đã Accepted `2026-10-21`; ADR-0003 còn Proposed chờ phép đo làm mới token (`02-login-session/plan.md` bước 14); ADR-0004 còn Proposed chờ chặng cần mã một lần (C3c).
+- **Còn nợ:** `09-e2e-check/deferred.md` (hai phần hoãn); ADR-0005 đã Accepted `2026-10-21`; ADR-0003 đã Accepted `2026-10-21` (phép đo làm mới token dời sang kịch bản flash sale ở C5, `02-login-session/deferred.md`); ADR-0004 còn Proposed chờ chặng cần mã một lần (C3c).
 
 ### Tổng kết chặng C0, đóng `2026-10-21`
 
@@ -231,12 +231,12 @@ Chín feature (01 đến 09) đều xong. Phần này gom điều học được
 - **Đo lường: xác định ai nghẽn trước, rồi xen kẽ.** Bộ sinh tải 4 CPU nghẽn trước hệ thống bị đo (08); đo nhánh này xong mới đo nhánh kia cho chênh giả bằng cỡ một lần băm (09). Thông lượng cao nhất khác thông lượng ở bậc cuối còn trong ngưỡng, vì quá tải làm thông lượng giảm (08).
 - **Dữ liệu thử phải đếm trước và sau, không dọn theo ước chừng.** Kiểm số dòng bảy bảng và khóa Redis (05, 09) bắt được chỗ dọn theo tiền tố bỏ sót; xóa không điều kiện bị chặn; tài khoản của người dùng giữ nguyên.
 - **Quyết định ngoài phạm vi không biến thành phần hoãn** (01, 05, 08): `deferred.md` chỉ ghi phần đã có chỗ trong phạm vi nhưng làm đơn giản, kèm điểm nối để quay lại.
-- **Tài liệu theo thứ tự `analysis.md` rồi `service.md` rồi mã**, và ADR chỉ đổi trạng thái khi tiêu chí ghi trong ADR đạt: đến cuối chặng ADR-0005 và 0007 Accepted, ADR-0003 chờ phép đo, ADR-0004 chờ chặng cần mã một lần. Rà ADR còn Proposed lúc đóng chặng tìm ra hai chỗ ADR nói khác mã (`fillfactor`, `revoke`/`introspect`) mà đọc riêng ADR hay riêng mã đều không thấy.
+- **Tài liệu theo thứ tự `analysis.md` rồi `service.md` rồi mã**, và ADR chỉ đổi trạng thái khi tiêu chí ghi trong ADR đạt: đến cuối chặng ADR-0003, 0005 và 0007 Accepted (ADR-0003 với phép đo hiệu năng dời sang C5 theo quyết định của người, ghi rõ trong ADR), ADR-0004 chờ chặng cần mã một lần. Rà ADR còn Proposed lúc đóng chặng tìm ra hai chỗ ADR nói khác mã (`fillfactor`, `revoke`/`introspect`) mà đọc riêng ADR hay riêng mã đều không thấy.
 
 **Còn nợ khi sang chặng sau:**
 
-- **Phép đo ứng dụng** của đăng ký (01 bước 11), đăng nhập (02 bước 14) và overhead của log (07 bước 11), đều đã có trần máy để so; mở khóa ADR-0003 sang Accepted và cho biết `fillfactor` 70 có ích không.
+- **Phép đo ứng dụng** của đăng ký (01 bước 11), đăng nhập và làm mới token (02 bước 14, dời sang kịch bản flash sale ở C5) và overhead của log (07 bước 11), đều đã có trần máy để so; phép đo làm mới cho biết `fillfactor` 70 có ích không.
 - **Phần hoãn của từng feature** (các `deferred.md`), `global/technical-debt.md` mục 3, hai phần hoãn của 09 (hết hạn phiên thật qua cổng, quét bí mật toàn bộ), bốn của 08, bốn của 05, chín của 06.
 - **Hạ tầng dev dùng chung:** các bộ thật ghi vào Postgres, Redis, Kafka dev; Kafka không dọn được nên sự kiện đã đẩy ở lại.
 - **Chưa ghi:** mục tiêu hiểu của frontend ("cơ chế phát hiện thay đổi, vòng đời, quản lý đăng ký sự kiện", `stage.md` mục 6 và roadmap C0) chưa có nội dung ở phần của feature 05. Cần người viết lại điều đã hiểu, không điền thay.
-- **ADR:** 0003 (chờ phép đo) và 0004 (chờ C3c) còn Proposed.
+- **ADR:** 0004 (chờ C3c) còn Proposed; ADR-0003 đã Accepted nhưng hiệu năng chưa đo (chờ C5).

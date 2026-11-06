@@ -1,50 +1,23 @@
 package vn.t3nexus.catalog.application.category;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.category.Category;
-import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
-import vn.t3nexus.catalog.domain.category.CategoryId;
-import vn.t3nexus.catalog.domain.category.CategoryRepository;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheInvalidationPublisher;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
-import vn.t3nexus.lib.common.application.EventDispatcher;
+import vn.t3nexus.catalog.domain.CatalogActor;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
-import vn.t3nexus.lib.common.domain.exception.DomainException;
 
-@Slf4j
+import java.util.UUID;
+
+/** Bật lại danh mục đã ngừng dùng. */
 @Service
 @RequiredArgsConstructor
-public class ActivateCategory
-        implements CommandHandler<ActivateCategory.Command, ActivateCategory.Result> {
+public class ActivateCategory implements CommandHandler<ActivateCategory.Command, CategoryView> {
 
-    private final CategoryRepository categoryRepository;
-    private final CacheInvalidationPublisher cacheInvalidationPublisher;
-    private final EventDispatcher eventDispatcher;
+    private final CategoryUpdater updater;
 
     @Override
-    @Transactional
-    @CacheEvict(value = CacheNames.CATEGORY_TREE, allEntries = true)
-    public Result handle(Command command) {
-        Category category = categoryRepository.findById(CategoryId.of(command.id()))
-                .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
-
-        category.activate();
-        categoryRepository.save(category);
-        eventDispatcher.dispatchAll(category.getDomainEvents());
-        category.clearDomainEvents();
-        cacheInvalidationPublisher.clear(CacheNames.CATEGORY_TREE);
-
-        log.info("[ActivateCategory] activated: categoryId={}, traceId={}", command.id(), MDC.get("traceId"));
-
-        return new Result();
+    public CategoryView handle(Command c) {
+        return updater.update(c.actor(), c.categoryId(), (category, ctx) -> category.activate(ctx));
     }
 
-    public record Command(String id) {}
-
-    public record Result() {}
+    public record Command(CatalogActor actor, UUID categoryId) {}
 }

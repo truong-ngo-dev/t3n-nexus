@@ -1,5 +1,6 @@
 package vn.t3nexus.lib.observability.logging;
 
+import org.jspecify.annotations.NullMarked;
 import org.springframework.core.task.TaskDecorator;
 
 /**
@@ -9,6 +10,7 @@ import org.springframework.core.task.TaskDecorator;
 public class MdcTaskDecorator implements TaskDecorator {
 
     @Override
+    @NullMarked
     public Runnable decorate(Runnable runnable) {
         return LogContext.wrap(runnable);
     }

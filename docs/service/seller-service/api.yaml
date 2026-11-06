@@ -1,0 +1,657 @@
+openapi: 3.0.3
+info:
+  title: Người bán
+  version: 0.1.0
+  description: |
+    Sống. Các điểm cuối dưới `/api/seller/profile` là **Đã làm** (feature 03): nộp hồ sơ, xem hồ sơ của tôi, sửa thông tin gian hàng,
+    sửa thông tin pháp lý, sửa và nộp lại. Các điểm cuối dưới `/api/admin/seller-profiles` là **Đã làm** (feature 04): danh sách chờ duyệt,
+    chi tiết, duyệt, từ chối; chỉ vai `ADMIN`.
+
+    Chủ hồ sơ luôn là mã tài khoản trong token (`sub`); không có mã tài khoản hay mã hồ sơ trong đường dẫn và nội dung. Vai chỉ `USER` được nộp và sửa;
+    đó là quy tắc nghiệp vụ của miền (403 `SELLER_ROLE_NOT_ALLOWED`), không phải phân quyền truy cập. Phiên bản hồ sơ chạy ngầm, người bán không gửi và không thấy.
+
+    Điểm cuối quản trị: vai `ADMIN` là quy tắc nghiệp vụ do miền hoặc use case kiểm (403 `SELLER_ROLE_NOT_ALLOWED`), không phải phân quyền truy cập.
+    Quyết định duyệt, từ chối kèm `version` (phiên bản quản trị đã xem trong chi tiết); lệch thì 409 `STALE_VERSION`. Danh sách không có dữ liệu định danh.
+
+    Phản hồi bọc `ApiResponse` chung: `success`, `data`, `message`, `errors`, `code`, `traceId`. Lỗi nghiệp vụ có `code` là tên hằng bên dưới.
+    Số căn cước, mã số thuế, địa chỉ kinh doanh chỉ trả cho chủ hồ sơ; không bao giờ xuất hiện trong thông báo lỗi.
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /api/seller/profile:
+    post:
+      summary: Nộp hồ sơ người bán
+      description: |
+        Tạo hồ sơ `PENDING_REVIEW` cho tài khoản trong token. Mỗi tài khoản tối đa một hồ sơ (kể cả đã bị từ chối: dùng sửa và nộp lại).
+        Ghi một hàng hộp thư `SellerProfileSubmitted` cùng giao dịch.
+      operationId: submitSellerProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitSellerProfileRequest'
+      responses:
+        '201':
+          description: Đã tạo hồ sơ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerProfileResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RoleNotAllowed'
+        '409':
+          description: |
+            Xung đột:
+            - `SELLER_PROFILE_EXISTS`: tài khoản đã có hồ sơ (bất kỳ trạng thái; bị từ chối thì dùng sửa và nộp lại)
+            - `SHOP_NAME_TAKEN`: tên gian hàng đã dùng (so sau chuẩn hóa: bỏ dấu, chữ thường, bỏ khoảng trắng thừa)
+            - `IDENTITY_ALREADY_REGISTERED`: khóa định danh đã có hồ sơ hiệu lực (thông báo chung, không nói hồ sơ của ai)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Hồ sơ của tôi
+      description: |
+        Trả hồ sơ của tài khoản trong token, đủ trường kể cả thông tin pháp lý. Không kiểm vai (tài khoản `ADMIN` không có hồ sơ nên nhận 404).
+        Không trả phiên bản.
+      operationId: getMySellerProfile
+      responses:
+        '200':
+          description: Hồ sơ của tôi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Chưa có hồ sơ (`SELLER_PROFILE_NOT_FOUND`); giao diện hiểu là "chưa là người bán"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/seller/profile/shop-info:
+    patch:
+      summary: Sửa thông tin gian hàng
+      description: |
+        Sửa một phần: trường vắng thì giữ nguyên, `null` tường minh xóa trường tùy chọn (`description`, `contact.address`).
+        Cho phép khi hồ sơ `PENDING_REVIEW` hoặc `APPROVED`. Không đổi gì thì trả hiện trạng, không tăng phiên bản.
+      operationId: updateShopInfo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateShopInfoRequest'
+      responses:
+        '200':
+          description: Hồ sơ sau khi sửa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerProfileResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RoleNotAllowed'
+        '404':
+          description: Chưa có hồ sơ (`SELLER_PROFILE_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            - `SHOP_NAME_TAKEN`: tên gian hàng đã dùng
+            - `INVALID_STATE`: hồ sơ đang `REJECTED` (sửa qua sửa và nộp lại)
+            - `CONCURRENT_UPDATE`: có thay đổi đồng thời, thử lại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/seller/profile/legal-info:
+    patch:
+      summary: Sửa thông tin pháp lý, loại hình
+      description: |
+        Sửa một phần: gộp vào giá trị hiện tại rồi kiểm lại toàn bộ thông tin pháp lý theo loại hình (đổi loại hình thì phải đủ trường của loại mới).
+        Chỉ cho phép khi `PENDING_REVIEW`; tính lại khóa định danh. Không đổi gì thì trả hiện trạng.
+      operationId: updateLegalInfo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLegalInfoRequest'
+      responses:
+        '200':
+          description: Hồ sơ sau khi sửa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerProfileResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RoleNotAllowed'
+        '404':
+          description: Chưa có hồ sơ (`SELLER_PROFILE_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            - `LEGAL_INFO_LOCKED`: hồ sơ đã `APPROVED` (loại hình và thông tin pháp lý khóa)
+            - `INVALID_STATE`: hồ sơ đang `REJECTED` (sửa qua sửa và nộp lại)
+            - `IDENTITY_ALREADY_REGISTERED`: khóa định danh mới đã có hồ sơ hiệu lực
+            - `CONCURRENT_UPDATE`: có thay đổi đồng thời, thử lại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/seller/profile/resubmit:
+    post:
+      summary: Sửa và nộp lại
+      description: |
+        Chỉ khi hồ sơ `REJECTED`. Gửi **toàn bộ** trường (sửa mọi thứ, kể cả loại hình và thông tin pháp lý). Về `PENDING_REVIEW`, xóa lý do từ chối,
+        kiểm lại trùng tên và khóa định danh. Ghi một hàng hộp thư `SellerProfileSubmitted` cùng giao dịch.
+      operationId: resubmitSellerProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitSellerProfileRequest'
+      responses:
+        '200':
+          description: Hồ sơ sau khi nộp lại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerProfileResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RoleNotAllowed'
+        '404':
+          description: Chưa có hồ sơ (`SELLER_PROFILE_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            - `INVALID_STATE`: hồ sơ không ở `REJECTED`
+            - `SHOP_NAME_TAKEN`, `IDENTITY_ALREADY_REGISTERED`: trùng (kiểm lại lúc nộp lại)
+            - `CONCURRENT_UPDATE`: có thay đổi đồng thời, thử lại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/seller-profiles:
+    get:
+      summary: Danh sách hồ sơ chờ duyệt (Đã làm, feature 04)
+      description: |
+        Chỉ vai `ADMIN`. Các hồ sơ `PENDING_REVIEW`, cũ nhất (`submittedAt`) trước, cùng thời điểm thì theo `id`. Mỗi dòng chỉ có thông tin cơ bản để chọn hồ sơ;
+        **không có** số căn cước, mã số thuế, địa chỉ kinh doanh, tên pháp lý (kể cả bản che) và không có `version`. Không ghi gì, không phát event.
+      operationId: listPendingSellerProfiles
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Một trang hồ sơ chờ duyệt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingSellerProfilePageResponse'
+        '400':
+          description: '`size` ngoài 1 đến 50 hoặc `page` âm (`SELLER_FIELD_INVALID`, nêu tên tham số)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminRoleRequired'
+  /api/admin/seller-profiles/{profileId}:
+    get:
+      summary: Chi tiết một hồ sơ (Đã làm, feature 04)
+      description: |
+        Chỉ vai `ADMIN`. Trả đủ trường kể cả thông tin pháp lý, kèm `version` để duyệt hoặc từ chối đúng bản đã xem. Hồ sơ ở **mọi trạng thái** đều xem được
+        (kèm `status`, `reviewedAt`, `reviewedBy`, `rejectionReason`); chỉ lệnh duyệt, từ chối mới kiểm trạng thái. Không ghi gì, không phát event.
+      operationId: getSellerProfileForReview
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      responses:
+        '200':
+          description: Chi tiết hồ sơ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSellerProfileResponse'
+        '400':
+          description: Mã hồ sơ không phải UUID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminRoleRequired'
+        '404':
+          description: Không có hồ sơ (`SELLER_PROFILE_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/seller-profiles/{profileId}/approve:
+    post:
+      summary: Duyệt hồ sơ (Đã làm, feature 04)
+      description: |
+        Chỉ vai `ADMIN`. Chỉ khi hồ sơ `PENDING_REVIEW` và `version` khớp bản đã xem. Đọc hồ sơ bằng khóa dòng, chuyển `APPROVED`, ghi người và thời điểm quyết định.
+        Cùng một giao dịch, qua event handler: một hàng hộp thư `SellerProfileApproved` và một hàng hộp thư `AuditActionRecorded` (`SELLER_PROFILE_APPROVED`).
+      operationId: approveSellerProfile
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveSellerProfileRequest'
+      responses:
+        '200':
+          description: Hồ sơ sau khi duyệt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSellerProfileResponse'
+        '400':
+          description: Thiếu hoặc sai `version`, mã hồ sơ không phải UUID (`SELLER_FIELD_INVALID`, nêu tên trường)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminRoleRequired'
+        '404':
+          description: Không có hồ sơ (`SELLER_PROFILE_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/DecisionConflict'
+  /api/admin/seller-profiles/{profileId}/reject:
+    post:
+      summary: Từ chối hồ sơ (Đã làm, feature 04)
+      description: |
+        Chỉ vai `ADMIN`. Như duyệt, thêm `reason` bắt buộc (cắt khoảng trắng đầu cuối, không trống, tối đa 500 ký tự). Chuyển `REJECTED`, ghi lý do, người và thời điểm quyết định;
+        hồ sơ nhả khóa định danh. Cùng một giao dịch: `SellerProfileRejected` (không mang lý do) và `AuditActionRecorded` (`SELLER_PROFILE_REJECTED`, có lý do).
+      operationId: rejectSellerProfile
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectSellerProfileRequest'
+      responses:
+        '200':
+          description: Hồ sơ sau khi từ chối
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSellerProfileResponse'
+        '400':
+          description: |
+            - `REJECTION_REASON_REQUIRED`: lý do trống hoặc toàn khoảng trắng
+            - `SELLER_FIELD_INVALID`: `reason` quá 500 ký tự, thiếu hoặc sai `version`, mã hồ sơ không phải UUID (nêu tên trường, không lặp lại giá trị)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminRoleRequired'
+        '404':
+          description: Không có hồ sơ (`SELLER_PROFILE_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/DecisionConflict'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    ValidationError:
+      description: |
+        Dữ liệu sai. `code` là một trong:
+        - `LEGAL_INFO_REQUIRED`: thiếu thông tin pháp lý theo loại hình (nêu tên trường thiếu)
+        - `INVALID_IDENTITY_NUMBER`: số căn cước không đủ 12 chữ số
+        - `INVALID_TAX_CODE`: mã số thuế không đủ 10 hoặc 13 chữ số
+        - `SELLER_FIELD_INVALID`: trường khác sai (tên gian hàng ngoài 3 đến 60 ký tự, mô tả quá 500, số điện thoại, địa chỉ ngoài 10 đến 300...), nêu tên trường
+        Thông báo chỉ nêu tên trường, không nêu giá trị.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Không có token, token hết hạn hoặc sai chữ ký
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RoleNotAllowed:
+      description: Vai không phải `USER` (`SELLER_ROLE_NOT_ALLOWED`); quy tắc nghiệp vụ "tài khoản nội bộ không bán"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AdminRoleRequired:
+      description: Vai không phải `ADMIN` (`SELLER_ROLE_NOT_ALLOWED`); quy tắc nghiệp vụ "chỉ quản trị duyệt hoặc từ chối" (INV-SEL-05). Không đọc kho.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    DecisionConflict:
+      description: |
+        Lệnh duyệt, từ chối không áp dụng được (kiểm theo thứ tự: trạng thái rồi phiên bản):
+        - `INVALID_STATE`: hồ sơ không còn `PENDING_REVIEW` (đã có người quyết định, hoặc đang `REJECTED`/`APPROVED`)
+        - `STALE_VERSION`: hồ sơ đã đổi sau khi quản trị xem (`version` gửi lên khác phiên bản hiện tại); mở lại chi tiết để xem bản mới
+        Lệnh quản trị không trả `CONCURRENT_UPDATE`: khóa dòng đã xếp hàng các giao dịch đua nhau.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    SellerType:
+      type: string
+      enum: [INDIVIDUAL, HOUSEHOLD, BUSINESS]
+    SellerProfileStatus:
+      type: string
+      enum: [PENDING_REVIEW, APPROVED, REJECTED]
+    LegalInfo:
+      type: object
+      description: Bắt buộc theo loại hình (cá nhân: không có người đại diện, mã số thuế tùy chọn; hộ: có mã số thuế; doanh nghiệp: có người đại diện và mã số thuế)
+      properties:
+        legalName:
+          type: string
+          maxLength: 150
+          description: Họ tên, tên chủ hộ hoặc tên doanh nghiệp
+        representativeName:
+          type: string
+          maxLength: 100
+          description: Người đại diện theo pháp luật; chỉ doanh nghiệp
+        identityNumber:
+          type: string
+          pattern: '^[0-9]{12}$'
+          description: Số căn cước
+        taxCode:
+          type: string
+          description: Mã số thuế, 10 hoặc 13 chữ số (chấp nhận dạng có gạch `0123456789-001`, lưu 13 chữ số liền)
+        businessAddress:
+          type: string
+          minLength: 10
+          maxLength: 300
+    Contact:
+      type: object
+      properties:
+        personName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        phone:
+          type: string
+          description: Số di động Việt Nam; chấp nhận `+84`, `84`, khoảng trắng, dấu chấm, gạch; lưu dạng `0xxxxxxxxx`
+        address:
+          type: string
+          nullable: true
+          minLength: 10
+          maxLength: 300
+          description: Địa chỉ liên hệ, tùy chọn; rỗng thì coi là địa chỉ kinh doanh
+    Shop:
+      type: object
+      properties:
+        shopName:
+          type: string
+          minLength: 3
+          maxLength: 60
+          description: Tên hiển thị (duy nhất toàn sàn sau chuẩn hóa)
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        contact:
+          $ref: '#/components/schemas/Contact'
+    SubmitSellerProfileRequest:
+      type: object
+      required: [sellerType, legalInfo, shop]
+      properties:
+        sellerType:
+          $ref: '#/components/schemas/SellerType'
+        legalInfo:
+          $ref: '#/components/schemas/LegalInfo'
+        shop:
+          $ref: '#/components/schemas/Shop'
+    UpdateShopInfoRequest:
+      type: object
+      description: Một phần; ít nhất một trường. Trường vắng giữ nguyên, `null` xóa trường tùy chọn.
+      properties:
+        shopName:
+          type: string
+          minLength: 3
+          maxLength: 60
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        contact:
+          $ref: '#/components/schemas/Contact'
+    UpdateLegalInfoRequest:
+      type: object
+      description: Một phần; ít nhất một trường. Gộp vào giá trị hiện tại rồi kiểm lại theo loại hình.
+      properties:
+        sellerType:
+          $ref: '#/components/schemas/SellerType'
+        legalInfo:
+          $ref: '#/components/schemas/LegalInfo'
+    SellerProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/SellerProfileStatus'
+        sellerType:
+          $ref: '#/components/schemas/SellerType'
+        legalInfo:
+          $ref: '#/components/schemas/LegalInfo'
+        shop:
+          $ref: '#/components/schemas/Shop'
+        rejectionReason:
+          type: string
+          nullable: true
+          description: Lý do từ chối gần nhất (có khi `REJECTED`)
+        submittedAt:
+          type: string
+          format: date-time
+    SellerProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/SellerProfile'
+        message:
+          type: string
+        traceId:
+          type: string
+    PendingSellerProfileItem:
+      type: object
+      description: Thông tin cơ bản để chọn hồ sơ; không có dữ liệu định danh
+      properties:
+        id:
+          type: string
+          format: uuid
+        sellerType:
+          $ref: '#/components/schemas/SellerType'
+        shopName:
+          type: string
+        submittedAt:
+          type: string
+          format: date-time
+    PendingSellerProfilePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingSellerProfileItem'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+    PendingSellerProfilePageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/PendingSellerProfilePage'
+        message:
+          type: string
+        traceId:
+          type: string
+    AdminSellerProfile:
+      type: object
+      description: Chi tiết cho quản trị; khác hồ sơ của chủ ở chỗ có `ownerAccountId`, `version`, `reviewedAt`, `reviewedBy`
+      properties:
+        id:
+          type: string
+          format: uuid
+        ownerAccountId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/SellerProfileStatus'
+        version:
+          type: integer
+          format: int64
+          description: Phiên bản quản trị gửi lại khi duyệt hoặc từ chối
+        sellerType:
+          $ref: '#/components/schemas/SellerType'
+        legalInfo:
+          $ref: '#/components/schemas/LegalInfo'
+        shop:
+          $ref: '#/components/schemas/Shop'
+        rejectionReason:
+          type: string
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewedBy:
+          type: string
+          format: uuid
+          nullable: true
+    AdminSellerProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/AdminSellerProfile'
+        message:
+          type: string
+        traceId:
+          type: string
+    ApproveSellerProfileRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Phiên bản hồ sơ quản trị đã xem
+    RejectSellerProfileRequest:
+      type: object
+      required: [version, reason]
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Phiên bản hồ sơ quản trị đã xem
+        reason:
+          type: string
+          maxLength: 500
+          description: Lý do từ chối, không trống; người bán đọc ở "Hồ sơ của tôi"
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        code:
+          type: string
+          description: Tên hằng của `SellerErrorCode` hoặc mã lỗi chung
+        errors:
+          type: array
+          items:
+            type: string
+        traceId:
+          type: string

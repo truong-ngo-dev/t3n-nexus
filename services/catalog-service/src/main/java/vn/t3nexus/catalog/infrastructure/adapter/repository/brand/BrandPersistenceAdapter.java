@@ -3,6 +3,8 @@ package vn.t3nexus.catalog.infrastructure.adapter.repository.brand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
@@ -26,34 +28,34 @@ public class BrandPersistenceAdapter implements BrandRepository {
     }
 
     @Override
-    public boolean existsBySlug(String slug) {
-        return jpaRepository.existsBySlug(slug);
+    public boolean existsByNameKey(String nameKey) {
+        return jpaRepository.existsByNameKey(nameKey);
     }
 
     @Override
-    public boolean existsByName(String name) {
-        return jpaRepository.existsByNameIgnoreCase(name);
+    public boolean existsByNameKeyExcludingId(String nameKey, BrandId excludingId) {
+        return jpaRepository.existsByNameKeyAndIdNot(nameKey, excludingId.getValue());
     }
 
     @Override
-    public boolean existsByNameExcludingId(String name, BrandId excludingId) {
-        return jpaRepository.existsByNameIgnoreCaseAndIdNot(name, excludingId.getValue());
-    }
-
-    @Override
-    public List<Brand> search(String keyword, BrandStatus status, int page, int size) {
-        return jpaRepository.search(keyword, status, PageRequest.of(page, size)).stream()
+    public List<Brand> search(String keywordKey, BrandStatus status, int page, int size) {
+        return jpaRepository.search(keywordKey, status, PageRequest.of(page, size)).stream()
                 .map(BrandMapper::toDomain)
                 .toList();
     }
 
     @Override
-    public long count(String keyword, BrandStatus status) {
-        return jpaRepository.countSearch(keyword, status);
+    public long count(String keywordKey, BrandStatus status) {
+        return jpaRepository.countSearch(keywordKey, status);
     }
 
+    /**
+     * {@code saveAndFlush}: khóa lạc quan qua {@code version} và ràng buộc duy nhất nổ ngay trong giao dịch, trước khi
+     * handler kiểm toán chạy (ADR-0011).
+     */
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public void save(Brand brand) {
-        jpaRepository.save(BrandMapper.toJpaEntity(brand));
+        jpaRepository.saveAndFlush(BrandMapper.toJpaEntity(brand));
     }
 }

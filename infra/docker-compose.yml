@@ -134,6 +134,44 @@ services:
       timeout: 5s
       retries: 5
 
+  # Cơ sở dữ liệu của Nhật ký kiểm toán (audit-service). Không phát event nên không cần wal_level=logical.
+  # POSTGRES_USER là tài khoản quản trị của bộ chứa, chỉ dùng để chạy audit/init-audit-roles.sql (tạo audit_owner, audit_app).
+  postgres-audit:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: audit_db
+      POSTGRES_USER: audit_admin
+      POSTGRES_PASSWORD: audit_admin
+    ports:
+      - "5440:5432"
+    volumes:
+      - postgres_audit_data:/var/lib/postgresql/data
+      - ./audit/init-audit-roles.sql:/docker-entrypoint-initdb.d/10-init-audit-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audit_admin -d audit_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Cơ sở dữ liệu của Người bán (seller-service). Cần wal_level=logical để Debezium đọc hộp thư event (ADR-0008).
+  # Một tài khoản chủ vừa chạy migration vừa chạy dịch vụ (docs/service/seller-service/data.md mục 1).
+  postgres-seller:
+    image: postgres:16-alpine
+    command: postgres -c wal_level=logical
+    environment:
+      POSTGRES_DB: seller_db
+      POSTGRES_USER: seller_app
+      POSTGRES_PASSWORD: seller_app
+    ports:
+      - "5441:5432"
+    volumes:
+      - postgres_seller_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seller_app -d seller_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   mailhog:
     image: mailhog/mailhog:latest
     ports:
@@ -279,6 +317,8 @@ volumes:
   postgres_inventory_data:
   postgres_order_data:
   postgres_scheduler_data:
+  postgres_audit_data:
+  postgres_seller_data:
   redis_data:
   kafka_data:
   minio_data:

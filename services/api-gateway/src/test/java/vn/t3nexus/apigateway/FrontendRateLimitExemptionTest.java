@@ -22,15 +22,28 @@ class FrontendRateLimitExemptionTest extends GatewayTestBase {
     @Test
     void requests_to_the_frontend_server_are_not_limited_and_do_not_consume_the_budget_of_other_routes() {
         FRONTEND.respond("GET", "/main.js", 200, "text/javascript", "// app");
+        SELLER_FRONTEND.respond("GET", "/main.js", 200, "text/javascript", "// seller app");
+        OPS_FRONTEND.respond("GET", "/main.js", 200, "text/javascript", "// ops app");
         OAUTH2.respond("GET", "/login", 200, "text/plain", "ok");
 
         for (int i = 0; i < 6; i++) {
             get(SHOP_HOST, "/main.js").exchange().expectStatus().isOk();
+            get(SELLER_HOST, "/main.js").exchange().expectStatus().isOk();
+            get(OPS_HOST, "/main.js").exchange().expectStatus().isOk();
         }
         assertThat(RedisContainerHolder.keys("ratelimit:*")).as("yêu cầu tới máy chủ giao diện không tạo bộ đếm").isEmpty();
 
         get(AUTH_HOST, "/login").exchange().expectStatus().isOk();
         get(AUTH_HOST, "/login").exchange().expectStatus().isOk();
         get(AUTH_HOST, "/login").exchange().expectStatus().isEqualTo(429);
+    }
+
+    @Test
+    void seller_bff_paths_consume_rate_limit_like_shop_bff() {
+        SELLER_BFF.respond("GET", "/api/x", 200, "text/plain", "ok");
+
+        get(SELLER_HOST, "/api/x").exchange().expectStatus().isOk();
+        get(SELLER_HOST, "/api/x").exchange().expectStatus().isOk();
+        get(SELLER_HOST, "/api/x").exchange().expectStatus().isEqualTo(429);
     }
 }

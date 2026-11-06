@@ -24,7 +24,7 @@ nên chậm hơn backend. Cỡ chỉ có nghĩa tương đối giữa các chặ
 | Chặng | Tên | Demo được gì | BC chính | Cỡ | Điểm kiểm tra |
 |---|---|---|---|---|---|
 | **C0** | Nền | Đăng ký, đăng nhập qua giao diện, khung bố cục | Xác thực | S–M | |
-| **C1a** | Niêm yết | Người bán đăng ký, được duyệt, đăng sản phẩm có ảnh | Danh mục hàng, Người bán, Quản lý tệp, Dữ liệu tham chiếu, Nhật ký kiểm toán | M | |
+| **C1a** | Niêm yết | Người bán đăng ký, được duyệt, đăng sản phẩm có ảnh | Danh mục hàng, Người bán, Nhật ký kiểm toán | M | |
 | **C1b** | Khám phá | Khách tìm, lọc, xem sản phẩm; quản trị khóa tài khoản, chặn sản phẩm | Tìm kiếm, Xác thực (phân quyền, khóa/mở), Định danh (lõi), Danh mục hàng | M | |
 | **C2a** | Đặt hàng | Khách đặt COD, giữ chỗ, người bán xác nhận hoặc từ chối, người mua tự hủy | Giỏ hàng, Khách hàng, Định phí, Tồn kho, Đơn hàng, Thông báo | M | |
 | **C2b** | Hạn và hủy tự động | Quá hạn xác nhận tự hủy; giỏ vãng lai; bù trừ khi lỗi giữa chừng | Lập lịch, Đơn hàng, Giỏ hàng, Định phí, Người bán | M | |
@@ -69,7 +69,9 @@ phần được hoàn thiện ở chặng nào (nếu có).
 ### C1a. Niêm yết (M)
 
 - **Việc chính:** đăng ký và duyệt người bán (Người bán, tối giản); tạo sản phẩm, biến thể, giá, danh mục, thuộc tính;
-  ảnh sản phẩm; dữ liệu tham chiếu tối giản; Nhật ký kiểm toán tối giản (ghi hành động quản trị: duyệt người bán); giao
+  ảnh sản phẩm (gắn thẳng vào sản phẩm; Quản lý tệp là BC riêng, hoãn có điểm nối tới khi có tệp riêng tư như giấy tờ hồ sơ
+  người bán); Dữ liệu tham chiếu hoãn tới khi Giao nhận cần địa chỉ có cấu trúc (C3a); Nhật ký kiểm toán tối giản, dịch vụ
+  riêng (ghi hành động quản trị: duyệt người bán, quản danh mục); giao
   diện người bán và nội bộ ở mức tối giản (đăng sản phẩm, duyệt người bán, danh mục). Chưa có tìm kiếm.
 - **Mục tiêu hiểu gợi ý:** cách lưu và phục vụ ảnh tách khỏi dữ liệu sản phẩm; vì sao hành động quản trị cần nhật ký ghi
   thêm, không sửa.
@@ -110,7 +112,7 @@ phần được hoàn thiện ở chặng nào (nếu có).
 - **Mục tiêu hiểu gợi ý:** vì sao giữ chỗ phải toàn bộ hoặc không và an toàn khi lặp; vì sao có thêm bước người bán xác
   nhận khi tồn kho chỉ là lời khai.
 - **Hạ tầng:** thêm bộ nhớ đệm hoặc kho giỏ. Gom log tập trung (ELK): từ chặng này có luồng xuyên nhiều BC nên cần tìm
-  toàn bộ dấu vết bằng một truy vấn (NFR mục 7). C0 chỉ cần log có cấu trúc kèm mã tương quan (feature 07), chưa dựng ELK.
+  toàn bộ dấu vết bằng một truy vấn (NFR mục 7). C0 chỉ cần log có cấu trúc kèm mã tương quan (feature 07), chưa dựng ELK. Hàng đợi công việc cho bước giao thông báo (email, đẩy thông báo): ở lại Kafka (topic thử lại) hoặc thêm RabbitMQ chỉ cho bước giao; đây là một **lựa chọn chưa quyết**, bàn và chốt bằng ADR khi làm email (Thông báo).
 - **BC đã có mã (kiểm sơ):** Tồn kho, Đơn hàng, Khách hàng, Thông báo. Phân tích trước, đối chiếu sau.
 - **Xong khi:** đặt COD, người bán xác nhận hoặc từ chối, người mua tự hủy; các nhánh này trả đúng giữ chỗ; gửi lặp một
   yêu cầu giữ chỗ không giữ hai lần.

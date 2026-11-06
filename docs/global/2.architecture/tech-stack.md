@@ -34,9 +34,9 @@
 | Hạng mục          | Công nghệ                        | Dùng ở đâu                                                                     |
 |-------------------|----------------------------------|--------------------------------------------------------------------------------|
 | Event streaming   | Kafka                            | Domain events, Saga choreography                                               |
-| Schema management | Confluent Schema Registry (Avro) | Tránh breaking change producer/consumer                                        |
+| Schema management | Hiện: sự kiện JSON, kỷ luật chỉ thêm trường kèm `version`. Hướng nâng cấp: Confluent Schema Registry (Avro) | Tránh breaking change producer/consumer; Registry và converter Avro của Connect chưa dựng (`2026-10-22`) |
 | CDC               | Debezium                         | Outbox pattern — đọc PostgreSQL WAL (logical replication), push Kafka          |
-| Task queue        | Kafka + Outbox (CDC)             | Email/push notification — outbox-starter + Debezium, không cần retry job riêng |
+| Task queue        | Kafka + Outbox (CDC)             | Email/push notification — outbox-starter + Debezium, không cần retry job riêng. **Lựa chọn chưa quyết:** RabbitMQ chỉ cho bước giao thông báo (ưu tiên, thử lại có trễ, không chặn đầu hàng), Kafka giữ phần sự kiện; chốt bằng ADR khi làm email (C2a) |
 | MQTT broker       | EMQX                             | Chat, shipper location tracking                                                |
 
 ## Infrastructure Middleware

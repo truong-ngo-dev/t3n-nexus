@@ -80,7 +80,7 @@ class InternalRevokeTest extends GatewayTestBase {
     /** Dòng log phải nói đúng điều đã xảy ra: xóa được thì chỉ có "cleared", không có "no mapping" (từng ghi cả hai vì {@code Mono<Void>} luôn rỗng). */
     @Test
     void the_log_says_cleared_when_a_mapping_was_removed_and_no_mapping_only_when_there_was_none() {
-        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(vn.t3nexus.storefrontwebbff.presentation.SessionRevokeController.class);
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(vn.t3nexus.lib.webbff.presentation.SessionRevokeController.class);
         var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
         appender.start();
         logger.addAppender(appender);

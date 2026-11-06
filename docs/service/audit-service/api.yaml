@@ -1,0 +1,284 @@
+openapi: 3.0.3
+info:
+  title: Nhật ký kiểm toán
+  version: 0.1.0
+  description: |
+    Sống. Đã làm: tra cứu danh sách có bộ lọc và phân trang con trỏ, xem chi tiết bản ghi kiểm toán.
+    Chưa kiểm token và vai ở feature 02. Quyết định đã chốt: bảng chỉ ghi thêm (append-only), chỉ cung cấp thao tác đọc.
+servers:
+  - url: /
+paths:
+  /api/audit/entries:
+    get:
+      summary: Danh sách bản ghi kiểm toán
+      description: |
+        Tra cứu danh sách bản ghi kiểm toán sắp xếp giảm dần theo thời điểm xảy ra (occurredAt) và id.
+        Hỗ trợ phân trang bằng con trỏ (AuditCursor) và lọc đa tiêu chí.
+        Chưa kiểm token và vai ở feature 02.
+      operationId: listAuditEntries
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Thời điểm bắt đầu (gồm mốc này), định dạng ISO-8601
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Thời điểm kết thúc (không gồm mốc này), định dạng ISO-8601
+          schema:
+            type: string
+            format: date-time
+        - name: actorId
+          in: query
+          required: false
+          description: Mã tài khoản thực hiện hành động
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          required: false
+          description: Tên hành động nghiệp vụ
+          schema:
+            type: string
+        - name: targetType
+          in: query
+          required: false
+          description: Loại đối tượng chịu tác động (bắt buộc khi có targetId)
+          schema:
+            type: string
+        - name: targetId
+          in: query
+          required: false
+          description: Mã đối tượng chịu tác động (phải đi kèm targetType)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Cỡ trang (mặc định 50, tối thiểu 1, tối đa 200)
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: cursor
+          in: query
+          required: false
+          description: Con trỏ trang cho lời gọi kế tiếp (Base64 URL không đệm của occurredAt.id)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntryPageApiResponse'
+        '400':
+          description: |
+            Yêu cầu không hợp lệ. Các mã lỗi:
+            - `AUDIT_LIMIT_INVALID`: Cỡ trang phải từ 1 đến 200
+            - `AUDIT_CURSOR_INVALID`: Con trỏ trang không hợp lệ
+            - `AUDIT_TIME_RANGE_INVALID`: Thời điểm bắt đầu phải trước thời điểm kết thúc
+            - `AUDIT_FILTER_INVALID`: Bộ lọc không hợp lệ (ví dụ targetId mà thiếu targetType)
+            - `AUDIT_PARAMETER_INVALID`: Tham số không đúng định dạng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/audit/entries/{id}:
+    get:
+      summary: Chi tiết một bản ghi kiểm toán
+      description: |
+        Xem thông tin đầy đủ của một bản ghi kiểm toán bao gồm dữ kiện bổ sung (details), traceId và sourceEventId.
+        Chưa kiểm token và vai ở feature 02.
+      operationId: getAuditEntry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mã bản ghi kiểm toán
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntryDetailApiResponse'
+        '400':
+          description: Tham số không đúng định dạng (`AUDIT_PARAMETER_INVALID`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Bản ghi không tồn tại (`AUDIT_ENTRY_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ActorResponse:
+      type: object
+      required: [role]
+      properties:
+        accountId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Mã tài khoản (null đối với hành động SYSTEM)
+        role:
+          type: string
+          description: Vai trò tại thời điểm thực hiện hành động
+
+    TargetResponse:
+      type: object
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          description: Loại đối tượng
+        id:
+          type: string
+          description: Mã định danh đối tượng
+
+    AuditEntrySummaryResponse:
+      type: object
+      required: [id, occurredAt, recordedAt, actor, action, target, sourceService]
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        recordedAt:
+          type: string
+          format: date-time
+        actor:
+          $ref: '#/components/schemas/ActorResponse'
+        action:
+          type: string
+        target:
+          $ref: '#/components/schemas/TargetResponse'
+        sourceService:
+          type: string
+
+    AuditEntryDetailResponse:
+      type: object
+      required: [id, occurredAt, recordedAt, actor, action, target, sourceService, sourceEventId, details]
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        recordedAt:
+          type: string
+          format: date-time
+        actor:
+          $ref: '#/components/schemas/ActorResponse'
+        action:
+          type: string
+        target:
+          $ref: '#/components/schemas/TargetResponse'
+        sourceService:
+          type: string
+        sourceEventId:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+        traceId:
+          type: string
+          nullable: true
+
+    AuditEntryPageResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntrySummaryResponse'
+        nextCursor:
+          type: string
+          nullable: true
+
+    AuditEntryPageApiResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: '#/components/schemas/AuditEntryPageResponse'
+        message:
+          type: string
+          nullable: true
+        errors:
+          type: array
+          items:
+            type: string
+        code:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+
+    AuditEntryDetailApiResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: '#/components/schemas/AuditEntryDetailResponse'
+        message:
+          type: string
+          nullable: true
+        errors:
+          type: array
+          items:
+            type: string
+        code:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      required: [success, message, code]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        code:
+          type: string
+          description: Mã lỗi chữ ổn định
+        message:
+          type: string
+          description: Thông báo lỗi tiếng Việt
+        errors:
+          type: array
+          items:
+            type: string
+        traceId:
+          type: string
+          nullable: true

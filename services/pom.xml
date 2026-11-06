@@ -30,7 +30,11 @@
         <module>email-worker</module>
         <module>inapp-worker</module>
         <module>storefront-web-bff</module>
+        <module>seller-web-bff</module>
+        <module>ops-web-bff</module>
         <module>api-gateway</module>
+        <module>audit-service</module>
+        <module>seller-service</module>
         <module>catalog-service</module>
         <module>inventory-service</module>
         <module>order-service</module>

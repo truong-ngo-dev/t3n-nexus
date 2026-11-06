@@ -7,17 +7,14 @@ import java.util.List;
 
 public interface AttributeTemplateRepository extends Repository<AttributeTemplate, AttributeTemplateId> {
 
+    /** Tên đã có (so theo khóa tên). Kiểm sớm để trả lỗi rõ; ràng buộc duy nhất của cơ sở dữ liệu là chốt cuối (ADR-0011). */
     boolean existsByName(String name);
 
-    /**
-     * Batch load theo id — dùng bởi {@code AttributeTemplateDomainService#validateProductAttributes}
-     * để lấy đúng 1 round-trip cho toàn bộ attribute submit cùng lúc (bất kể submit bao nhiêu attribute),
-     * tránh N+1 khi cần {@code inputType}/{@code options} đầy đủ của từng template để validate.
-     */
+    /** Nạp theo lô các mẫu, một lần truy vấn cho cả danh sách (dùng khi gán thuộc tính cho danh mục). */
     List<AttributeTemplate> findAllByIds(Collection<AttributeTemplateId> ids);
 
     /**
-     * Danh sách quản trị: mọi trạng thái, lọc theo từ khoá ({@code name}/{@code displayName}, không phân biệt hoa/thường),
+     * Danh sách quản trị: mọi trạng thái, lọc theo từ khóa ({@code name}/{@code displayName}, không phân biệt hoa/thường),
      * {@code inputType}, {@code status}; tham số null = không lọc. {@code page} bắt đầu từ 0.
      */
     List<AttributeTemplate> search(String keyword, InputType inputType, AttributeTemplateStatus status,
@@ -25,9 +22,9 @@ public interface AttributeTemplateRepository extends Repository<AttributeTemplat
 
     long count(String keyword, InputType inputType, AttributeTemplateStatus status);
 
-    /** Thuộc tính không bao giờ bị xoá — chỉ tắt/bật (sản phẩm cũ còn tham chiếu). */
+    /** Mẫu không bao giờ bị xóa, chỉ ngừng dùng (INV-CAT-12). */
     @Override
     default void delete(AttributeTemplateId id) {
-        throw new UnsupportedOperationException("AttributeTemplate is never deleted — deactivate instead");
+        throw new UnsupportedOperationException("AttributeTemplate is never deleted: deactivate instead");
     }
 }

@@ -1,47 +1,48 @@
 package vn.t3nexus.catalog.application.brand;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.t3nexus.catalog.domain.CatalogActor;
+import vn.t3nexus.catalog.domain.ChangeContext;
 import vn.t3nexus.catalog.domain.brand.Brand;
 import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.brand.BrandRepository;
+import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
-import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
+import vn.t3nexus.lib.common.domain.service.IdGenerator;
 
-@Slf4j
+import java.time.Clock;
+
+/** Quản trị tạo thương hiệu (CAP-CAT-03). Tên trùng sau chuẩn hóa thì từ chối (INV-CAT-20). */
 @Service
 @RequiredArgsConstructor
-public class CreateBrand implements CommandHandler<CreateBrand.Command, CreateBrand.Result> {
+public class CreateBrand implements CommandHandler<CreateBrand.Command, BrandView> {
 
-    private final BrandRepository brandRepository;
-    private final ULIDGenerator ulidGenerator;
+    private final BrandRepository repository;
+    private final IdGenerator idGenerator;
+    private final Clock clock;
+    private final EventDispatcher eventDispatcher;
 
     @Override
     @Transactional
-    public Result handle(Command command) {
-        if (brandRepository.existsByName(command.name())) {
-            throw new DomainException(BrandErrorCode.BRAND_NAME_ALREADY_EXISTS);
-        }
-        if (brandRepository.existsBySlug(command.slug())) {
-            throw new DomainException(BrandErrorCode.BRAND_SLUG_ALREADY_EXISTS);
+    public BrandView handle(Command command) {
+        command.actor().requireAdmin();
+        if (repository.existsByNameKey(Brand.nameKeyOf(command.name()))) {
+            throw new DomainException(BrandErrorCode.BRAND_NAME_TAKEN);
         }
 
-        BrandId id = BrandId.of(ulidGenerator.generate());
-        Brand brand = Brand.create(id, command.name(), command.slug());
-        brandRepository.save(brand);
+        ChangeContext ctx = new ChangeContext(command.actor(), idGenerator.generate(), clock.instant());
+        Brand brand = Brand.create(BrandId.of(idGenerator.generate()), command.name(), ctx);
+        long version = brand.nextVersion();
+        repository.save(brand);
 
-        log.info("[CreateBrand] created: brandId={}, slug={}, traceId={}",
-                id.getValue(), command.slug(), MDC.get("traceId"));
-
-        return new Result(id.getValue());
+        eventDispatcher.dispatchAll(brand.getDomainEvents());
+        brand.clearDomainEvents();
+        return BrandView.of(brand, version);
     }
 
-    public record Command(String name, String slug) {}
-
-    public record Result(String id) {}
+    public record Command(CatalogActor actor, String name) {}
 }

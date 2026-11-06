@@ -1,6 +1,6 @@
 # Cổng ngoài cùng: service (`api-gateway`)
 
-> **Trạng thái:** DRAFT · **Cập nhật:** `2026-10-18` · **Thư mục mã:** `services/api-gateway`
+> **Trạng thái:** Đã làm (feature 10) · **Cập nhật:** `2026-11-06` · **Thư mục mã:** `services/api-gateway`
 >
 > Tầng kỹ thuật của điểm vào duy nhất từ ngoài. **Không có `analysis.md`** (không có nghiệp vụ) và **không có `api.yaml`, `data.md`**: cổng chỉ định tuyến và bảo vệ, bảng tuyến ở mục 7.3, khóa Redis ở mục 12.1. File này là nguồn thiết kế duy nhất; nhiều mục khuôn mẫu ghi "N/A".
 >
@@ -24,7 +24,7 @@ N/A: không có aggregate, thuật ngữ nghiệp vụ hay trạng thái. Khái 
 
 | Khái niệm | Nghĩa | Biểu diễn |
 |---|---|---|
-| Host cho phép | Tên máy mà cổng nhận (`auth`, `shop`, `ops` + miền gốc) | Thuộc tính `app.gateway.hosts.*`, kiểm bởi bộ lọc host |
+| Host cho phép | Tên máy mà cổng nhận (`auth`, `shop`, `seller`, `ops` + miền gốc) | Thuộc tính `app.gateway.hosts.*`, kiểm bởi bộ lọc host |
 | Luật theo đường dẫn | Một luật giới hạn tần suất theo (host, phương thức, đường dẫn) | Đối tượng bất biến nạp từ `app.ratelimit.rules[i].*` (T1) |
 | Mức chung | Giới hạn mặc định theo địa chỉ mạng | `app.ratelimit.default.*` (300 mỗi 60 giây) |
 | Địa chỉ client tin cậy | Địa chỉ của kết nối TCP tới cổng | Tiêu đề `X-Client-Ip` do cổng đặt (T7) |
@@ -84,14 +84,17 @@ N/A: không phát hay nhận sự kiện.
 | `auth.localhost` | mọi đường dẫn | `oauth2-service` (8004) | Không tiền tố, không cắt đường dẫn |
 | `shop.localhost` | `/api/**`, `/oauth2/authorization/**`, `/login/oauth2/code/**`, `/bff/**` | `storefront-web-bff` (8090) | Đường dẫn của BFF (tên đã chốt ở bước 4b của feature 06) |
 | `shop.localhost` | còn lại | Máy chủ giao diện Cửa hàng (`app.gateway.frontends.shop`, feature 05) | Giao diện không dùng các tiền tố của BFF |
-| `ops.localhost` | — | Chưa có (giữ chỗ cho `ops-web-bff`) | Làm khi có ứng dụng Vận hành |
+| `seller.localhost` | `/api/**`, `/oauth2/authorization/**`, `/login/oauth2/code/**`, `/bff/**` | `seller-web-bff` (8091) | Đường dẫn của BFF Người bán |
+| `seller.localhost` | còn lại | Máy chủ giao diện Người bán (`app.gateway.frontends.seller`) | Giao diện không dùng các tiền tố của BFF |
+| `ops.localhost` | `/api/**`, `/oauth2/authorization/**`, `/login/oauth2/code/**`, `/bff/**` | `ops-web-bff` (8092) | Đường dẫn của BFF Vận hành |
+| `ops.localhost` | còn lại | Máy chủ giao diện Vận hành (`app.gateway.frontends.ops`) | Giao diện không dùng các tiền tố của BFF |
 | Di động | — | Chưa chốt (`TQ-02`) | ADR-0006: BFF di động riêng, cách định tuyến chưa quyết |
 
 Mọi tuyến chuyển tiếp: giữ `Host` của trình duyệt, đặt `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-Port` từ yêu cầu thật (`Q-02`); `X-Client-Ip` ở bước log của feature 06.
 
 | Chiều | Đối tác | Giao thức | Endpoint | Timeout | Retry | Khi đối tác lỗi |
 |---|---|---|---|---|---|---|
-| Outbound | `oauth2-service`, `storefront-web-bff`, máy chủ giao diện | HTTP | Theo bảng tuyến | Mặc định của Gateway | Không | Trả lỗi của Gateway (502, 504), không thử lại |
+| Outbound | `oauth2-service`, `storefront-web-bff`, `seller-web-bff`, `ops-web-bff`, máy chủ giao diện | HTTP | Theo bảng tuyến | Mặc định của Gateway | Không | Trả lỗi của Gateway (502, 504), không thử lại |
 | Outbound | Redis | Redis phản ứng | Đếm giới hạn tần suất | Ngắn (T3) | Không | Mở cửa kèm cảnh báo (`Q-05`) |
 
 ---
@@ -167,7 +170,7 @@ Chưa rà code.
 
 ## 17. Dependencies
 
-- **Services:** `oauth2-service`, `storefront-web-bff`, máy chủ giao diện (feature 05).
+- **Services:** `oauth2-service`, `storefront-web-bff`, `seller-web-bff`, `ops-web-bff`, máy chủ giao diện (feature 05).
 - **Infrastructure:** Redis (chỉ cho giới hạn tần suất).
 
 ---

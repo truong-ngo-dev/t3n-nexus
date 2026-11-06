@@ -17,6 +17,7 @@ Chi tiết thiết kế từng lib tại file riêng trong thư mục này.
 | `idempotency-support`   | Infrastructure | Redis-based idempotency key checking             | Hiếm                  |
 | `common-web`            | Infrastructure | REST conventions, error format, filters          | Hiếm                  |
 | `security-commons`      | Security       | JWT utils, Spring Security + ABAC bridge         | Khi đổi auth flow     |
+| `web-bff-starter`       | Infrastructure | Web BFF framework (OAuth2 client, Redis session) | Hiếm                  |
 
 ---
 
@@ -109,6 +110,19 @@ Redis-based idempotency key checking. Bắt buộc cho:
 - Spring Security filter chain integration
 - `@PreAuthorize` ABAC bridge với `abac-engine`
 - Security context helper — extract current user/roles
+
+---
+
+## `web-bff-starter`
+
+Cơ chế BFF web dùng chung cho các ứng dụng kênh web:
+- **Mục đích:** Đăng nhập OAuth2 (mã ủy quyền kèm PKCE, client `<ứng dụng>-web`), giữ token phía máy chủ trong phiên Redis, làm mới token (gửi kèm `sid`), chống CSRF, ánh xạ hai chiều `sid` ↔ phiên BFF ở Redis với khóa `<ứng dụng>:sid:<sid>` và `<ứng dụng>:session:<mã phiên>`, cookie phiên `<ỨNG DỤNG>_SESSION` (`STOREFRONT_SESSION`, `SELLER_SESSION`, `OPS_SESSION`), điểm cuối nội bộ `POST /bff/internal/sessions/revoke` (token dịch vụ phạm vi `<ứng dụng>.internal`), `GET /bff/auth/login`, `GET /bff/auth/session`, `GET /bff/auth/ws-ticket`, `POST /bff/auth/logout`, giới hạn tần suất theo người dùng, khung lỗi chung và CORS.
+- **Ai dùng:** Ba BFF kênh web gồm `storefront-web-bff`, `seller-web-bff`, `ops-web-bff`.
+- **Cách bật:** Đặt chú thích `@EnableWebBff` trên lớp khởi động (`@SpringBootApplication`).
+- **Thuộc tính cấu hình (`bff.*`):**
+  - `bff.app-name`: Tên ứng dụng (`storefront`, `seller`, `ops`).
+  - `bff.routes.<dịch vụ>.uri`: Định tuyến backend; đường dẫn `/api/<dịch vụ bỏ hậu tố -service>/**` được tự động viết lại thành `/api/**`.
+  - Kết hợp với cấu hình client OAuth2 chuẩn `spring.security.oauth2.client.*`.
 
 ---
 

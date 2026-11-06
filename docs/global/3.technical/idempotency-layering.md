@@ -2,6 +2,8 @@
 
 > Cookbook quyết định: 1 consumer/handler mới cần dedupe theo cơ chế nào — DB constraint thuần, Redis guard thuần, hay kết hợp cả hai.
 
+> Thư viện nhận event (`event-consumer-starter`, ADR-0008) giao ít nhất một lần và **không giữ bảng "đã xử lý" chung**: khử trùng là việc của handler theo quy tắc dưới đây (ràng buộc duy nhất khi mỗi event tạo bản ghi; giá trị tuyệt đối kèm phiên bản khi event mang trạng thái). Thư viện cấp bộ khung kiểm thử `DeliveryHarness` (giao trùng, đảo thứ tự); mọi handler mới có ít nhất một test dùng bộ khung này.
+
 ---
 
 ## Quy tắc quyết định
@@ -24,6 +26,7 @@ Trục quyết định là **hệ quả khi dedup bị miss**, không phải "se
 |---|---|---|---|
 | `customer-service` — `CreateCustomerProfile` (event `identity.customer-account.created`) | 2 `CustomerProfile` cho 1 `userId` — vi phạm invariant | DB `UNIQUE(user_id)` + `ON CONFLICT DO NOTHING`, không Redis | Đúng — sống còn |
 | `notification-service` — Router ghi `notification_log` (mọi event consume) | 2 log entry cùng `(event_id, channel)` → CDC bắn trùng xuống dispatch topic → downstream gửi trùng | DB `UNIQUE(event_id, channel)` + `ON CONFLICT DO NOTHING`, không Redis | Đúng — sống còn (miss ở đây không chỉ dư thừa mà lan hệ quả xuống toàn bộ downstream) |
+| `audit-service` — `RecordAuditEntry` (`audit.action.recorded`) | 2 bản ghi cho 1 hành động — nhật ký bằng chứng bị ghi đôi | DB `UNIQUE(source_event_id)` + `INSERT ... ON CONFLICT DO NOTHING` (không `UPDATE`, ADR-0009), không Redis; kiểm 20 luồng song song và giao lại từ offset đầu trên Kafka thật | Đúng — sống còn |
 | `email-worker` — `EmailDispatchHandler` (gửi SMTP) | Gửi trùng 1 email verification/OTP | Redis `IdempotencyGuard.tryAcquire` (TTL 72h), release khi exception, **không có DB nào trong service này** | Đúng — không sống còn, và không có DB để đẩy xuống dù muốn |
 | `inventory-service` — `ReserveInventory`/`RecordReservationFailure` (`order.order.created`) | Double-reserve → oversell — vi phạm invariant | DB `UNIQUE(order_id)` trên `reservation` + `SELECT FOR UPDATE` trên `stock` + catch `DataIntegrityViolationException` → `setRollbackOnly()`, không Redis | Đúng — sống còn (chuẩn tham chiếu cho toàn bộ handler khác trong service) |
 | `inventory-service` — `ReleaseReservation` (`order.order.cancelled`) | Double-release → tồn kho khả dụng bị tính sai (tăng ảo) | ~~Redis guard~~ **(2026-09-20 sửa)** — DB `isPending()` check + `findByOrderIdForUpdate`/`findBySkuIdForUpdate` (`SELECT FOR UPDATE`), không Redis | Trước: **sai** — có Redis-swallow-on-crash + race thật do đọc không khoá. Sau: Đúng |

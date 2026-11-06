@@ -6,10 +6,9 @@ import vn.t3nexus.lib.common.domain.model.Entity;
 import java.time.Instant;
 
 /**
- * Giá trị chuẩn hoá của thuộc tính kiểu SELECT. Entity bên trong {@link AttributeTemplate} — bên ngoài luôn tham
- * chiếu bằng cặp {@code (templateId, optionId)}.
- * <br>Tắt/bật không có guard: tắt chỉ chặn lựa chọn MỚI (kiểm ở nơi chọn), không đụng Product/Variant đang dùng —
- * nên không cần biết option đang được dùng ở đâu (đã bỏ {@code usageCount}).
+ * Giá trị chuẩn hóa của thuộc tính kiểu chọn. Thực thể bên trong {@link AttributeTemplate}; bên ngoài tham chiếu bằng
+ * cặp {@code (templateId, optionId)}. {@code value} đặt lúc thêm, không đổi.
+ * <br>Ngừng, bật không có guard riêng: ngừng chỉ chặn chọn MỚI (kiểm ở nơi chọn), không đụng giá trị đã lưu.
  */
 public class AttributeOption extends AbstractEntity<AttributeOptionId> implements Entity<AttributeOptionId> {
 
@@ -29,10 +28,9 @@ public class AttributeOption extends AbstractEntity<AttributeOptionId> implement
         this.createdAt    = createdAt;
     }
 
-    // ───────────── Factory Methods ─────────────
-
-    static AttributeOption create(AttributeOptionId id, String value, String displayValue, int sortOrder) {
-        return new AttributeOption(id, value, displayValue, AttributeOptionStatus.ACTIVE, sortOrder, Instant.now());
+    static AttributeOption create(AttributeOptionId id, String value, String displayValue,
+                                  int sortOrder, Instant now) {
+        return new AttributeOption(id, value, displayValue, AttributeOptionStatus.ACTIVE, sortOrder, now);
     }
 
     public static AttributeOption reconstitute(AttributeOptionId id, String value, String displayValue,
@@ -40,26 +38,10 @@ public class AttributeOption extends AbstractEntity<AttributeOptionId> implement
         return new AttributeOption(id, value, displayValue, status, sortOrder, createdAt);
     }
 
-    // ───────────── Behaviour ─────────────
-
-    void deactivate() {
-        this.status = AttributeOptionStatus.INACTIVE;
-    }
-
-    // Ưu tiên bật lại option cũ thay vì tạo option mới cùng value — tránh 2 ID cho 1 khái niệm.
-    void activate() {
-        this.status = AttributeOptionStatus.ACTIVE;
-    }
-
-    void updateDisplayValue(String displayValue) {
-        this.displayValue = displayValue;
-    }
-
-    void changeSortOrder(int sortOrder) {
-        this.sortOrder = sortOrder;
-    }
-
-    // ───────────── Getters ─────────────
+    void deactivate()                            { this.status = AttributeOptionStatus.INACTIVE; }
+    void activate()                              { this.status = AttributeOptionStatus.ACTIVE; }
+    void updateDisplayValue(String displayValue) { this.displayValue = displayValue; }
+    void changeSortOrder(int sortOrder)          { this.sortOrder = sortOrder; }
 
     public boolean isActive()                { return status == AttributeOptionStatus.ACTIVE; }
     public String getValue()                 { return value; }

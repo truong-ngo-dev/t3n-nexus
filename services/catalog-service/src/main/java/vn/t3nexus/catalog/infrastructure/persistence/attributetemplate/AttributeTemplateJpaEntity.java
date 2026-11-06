@@ -8,6 +8,7 @@ import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateStatus;
 import vn.t3nexus.catalog.domain.attributetemplate.InputType;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "attribute_template")
@@ -18,22 +19,22 @@ public class AttributeTemplateJpaEntity {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
-    private String id;
+    private UUID id;
 
-    @Column(name = "name", nullable = false, unique = true, updatable = false)
+    @Column(name = "name", nullable = false, updatable = false)
     private String name;
 
     @Column(name = "display_name", nullable = false)
     private String displayName;
 
+    @Column(name = "hint")
+    private String hint;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "input_type", nullable = false, updatable = false)
     private InputType inputType;
 
-    @Column(name = "hint", length = 200)
-    private String hint;
-
-    @Column(name = "unit", length = 20, updatable = false)
+    @Column(name = "unit", updatable = false)
     private String unit;
 
     @Enumerated(EnumType.STRING)

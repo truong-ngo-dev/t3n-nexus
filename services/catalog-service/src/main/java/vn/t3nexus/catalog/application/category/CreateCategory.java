@@ -1,65 +1,61 @@
 package vn.t3nexus.catalog.application.category;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.t3nexus.catalog.domain.CatalogActor;
+import vn.t3nexus.catalog.domain.ChangeContext;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
 import vn.t3nexus.catalog.domain.category.CategoryId;
 import vn.t3nexus.catalog.domain.category.CategoryRepository;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheInvalidationPublisher;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
 import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
-import vn.t3nexus.lib.common.domain.service.ULIDGenerator;
+import vn.t3nexus.lib.common.domain.service.IdGenerator;
 
-@Slf4j
+import java.time.Clock;
+import java.util.UUID;
+
+/**
+ * Quản trị tạo danh mục gốc hoặc con của danh mục đã có (CAP-CAT-01). Cha đang đóng vẫn tạo con được. Tên trùng trong
+ * cùng cha sau chuẩn hóa thì từ chối (INV-CAT-02); cha đã là cấp ba thì từ chối (INV-CAT-01). Xếp cuối các anh em.
+ */
 @Service
 @RequiredArgsConstructor
-public class CreateCategory implements CommandHandler<CreateCategory.Command, CreateCategory.Result> {
+public class CreateCategory implements CommandHandler<CreateCategory.Command, CategoryView> {
 
-    private final CategoryRepository categoryRepository;
-    private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final CategoryRepository repository;
+    private final IdGenerator idGenerator;
+    private final Clock clock;
     private final EventDispatcher eventDispatcher;
-    private final ULIDGenerator ulidGenerator;
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheNames.CATEGORY_TREE, allEntries = true)
-    public Result handle(Command command) {
-        CategoryId parentId = command.parentId() != null ? CategoryId.of(command.parentId()) : null;
-        if (categoryRepository.existsByParentAndNameIgnoreCase(parentId, command.name())) {
-            throw new DomainException(CategoryErrorCode.CATEGORY_NAME_EXISTS_IN_PARENT);
-        }
-        int sortOrder = categoryRepository.findSiblings(parentId).size();
-
-        CategoryId newId = CategoryId.of(ulidGenerator.generate());
-        Category category;
-
-        if (parentId == null) {
-            category = Category.createRoot(newId, command.name(), sortOrder);
-        } else {
-            Category parent = categoryRepository.findById(parentId)
-                    .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
-            category = Category.createChild(newId, command.name(), parentId, parent.getLevel(), sortOrder);
+    public CategoryView handle(Command command) {
+        command.actor().requireAdmin();
+        CategoryId parentId = command.parentId() == null ? null : CategoryId.of(command.parentId());
+        Category parent = parentId == null ? null : repository.findById(parentId)
+                .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        if (repository.existsByParentAndNameKey(parentId, Category.nameKeyOf(command.name()))) {
+            throw new DomainException(CategoryErrorCode.CATEGORY_NAME_TAKEN);
         }
 
-        categoryRepository.save(category);
+        int sortOrder = repository.findSiblings(parentId).stream()
+                .mapToInt(Category::getSortOrder).max().orElse(-1) + 1;
+        CategoryId id = CategoryId.of(idGenerator.generate());
+        ChangeContext ctx = new ChangeContext(command.actor(), idGenerator.generate(), clock.instant());
+        Category category = parent == null
+                ? Category.createRoot(id, command.name(), sortOrder, ctx)
+                : Category.createChild(id, command.name(), parentId, parent.getLevel(), sortOrder, ctx);
+        long version = category.nextVersion();
+        repository.save(category);
+
         eventDispatcher.dispatchAll(category.getDomainEvents());
         category.clearDomainEvents();
-        cacheInvalidationPublisher.clear(CacheNames.CATEGORY_TREE);
-
-        log.info("[CreateCategory] created: categoryId={}, parentId={}, traceId={}",
-                newId.getValue(), command.parentId(), MDC.get("traceId"));
-
-        return new Result(newId.getValue());
+        return CategoryView.of(category, version);
     }
 
-    public record Command(String name, String parentId) {}
-
-    public record Result(String id) {}
+    /** {@code parentId} null là danh mục cấp một. */
+    public record Command(CatalogActor actor, String name, UUID parentId) {}
 }

@@ -2,21 +2,30 @@ package vn.t3nexus.lib.outbox;
 
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
 import vn.t3nexus.lib.common.domain.model.DomainEvent;
 import vn.t3nexus.lib.events.EventEnvelope;
+import vn.t3nexus.lib.events.EventEnvelopeFactory;
 
 import java.time.Instant;
 
+/**
+ * Cổng ghi hộp thư event. <b>Bắt buộc có giao dịch đang chạy</b> ({@link Propagation#MANDATORY}): hàng hộp thư phải
+ * commit hoặc rollback cùng thay đổi dữ liệu của use case (R12). Gọi ngoài giao dịch là lỗi lập trình và bị từ chối
+ * ngay, không tự mở giao dịch riêng.
+ */
 @RequiredArgsConstructor
 public class OutboxEventStore {
 
-    private final OutboxEventRepository repository;
-    private final ObjectMapper objectMapper;
+    /** Phiên bản khung của event ghi qua cổng này; đổi nghĩa khung thì tăng. */
+    static final int SCHEMA_VERSION = 1;
 
-    @Transactional
+    private final OutboxEventRepository repository;
+    private final EventEnvelopeFactory envelopeFactory;
+
+    @Transactional(propagation = Propagation.MANDATORY)
     public void store(DomainEvent event) {
         String  eventId    = event.getEventId();
         String  eventType  = event.getClass().getSimpleName();
@@ -24,20 +33,20 @@ public class OutboxEventStore {
         String  traceId    = MDC.get("traceId");
         String  spanId     = MDC.get("spanId");
         try {
-            EventEnvelope envelope = new EventEnvelope(
+            EventEnvelope envelope = envelopeFactory.create(
                     eventId,
-                    event.getAggregateId(),
                     event.getAggregateType(),
+                    event.getAggregateId(),
                     eventType,
                     occurredAt,
                     traceId,
                     spanId,
+                    SCHEMA_VERSION,
                     event.getPayload()
             );
-            String payload = objectMapper.writeValueAsString(envelope);
             repository.save(OutboxEvent.create(
                     eventId, event.getAggregateType(), event.getAggregateId(),
-                    eventType, event.getRoutingKey(), payload, occurredAt, traceId, spanId
+                    eventType, event.getRoutingKey(), envelopeFactory.toJson(envelope), occurredAt, traceId, spanId
             ));
         } catch (JacksonException e) {
             throw new OutboxSerializationException(eventType, e);

@@ -58,6 +58,7 @@ public final class LogContext {
     }
 
     /** Đặt tên thao tác (trường {@code labels.operation}); mọi dòng log trong khối sau đó mang tên này. */
+    @SuppressWarnings("all")
     public static boolean operation(String name) {
         if (name == null) {
             MDC.remove(LABEL_PREFIX + OPERATION);

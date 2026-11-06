@@ -46,7 +46,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
-        if (route != null && RouteConfiguration.FRONTEND_ROUTE_ID.equals(route.getId())) {
+        if (route != null && RouteConfiguration.FRONTEND_ROUTE_IDS.contains(route.getId())) {
             return chain.filter(exchange);
         }
 

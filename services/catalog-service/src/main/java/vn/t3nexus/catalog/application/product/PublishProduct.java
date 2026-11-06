@@ -1,74 +1,81 @@
 package vn.t3nexus.catalog.application.product;
 
-import lombok.RequiredArgsConstructor;
-import vn.t3nexus.catalog.application.product.search_sync.PublishProductSearchSnapshot;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.brand.Brand;
-import vn.t3nexus.catalog.domain.brand.BrandErrorCode;
-import vn.t3nexus.catalog.domain.brand.BrandRepository;
+import vn.t3nexus.catalog.domain.CatalogActor;
+import vn.t3nexus.catalog.domain.CatalogErrorCode;
+import vn.t3nexus.catalog.domain.category.Category;
+import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
+import vn.t3nexus.catalog.domain.category.CategoryRepository;
+import vn.t3nexus.catalog.domain.product.MissingPublishCondition;
+import vn.t3nexus.catalog.domain.product.Product;
 import vn.t3nexus.catalog.domain.product.ProductErrorCode;
 import vn.t3nexus.catalog.domain.product.ProductId;
 import vn.t3nexus.catalog.domain.product.ProductRepository;
-import vn.t3nexus.catalog.domain.product.Product;
 import vn.t3nexus.catalog.domain.variant.Variant;
 import vn.t3nexus.catalog.domain.variant.VariantRepository;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheInvalidationPublisher;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
-import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 
+import java.time.Clock;
 import java.util.List;
+import java.util.UUID;
 
-@Slf4j
+/**
+ * Người bán đăng bán sản phẩm (CAP-CAT-07). Khóa dòng sản phẩm, kiểm tra các điều kiện để đăng.
+ */
 @Service
-@RequiredArgsConstructor
-public class PublishProduct implements CommandHandler<PublishProduct.Command, PublishProduct.Result> {
+public class PublishProduct implements CommandHandler<PublishProduct.Command, ProductView> {
 
-    private final ProductRepository productRepository;
+    private final ProductRepository products;
     private final VariantRepository variantRepository;
-    private final BrandRepository brandRepository;
-    private final CacheInvalidationPublisher cacheInvalidationPublisher;
-    private final PublishProductSearchSnapshot publishProductSearchSnapshot;
-    private final EventDispatcher eventDispatcher;
+    private final CategoryRepository categories;
+    private final ProductAssembler assembler;
+    private final Clock clock;
+    private final ProductEventRecorder recorder;
+
+    public PublishProduct(ProductRepository products, VariantRepository variantRepository,
+                          CategoryRepository categories, ProductAssembler assembler, Clock clock,
+                          ProductEventRecorder recorder) {
+        this.products = products;
+        this.variantRepository = variantRepository;
+        this.categories = categories;
+        this.assembler = assembler;
+        this.clock = clock;
+        this.recorder = recorder;
+    }
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheNames.PRODUCT, key = "#command.productId()")
-    public Result handle(Command command) {
-        Product product = productRepository.findById(ProductId.of(command.productId()))
-                .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
-        product.assertOwnedBy(command.sellerId());
+    public ProductView handle(Command command) {
+        command.actor().requireSeller();
 
-        if (!variantRepository.existsActiveByProductId(command.productId())) {
-            throw new DomainException(ProductErrorCode.PUBLISH_REQUIRES_ACTIVE_VARIANT);
+        ProductId id = ProductId.of(command.productId());
+        UUID seller = command.actor().accountId();
+
+        Product product = products.findOwnedForUpdate(id, seller)
+                .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+        if (product.isPublished()) {
+            throw new DomainException(CatalogErrorCode.CATALOG_INVALID_STATE);
         }
 
-        List<String> activeSkuIds = variantRepository.findByProductId(command.productId()).stream()
-                .filter(Variant::isActive)
-                .map(v -> v.getId().getValue())
-                .toList();
+        List<Variant> variants = variantRepository.findByProductId(id);
+        List<MissingPublishCondition> missing = assembler.missingConditions(product, variants);
+        if (!missing.isEmpty()) {
+            throw new PublishNotAllowedException(missing);
+        }
 
-        Brand brand = brandRepository.findById(product.getBrandId())
-                .orElseThrow(() -> new DomainException(BrandErrorCode.BRAND_NOT_FOUND));
+        product.publish(clock.instant());
+        products.save(product);
+        recorder.onChanged(product, List.of(), ProductEventRecorder.Trigger.PUBLISH);
 
-        product.publish(brand.getName(), activeSkuIds);
-        productRepository.save(product);
-        eventDispatcher.dispatchAll(product.getDomainEvents());
-        product.clearDomainEvents();
-        publishProductSearchSnapshot.publish(command.productId());
-        cacheInvalidationPublisher.evict(CacheNames.PRODUCT, command.productId());
-
-        log.info("[PublishProduct] published: productId={}, traceId={}", command.productId(), MDC.get("traceId"));
-
-        return new Result();
+        Category category = categories.findById(product.getCategoryId())
+                .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        long version = product.nextVersion();
+        return assembler.assemble(product, version, category.getAssignments(), variants);
     }
 
-    public record Command(String sellerId, String productId) {}
-
-    public record Result() {}
+    public record Command(CatalogActor actor, UUID productId) {
+    }
 }

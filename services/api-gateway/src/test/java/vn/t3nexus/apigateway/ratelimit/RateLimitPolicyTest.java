@@ -24,8 +24,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RateLimitPolicyTest {
 
     private static final GatewayProperties GATEWAY = new GatewayProperties(
-            new GatewayProperties.Hosts("auth.localhost", "shop.localhost", "ops.localhost"),
-            new GatewayProperties.Frontends("http://localhost:4200"));
+            new GatewayProperties.Hosts("auth.localhost", "shop.localhost", "seller.localhost", "ops.localhost"),
+            new GatewayProperties.Frontends("http://localhost:4200", "http://localhost:4202", "http://localhost:4203"));
 
     private static RateLimitProperties.Rule rule(String name, String host, String method, String path, int limit, long windowSeconds) {
         RateLimitProperties.Rule rule = new RateLimitProperties.Rule();
@@ -102,9 +102,13 @@ class RateLimitPolicyTest {
         assertThatThrownBy(() -> policy(rule("r", "auth", "", "/register", 5, 60))).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> policy(rule("r", "auth", "POST", "", 5, 60))).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> policy(rule("r", "khong-co", "POST", "/register", 5, 60))).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("khong-co");
+                .hasMessageContaining("khong-co")
+                .hasMessageContaining("seller");
         assertThatThrownBy(() -> policy(rule("trung", "auth", "POST", "/a", 5, 60), rule("trung", "auth", "POST", "/b", 5, 60)))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("trung");
+
+        RateLimitPolicy validSellerPolicy = policy(rule("seller-rule", "seller", "POST", "/api/items", 5, 60));
+        assertThat(validSellerPolicy.ruleFor("seller.localhost", "POST", "/api/items")).isPresent();
     }
 
     @Test
@@ -128,7 +132,9 @@ class RateLimitPolicyTest {
     void the_application_context_does_not_start_with_a_bad_rule_and_starts_with_a_good_one() {
         ApplicationContextRunner runner = new ApplicationContextRunner().withUserConfiguration(PolicyConfiguration.class)
                 .withPropertyValues("app.gateway.hosts.auth=auth.localhost", "app.gateway.hosts.shop=shop.localhost",
-                        "app.gateway.hosts.ops=ops.localhost", "app.gateway.frontends.shop=http://localhost:4200");
+                        "app.gateway.hosts.seller=seller.localhost",
+                        "app.gateway.hosts.ops=ops.localhost", "app.gateway.frontends.shop=http://localhost:4200",
+                        "app.gateway.frontends.seller=http://localhost:4202", "app.gateway.frontends.ops=http://localhost:4203");
 
         runner.withPropertyValues("app.ratelimit.rules[0].name=register", "app.ratelimit.rules[0].host=auth",
                         "app.ratelimit.rules[0].method=POST", "app.ratelimit.rules[0].path=/register",

@@ -35,7 +35,10 @@ public class RateLimitPolicy {
         this.defaultLimit = general.getLimit();
         this.defaultWindow = Duration.ofSeconds(general.getWindowSeconds());
 
-        Map<String, String> hostsByKey = Map.of("auth", String.valueOf(gateway.hosts().auth()), "shop", String.valueOf(gateway.hosts().shop()),
+        Map<String, String> hostsByKey = Map.of(
+                "auth", String.valueOf(gateway.hosts().auth()),
+                "shop", String.valueOf(gateway.hosts().shop()),
+                "seller", String.valueOf(gateway.hosts().seller()),
                 "ops", String.valueOf(gateway.hosts().ops()));
         Set<String> names = new HashSet<>();
         this.rules = properties.getRules().stream().map(rule -> validated(rule, hostsByKey, names)).filter(java.util.Objects::nonNull).toList();
@@ -52,7 +55,7 @@ public class RateLimitPolicy {
         String hostKey = rule.getHost() == null ? "" : rule.getHost().strip().toLowerCase(Locale.ROOT);
         String host = hostsByKey.get(hostKey);
         if (host == null) {
-            throw new IllegalStateException("Luật '" + name + "': host '" + rule.getHost() + "' không có trong danh sách (auth, shop, ops)");
+            throw new IllegalStateException("Luật '" + name + "': host '" + rule.getHost() + "' không có trong danh sách (auth, shop, seller, ops)");
         }
         if (!rule.isEnabled()) return null;
         return new PathRateLimitRule(name, hostName(host), rule.getMethod().strip().toUpperCase(Locale.ROOT), normalize(rule.getPath().strip()),

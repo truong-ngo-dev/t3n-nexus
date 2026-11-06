@@ -2,32 +2,30 @@ package vn.t3nexus.catalog.infrastructure.persistence.variant;
 
 import java.io.Serializable;
 import java.util.Objects;
+import java.util.UUID;
 
+/** Khóa chính của {@code variant_combination_item}: (biến thể, mẫu): mỗi biến thể một giá trị cho mỗi trục. */
 public class VariantCombinationItemKey implements Serializable {
 
-    private String variantId;
-    private String templateId;
-    private String optionId;
+    private UUID variantId;
+    private UUID templateId;
 
     public VariantCombinationItemKey() {}
 
-    public VariantCombinationItemKey(String variantId, String templateId, String optionId) {
-        this.variantId  = variantId;
+    public VariantCombinationItemKey(UUID variantId, UUID templateId) {
+        this.variantId = variantId;
         this.templateId = templateId;
-        this.optionId   = optionId;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof VariantCombinationItemKey that)) return false;
-        return Objects.equals(variantId, that.variantId)
-                && Objects.equals(templateId, that.templateId)
-                && Objects.equals(optionId, that.optionId);
+        return Objects.equals(variantId, that.variantId) && Objects.equals(templateId, that.templateId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(variantId, templateId, optionId);
+        return Objects.hash(variantId, templateId);
     }
 }

@@ -29,6 +29,27 @@ Trả về `[]` hoặc danh sách connectors → đã sẵn sàng.
 
 ---
 
+### Connector hộp thư event của BC mới (dùng script)
+
+BC phát event theo ADR-0008 (từ C1a) đăng ký connector bằng `debezium/outbox-connector.sh`, không dùng các tệp `connector-*.json` bên dưới. Script chạy lại được (đăng ký lần hai chỉ cập nhật), không để mật khẩu trong repo, và xóa khe sao chép khi gỡ.
+
+```bash
+cd infra/debezium
+export DB_HOST=postgres-seller DB_NAME=seller_db DB_USER=seller_app DB_PASSWORD=...   # DB_HOST: tên mà container kafka-connect thấy
+./outbox-connector.sh render   seller      # xem cấu hình sẽ gửi (mật khẩu bị che)
+./outbox-connector.sh register seller      # PUT cấu hình, đợi RUNNING; tên connector: seller-outbox-connector
+./outbox-connector.sh status   seller
+DB_CONTAINER=infra-postgres-seller-1 ./outbox-connector.sh remove seller   # gỡ connector rồi xóa khe seller_outbox_slot
+```
+
+- **Đăng ký connector trước khi BC ghi hàng đầu tiên vào hộp thư.** Cấu hình dùng `snapshot.mode=no_data`: hàng ghi trước khi connector tồn tại không bao giờ ra bus.
+- Mỗi connector cần `TOPIC_PREFIX` (mặc định là tên BC) và `SLOT_NAME` (mặc định `<bc>_outbox_slot`) riêng; script từ chối khi connector khác đã giữ. Trùng `topic.prefix` làm connector sau kẹt ở bước quét.
+- Thông điệp ra bus là JSON trần (khóa là `aggregate_id`, giá trị là khung event, tiêu đề `id` là `event_id`), không bọc `schema`/`payload` của Kafka Connect.
+- `remove` không có `DB_CONTAINER` thì vẫn gỡ connector nhưng thoát với mã 2 và in lệnh xóa khe bằng tay; `--keep-slot` bỏ qua việc xóa khe (kèm cảnh báo).
+- Kiểm thử: `debezium/test-outbox-connector.sh` (phần cấu hình, không cần hạ tầng); thêm `LIVE=1 CONNECT_URL=... DB_HOST=... DB_CONTAINER=... KAFKA_CONTAINER=...` để chạy trên Kafka Connect và Postgres thật (nên dùng stack thử riêng, không dùng Kafka dev).
+
+---
+
 ### Đăng ký identity-outbox-connector
 
 Đọc WAL của `identity_db.public.outbox_events`, route theo `routing_key` → topic tương ứng.
@@ -91,6 +112,32 @@ search-service (`catalog.*.search-snapshot`) và inventory-service (`catalog.pro
 
 ```bash
 curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/connector-catalog-outbox.json
+```
+
+---
+
+## Cơ sở dữ liệu của Người bán (seller-service)
+
+| Thành phần | Giá trị | Ghi chú |
+|---|---|---|
+| `postgres-seller` | cổng `5441`, cơ sở dữ liệu `seller_db` | Cần `wal_level=logical` (Debezium đọc bảng hộp thư `outbox_events`) |
+| Tài khoản `seller_app` | mật khẩu dev `seller_app` | Chủ cơ sở dữ liệu, vừa chạy migration vừa chạy dịch vụ; `SELLER_DB_USERNAME`, `SELLER_DB_PASSWORD` ghi đè |
+
+Connector `seller` đăng ký bằng `debezium/outbox-connector.sh register seller` **trước** khi ghi hàng hộp thư đầu tiên (xem mục Debezium bên dưới).
+
+## Cơ sở dữ liệu của Nhật ký kiểm toán (audit-service)
+
+| Thành phần | Giá trị | Ghi chú |
+|---|---|---|
+| `postgres-audit` | cổng `5440`, cơ sở dữ liệu `audit_db` | Không cần `wal_level=logical` (Nhật ký không phát event) |
+| Tài khoản `audit_owner` | mật khẩu dev `audit_owner` | Chủ cơ sở dữ liệu và bảng; **chỉ** dùng chạy migration (Flyway của dịch vụ) |
+| Tài khoản `audit_app` | mật khẩu dev `audit_app` | Dịch vụ chạy bằng tài khoản này; chỉ có `INSERT`, `SELECT` trên bảng bản ghi (ADR-0009) |
+| Tài khoản `audit_admin` | mật khẩu dev `audit_admin` | Quản trị bộ chứa, chỉ để chạy tệp khởi tạo |
+
+Hai tài khoản `audit_owner` và `audit_app` do `audit/init-audit-roles.sql` tạo **một lần** khi cơ sở dữ liệu được tạo lần đầu. Đã có volume cũ thì phải xóa volume `postgres_audit_data` mới chạy lại tệp này.
+
+```bash
+docker compose up -d postgres-audit
 ```
 
 ---

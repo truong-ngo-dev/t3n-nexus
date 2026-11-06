@@ -1,0 +1,10 @@
+# Feature 03: phần hoãn
+
+Chỉ ghi phần **đã có chỗ trong phạm vi của feature** nhưng được làm ở mức đơn giản hoặc để phần sâu hơn lại sau. Không liệt
+kê những thứ chưa làm nằm ngoài phạm vi.
+
+| Phần hoãn | Đang làm gì ở C1a | Giá trị của phần hoãn | Lý do xếp sau | Điểm nối |
+|---|---|---|---|---|
+| Mã hóa cột dữ liệu định danh (`identity_number`, `tax_code`, `legal_name`, `business_address`) | Lưu nguyên văn trong cột; bảo vệ bằng che trong log, không đưa vào event, không đưa vào thông báo lỗi, và Hibernate không in dòng chi tiết vi phạm (`tech.md` T7) | Giảm thiệt hại khi lộ kho dữ liệu hoặc bản sao lưu | Quy mô học tập; che ở log và event đã đủ cho C1a (`analysis.md` mục 13) | Lớp lưu trữ: bộ chuyển đổi cột ở `SellerProfileMapper` và `SellerProfileJpaEntity`; khóa định danh vẫn phải so sánh được nên cần băm có khóa riêng cho `identity_key` |
+| Dừng rồi chạy lại Connect giữa chừng trên stack thật, và số đo độ trễ từ nộp đến thông điệp | Hộp thư và connector đã chạy thật: nộp ra đúng một thông điệp, khóa là mã tài khoản (`tech.md` T11, KT-13). Phần "không mất, không trùng khi Connect dừng" dựa vào kết quả đã kiểm ở feature 01 | Biết độ trễ thực và chắc chắn hành vi khi Connect dừng ngay trên cấu hình của Người bán | Các lần chạy có Kafka và Connect bị hệ thống dừng vì thiếu bộ nhớ; feature 03 không thêm mã ở tầng chuyển event | Kịch bản `e2e-seller.sh` đã có hàm dựng stack; chạy lại khi máy đủ bộ nhớ, hoặc làm trong feature 13 (kiểm đầu-cuối) |
+| Khởi động container `postgres-seller` của compose dev và đăng ký connector `seller` vào Kafka Connect dev | Đã khai báo trong `infra/docker-compose.yml` và `infra/README.md`, kiểm cú pháp compose; toàn bộ chạy thật diễn ra trên stack cô lập, chưa qua container dev | Môi trường dev dùng được ngay cho Người bán | Ghi vào hạ tầng dev cần người chấp thuận; tránh ghi trong lúc đóng feature | `docker compose up postgres-seller`, rồi `infra/debezium/outbox-connector.sh` **trước** khi ghi hàng đầu tiên, rồi khởi động `seller-service` |

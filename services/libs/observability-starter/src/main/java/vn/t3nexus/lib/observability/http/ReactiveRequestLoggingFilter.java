@@ -1,11 +1,14 @@
 package vn.t3nexus.lib.observability.http;
 
 import io.micrometer.tracing.handler.TracingObservationHandler;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.observation.ServerRequestObservationContext;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
@@ -51,13 +54,14 @@ public class ReactiveRequestLoggingFilter implements WebFilter, Ordered {
     }
 
     @Override
+    @NullMarked
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
         for (String prefix : properties.ignorePaths()) {
             if (path.startsWith(prefix)) return chain.filter(exchange);
         }
         long start = System.nanoTime();
-        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicReference<@Nullable Throwable> failure = new AtomicReference<>();
         return chain.filter(exchange)
                 .doOnError(failure::set)
                 .doFinally(signal -> logCompleted(exchange, failure.get(), System.nanoTime() - start));
@@ -66,7 +70,7 @@ public class ReactiveRequestLoggingFilter implements WebFilter, Ordered {
     private void logCompleted(ServerWebExchange exchange, Throwable failure, long durationNanos) {
         try {
             int status = statusOf(exchange, failure);
-            var request = exchange.getRequest();
+            ServerHttpRequest request = exchange.getRequest();
 
             Map<String, String> fields = new LinkedHashMap<>();
             fields.put("event.dataset", "http.request");

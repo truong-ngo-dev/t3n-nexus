@@ -7,6 +7,7 @@ import lombok.Setter;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeOptionStatus;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "attribute_option")
@@ -17,12 +18,12 @@ public class AttributeOptionJpaEntity {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
-    private String id;
+    private UUID id;
 
     @Column(name = "template_id", nullable = false, updatable = false)
-    private String templateId;
+    private UUID templateId;
 
-    @Column(name = "value", nullable = false)
+    @Column(name = "value", nullable = false, updatable = false)
     private String value;
 
     @Column(name = "display_value", nullable = false)

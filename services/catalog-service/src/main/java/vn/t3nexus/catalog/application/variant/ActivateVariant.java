@@ -1,70 +1,54 @@
 package vn.t3nexus.catalog.application.variant;
 
-import lombok.RequiredArgsConstructor;
-import vn.t3nexus.catalog.application.product.search_sync.PublishProductSearchSnapshot;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.t3nexus.catalog.domain.CatalogActor;
 import vn.t3nexus.catalog.domain.product.Product;
-import vn.t3nexus.catalog.domain.product.ProductErrorCode;
-import vn.t3nexus.catalog.domain.product.ProductId;
 import vn.t3nexus.catalog.domain.product.ProductRepository;
 import vn.t3nexus.catalog.domain.variant.Variant;
+import vn.t3nexus.catalog.domain.variant.VariantErrorCode;
 import vn.t3nexus.catalog.domain.variant.VariantId;
 import vn.t3nexus.catalog.domain.variant.VariantRepository;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheInvalidationPublisher;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
-import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class ActivateVariant implements CommandHandler<ActivateVariant.Command, ActivateVariant.Result> {
+import java.time.Clock;
+import java.time.Instant;
+import java.util.UUID;
 
-    private final ProductRepository productRepository;
-    private final VariantRepository variantRepository;
-    private final CacheInvalidationPublisher cacheInvalidationPublisher;
-    private final PublishProductSearchSnapshot publishProductSearchSnapshot;
-    private final EventDispatcher eventDispatcher;
+/** Người bán bật lại một biến thể đã ngừng. Khóa dòng sản phẩm; tăng phiên bản sản phẩm một. */
+@Service
+public class ActivateVariant implements CommandHandler<ActivateVariant.Command, VariantView> {
+
+    private final ProductRepository products;
+    private final VariantRepository variants;
+    private final Clock clock;
+    private final vn.t3nexus.catalog.application.product.ProductEventRecorder recorder;
+
+    public ActivateVariant(ProductRepository products, VariantRepository variants, Clock clock,
+                           vn.t3nexus.catalog.application.product.ProductEventRecorder recorder) {
+        this.products = products;
+        this.variants = variants;
+        this.clock = clock;
+        this.recorder = recorder;
+    }
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CacheNames.PRODUCT_VARIANTS, key = "#command.productId()"),
-            @CacheEvict(value = CacheNames.PRODUCT, key = "#command.productId()")
-    })
-    public Result handle(Command command) {
-        Product product = productRepository.findById(ProductId.of(command.productId()))
-                .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
-        product.assertOwnedBy(command.sellerId());
+    public VariantView handle(Command command) {
+        Product product = VariantLocator.lockOwnProduct(products, command.actor(), command.productId());
+        Variant variant = variants.findByIdAndProduct(VariantId.of(command.variantId()), product.getId())
+                .orElseThrow(() -> new DomainException(VariantErrorCode.VARIANT_NOT_FOUND));
+        Instant now = clock.instant();
 
-        Variant variant = variantRepository.findById(VariantId.of(command.skuId()))
-                .orElseThrow(() -> new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND));
-        if (!variant.getProductId().equals(command.productId())) {
-            throw new DomainException(ProductErrorCode.PRODUCT_NOT_FOUND);
-        }
-
-        variant.activate();
-        variantRepository.save(variant);
-        eventDispatcher.dispatchAll(variant.getDomainEvents());
-        variant.clearDomainEvents();
-
-        publishProductSearchSnapshot.publish(command.productId());
-        cacheInvalidationPublisher.evict(CacheNames.PRODUCT_VARIANTS, command.productId());
-        cacheInvalidationPublisher.evict(CacheNames.PRODUCT, command.productId());
-
-        log.info("[ActivateVariant] activated: skuId={}, productId={}, traceId={}",
-                command.skuId(), command.productId(), MDC.get("traceId"));
-
-        return new Result();
+        variant.activate(now);
+        variants.save(variant);
+        product.recordChange(now);
+        products.save(product);
+        recorder.onChanged(product, java.util.List.of(variant.getId()), vn.t3nexus.catalog.application.product.ProductEventRecorder.Trigger.EDIT);
+        return VariantView.of(variant);
     }
 
-    public record Command(String sellerId, String productId, String skuId) {}
-
-    public record Result() {}
+    public record Command(CatalogActor actor, UUID productId, UUID variantId) {
+    }
 }

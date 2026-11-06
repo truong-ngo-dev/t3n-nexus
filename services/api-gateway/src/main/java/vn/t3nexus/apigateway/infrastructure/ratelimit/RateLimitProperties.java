@@ -14,7 +14,7 @@ import java.util.List;
  * app.ratelimit.default.limit=300
  * app.ratelimit.default.window-seconds=60
  * app.ratelimit.rules[0].name=register
- * app.ratelimit.rules[0].host=auth            (khóa host: auth, shop, ops)
+ * app.ratelimit.rules[0].host=auth            (khóa host: auth, shop, seller, ops)
  * app.ratelimit.rules[0].method=POST
  * app.ratelimit.rules[0].path=/register
  * app.ratelimit.rules[0].limit=10

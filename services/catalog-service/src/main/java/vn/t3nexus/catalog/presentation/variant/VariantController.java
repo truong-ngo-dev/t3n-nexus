@@ -1,18 +1,32 @@
 package vn.t3nexus.catalog.presentation.variant;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
-import vn.t3nexus.catalog.application.product.GetPublishedProduct;
-import vn.t3nexus.catalog.application.variant.*;
-import vn.t3nexus.catalog.presentation.variant.model.AddVariantRequest;
-import vn.t3nexus.catalog.presentation.variant.model.UpdateVariantRequest;
-import vn.t3nexus.catalog.presentation.variant.model.VariantResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
+import vn.t3nexus.catalog.application.variant.ActivateVariant;
+import vn.t3nexus.catalog.application.variant.AddVariant;
+import vn.t3nexus.catalog.application.variant.DeactivateVariant;
+import vn.t3nexus.catalog.application.variant.UpdateVariant;
+import vn.t3nexus.catalog.application.variant.VariantView;
+import vn.t3nexus.catalog.domain.CatalogActor;
+import vn.t3nexus.catalog.presentation.CatalogActorResolver;
+import vn.t3nexus.catalog.presentation.SellerBodyReader;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
 
-import java.util.List;
+import java.util.UUID;
 
+/**
+ * Biến thể của sản phẩm của người bán (CAP-CAT-05): thêm, đổi giá và SKU, ngừng, bật lại. Không có đường sửa tổ hợp hay
+ * xóa riêng một biến thể (INV-CAT-41, 42). Vai {@code USER} và quyền chủ kiểm trong use case.
+ */
 @RestController
 @RequiredArgsConstructor
 public class VariantController {
@@ -21,72 +35,38 @@ public class VariantController {
     private final UpdateVariant updateVariant;
     private final DeactivateVariant deactivateVariant;
     private final ActivateVariant activateVariant;
-    private final GetProductVariants getProductVariants;
-    private final GetPublishedProduct getPublishedProduct;
 
-    @GetMapping("/api/products/{productId}/variants")
-    public ApiResponse<List<VariantResponse>> getVariants(@PathVariable String productId) {
-        // RM-CAT-03 cùng điều kiện RM-CAT-02 — sản phẩm không được xem công khai thì 404 (INV-CAT-044).
-        getPublishedProduct.handle(new GetPublishedProduct.Query(productId));
-        List<VariantResponse> variants = getProductVariants.handle(
-                new GetProductVariants.Query(productId))
-                .variants().stream()
-                .map(this::toVariantResponse)
-                .toList();
-        return ApiResponse.ok(variants);
-    }
-
-    @PostMapping("/api/seller/products/{productId}/variants")
+    @PostMapping("/api/seller/products/{id}/variants")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<String> addVariant(
-            @RequestHeader("X-Seller-Id") String sellerId,
-            @PathVariable String productId,
-            @Valid @RequestBody AddVariantRequest request) {
-        List<AddVariant.CombinationItemDto> combination = request.combination().stream()
-                .map(item -> new AddVariant.CombinationItemDto(item.templateId(), item.optionId()))
-                .toList();
-        AddVariant.Result result = addVariant.handle(new AddVariant.Command(
-                sellerId, productId, combination, request.skuCode(), request.price()));
-        return ApiResponse.ok(result.skuId());
+    public ApiResponse<VariantView> add(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                        @RequestBody JsonNode body) {
+        CatalogActor actor = CatalogActorResolver.from(jwt);
+        JsonNode json = SellerBodyReader.requireObject(body);
+        return ApiResponse.ok(addVariant.handle(new AddVariant.Command(actor, id,
+                SellerBodyReader.combination(json, "combination"), SellerBodyReader.requiredInteger(json, "price"),
+                SellerBodyReader.textOrNull(json, "sku"))));
     }
 
-    @PutMapping("/api/seller/products/{productId}/variants/{skuId}")
-    public ApiResponse<Void> updateVariant(
-            @RequestHeader("X-Seller-Id") String sellerId,
-            @PathVariable String productId,
-            @PathVariable String skuId,
-            @Valid @RequestBody UpdateVariantRequest request) {
-        updateVariant.handle(new UpdateVariant.Command(sellerId, productId, skuId, request.price(), request.skuCode()));
-        return ApiResponse.ok(null);
+    @PatchMapping("/api/seller/products/{id}/variants/{variantId}")
+    public ApiResponse<VariantView> update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                           @PathVariable UUID variantId, @RequestBody JsonNode body) {
+        CatalogActor actor = CatalogActorResolver.from(jwt);
+        JsonNode json = SellerBodyReader.requireObject(body);
+        return ApiResponse.ok(updateVariant.handle(new UpdateVariant.Command(actor, id, variantId,
+                SellerBodyReader.integer(json, "price"), SellerBodyReader.text(json, "sku"))));
     }
 
-    @PostMapping("/api/seller/products/{productId}/variants/{skuId}/deactivate")
-    public ApiResponse<Void> deactivateVariant(
-            @RequestHeader("X-Seller-Id") String sellerId,
-            @PathVariable String productId,
-            @PathVariable String skuId) {
-        deactivateVariant.handle(new DeactivateVariant.Command(sellerId, productId, skuId));
-        return ApiResponse.ok(null);
+    @PostMapping("/api/seller/products/{id}/variants/{variantId}/deactivate")
+    public ApiResponse<VariantView> deactivate(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                               @PathVariable UUID variantId) {
+        return ApiResponse.ok(deactivateVariant.handle(
+                new DeactivateVariant.Command(CatalogActorResolver.from(jwt), id, variantId)));
     }
 
-    @PostMapping("/api/seller/products/{productId}/variants/{skuId}/activate")
-    public ApiResponse<Void> activateVariant(
-            @RequestHeader("X-Seller-Id") String sellerId,
-            @PathVariable String productId,
-            @PathVariable String skuId) {
-        activateVariant.handle(new ActivateVariant.Command(sellerId, productId, skuId));
-        return ApiResponse.ok(null);
-    }
-
-    private VariantResponse toVariantResponse(GetProductVariants.VariantDto dto) {
-        List<VariantResponse.CombinationItemResponse> combination = dto.combination().stream()
-                .map(item -> new VariantResponse.CombinationItemResponse(item.templateId(), item.optionId()))
-                .toList();
-        List<VariantResponse.SkuImageResponse> images = dto.images().stream()
-                .map(img -> new VariantResponse.SkuImageResponse(img.imageId(), img.objectKey(), img.displayOrder()))
-                .toList();
-        return new VariantResponse(
-                dto.skuId(), dto.productId(), combination,
-                dto.skuCode(), dto.price(), dto.status(), images);
+    @PostMapping("/api/seller/products/{id}/variants/{variantId}/activate")
+    public ApiResponse<VariantView> activate(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                             @PathVariable UUID variantId) {
+        return ApiResponse.ok(activateVariant.handle(
+                new ActivateVariant.Command(CatalogActorResolver.from(jwt), id, variantId)));
     }
 }

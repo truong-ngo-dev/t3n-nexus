@@ -1,28 +1,19 @@
 package vn.t3nexus.catalog.infrastructure.persistence.attributetemplate;
 
-import org.springframework.util.ReflectionUtils;
 import vn.t3nexus.catalog.domain.attributetemplate.*;
 
-import java.lang.reflect.Field;
 import java.util.List;
 
 public final class AttributeTemplateMapper {
 
     private AttributeTemplateMapper() {}
 
-    // version nằm ở AbstractAggregateRoot (không có setter công khai) — cùng cách StockMapper (inventory-service).
-    private static final Field VERSION_FIELD = ReflectionUtils.findField(AttributeTemplate.class, "version");
-    static {
-        ReflectionUtils.makeAccessible(VERSION_FIELD);
-    }
-
     public static AttributeTemplate toDomain(AttributeTemplateJpaEntity entity,
                                              List<AttributeOptionJpaEntity> optionEntities) {
         List<AttributeOption> options = optionEntities.stream()
                 .map(AttributeTemplateMapper::toOptionDomain)
                 .toList();
-
-        AttributeTemplate template = AttributeTemplate.reconstitute(
+        return AttributeTemplate.reconstitute(
                 AttributeTemplateId.of(entity.getId()),
                 entity.getName(),
                 entity.getDisplayName(),
@@ -31,13 +22,12 @@ public final class AttributeTemplateMapper {
                 entity.getUnit(),
                 entity.getStatus(),
                 options,
+                entity.getVersion(),
                 entity.getCreatedAt(),
-                entity.getUpdatedAt()
-        );
-        ReflectionUtils.setField(VERSION_FIELD, template, entity.getVersion());
-        return template;
+                entity.getUpdatedAt());
     }
 
+    /** Mẫu mới (chưa lưu) có {@code version} null để Hibernate nhận biết bản ghi mới. */
     public static AttributeTemplateJpaEntity toJpaEntity(AttributeTemplate template) {
         AttributeTemplateJpaEntity entity = new AttributeTemplateJpaEntity();
         entity.setId(template.getId().getValue());
@@ -47,16 +37,15 @@ public final class AttributeTemplateMapper {
         entity.setInputType(template.getInputType());
         entity.setUnit(template.getUnit());
         entity.setStatus(template.getStatus());
-        entity.setVersion((Long) ReflectionUtils.getField(VERSION_FIELD, template));
+        entity.setVersion(template.version());
         entity.setCreatedAt(template.getCreatedAt());
         entity.setUpdatedAt(template.getUpdatedAt());
         return entity;
     }
 
     public static List<AttributeOptionJpaEntity> toOptionEntities(AttributeTemplate template) {
-        String templateId = template.getId().getValue();
         return template.getOptions().stream()
-                .map(option -> toOptionJpaEntity(option, templateId))
+                .map(option -> toOptionJpaEntity(option, template.getId().getValue()))
                 .toList();
     }
 
@@ -67,11 +56,10 @@ public final class AttributeTemplateMapper {
                 entity.getDisplayValue(),
                 entity.getStatus(),
                 entity.getSortOrder(),
-                entity.getCreatedAt()
-        );
+                entity.getCreatedAt());
     }
 
-    private static AttributeOptionJpaEntity toOptionJpaEntity(AttributeOption option, String templateId) {
+    private static AttributeOptionJpaEntity toOptionJpaEntity(AttributeOption option, java.util.UUID templateId) {
         AttributeOptionJpaEntity entity = new AttributeOptionJpaEntity();
         entity.setId(option.getId().getValue());
         entity.setTemplateId(templateId);

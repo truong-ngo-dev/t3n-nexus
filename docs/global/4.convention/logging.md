@@ -103,7 +103,8 @@ chẩn đoán yêu cầu treo.
 
 **Nội dung yêu cầu chỉ ghi khi lỗi.** Yêu cầu thành công không ghi nội dung. Khi trả 5xx, hoặc 4xx do kiểm đầu vào hay nghiệp vụ (trừ 401, 403,
 404, 405, 429: danh sách `noBodyStatuses` cấu hình được), dòng hoàn tất kèm nội dung yêu cầu đã xử lý. Thao tác mà kết quả sai không phải lỗi (tính tiền, tồn kho, đặt hàng) ghi dấu vết
-đầy đủ vào nhật ký kiểm toán riêng (B25), không vào log ứng dụng. Phản hồi chỉ cần `error.code` ở dòng hoàn tất. Header mặc định không ghi;
+đầy đủ ở chính BC sở hữu thao tác (sổ bút toán của Sổ cái, lịch sử trạng thái của Đơn hàng và Tồn kho), không vào log ứng dụng.
+Nhật ký kiểm toán (B25) không giữ dấu vết này; nó chỉ giữ hành động có chủ thể và có hậu quả (quản trị, nhạy cảm). Phản hồi chỉ cần `error.code` ở dòng hoàn tất. Header mặc định không ghi;
 `Authorization`, `Cookie`, `Set-Cookie` không bao giờ.
 
 **Danh sách trường được phép** khai báo bằng chú thích `@LogRequestFields("email")` trên method của controller. Nội dung không phân tích được (JSON
@@ -162,7 +163,7 @@ Quy tắc:
 - MDC gắn với luồng xử lý: khi chuyển việc sang luồng khác, khóa không tự theo sang.
 - Không có trong dòng log: `event.original`, header, token, các trường nội bộ của bộ ghi (`endOfBatch`, `loggerFqcn`, `threadPriority`, `@version`).
 - Phản hồi lỗi cho client trả thêm `traceId` (lấy từ MDC) để người dùng đọc lại cho bên rà log, và `code` chữ ổn định; `GlobalExceptionHandler` đặt mã lỗi vào thuộc tính
-  `error.code` của yêu cầu để dòng hoàn tất mang mã. Lỗi nghiệp vụ ghi INFO, lỗi hệ thống ghi ERROR kèm stack trace; nội dung không đọc được là 400 `MALFORMED_REQUEST` và log chỉ ghi loại lỗi của bộ phân tích, không ghi thông báo (Jackson đưa giá trị của nội dung vào thông báo);
+  `error.code` của yêu cầu để dòng hoàn tất mang mã. Lỗi nghiệp vụ ghi INFO, lỗi hệ thống ghi ERROR kèm stack trace; nội dung không đọc được là 400 `MALFORMED_REQUEST` và log chỉ ghi loại lỗi của bộ phân tích, không ghi thông báo (Jackson đưa giá trị của nội dung vào thông báo); tham số đường dẫn hoặc truy vấn sai kiểu (ví dụ mã không phải UUID) là 400 `INVALID_PARAMETER`, thông báo và log chỉ nêu tên tham số, không lặp lại giá trị người dùng gửi;
   lỗi framework có sẵn mã trạng thái (405, 415...) là `HTTP_<mã>`, không phải 500.
 - Bộ quét ở đầu ra che `Bearer …`, JWT, mã băm trong `message`, `error.message` và `error.stack_trace` (lưới an toàn cuối).
 

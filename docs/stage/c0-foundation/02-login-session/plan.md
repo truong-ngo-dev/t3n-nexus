@@ -183,7 +183,7 @@ Xong khi: test xanh.
 
 ### Bước 14. Đo NFR · Người
 
-**Trạng thái:** Hoãn; ghi ở `deferred.md`. Bộ đo nền (feature 08) đã xong `2026-10-20`: trần máy đã có ở `nfr.md`, phép đo ứng dụng chưa làm.
+**Trạng thái:** Hoãn tới kịch bản flash sale ở C5 (quyết định `2026-10-21`); ghi ở `deferred.md`. Bộ đo nền (feature 08) đã xong `2026-10-20`: trần máy đã có ở `nfr.md`, phép đo ứng dụng chưa làm. ADR-0003 đã Accepted không chờ phép đo này.
 
 Theo `nfr.md`: tải đăng nhập ở mức bình thường rồi tăng dần tới điểm gãy, so với trần băm của máy (đã đo ở feature 08). Ghi điều kiện đo cạnh số. Thêm: so `fillfactor` 70 (V18) với mặc định 100 để xem `oauth2_authorization` có phình dưới tải làm mới hay không (ADR-0003 mục 8).
 

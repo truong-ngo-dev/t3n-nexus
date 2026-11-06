@@ -10,7 +10,7 @@ import org.springframework.security.core.context.SecurityContextImpl;
 import reactor.core.publisher.Mono;
 import vn.t3nexus.lib.ratelimiter.reactive.RateLimitDecision;
 import vn.t3nexus.lib.ratelimiter.reactive.ReactiveRateLimiter;
-import vn.t3nexus.storefrontwebbff.infrastructure.ratelimit.UserRateLimitFilter;
+import vn.t3nexus.lib.webbff.infrastructure.ratelimit.UserRateLimitFilter;
 
 import java.time.Duration;
 import java.util.ArrayList;

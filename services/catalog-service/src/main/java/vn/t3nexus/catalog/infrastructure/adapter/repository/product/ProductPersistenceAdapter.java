@@ -3,116 +3,132 @@ package vn.t3nexus.catalog.infrastructure.adapter.repository.product;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.catalog.domain.product.Product;
+import vn.t3nexus.catalog.domain.product.ProductAttribute;
+import vn.t3nexus.catalog.domain.product.ProductImage;
 import vn.t3nexus.catalog.domain.product.ProductId;
 import vn.t3nexus.catalog.domain.product.ProductRepository;
-import vn.t3nexus.catalog.infrastructure.persistence.product.*;
+import vn.t3nexus.catalog.domain.product.ProductStatus;
+import vn.t3nexus.catalog.domain.product.ProductSummary;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductAttributeJpaEntity;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductAttributeJpaRepository;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductAttributeOptionJpaEntity;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductAttributeOptionJpaRepository;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductImageJpaEntity;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductImageJpaRepository;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductJpaEntity;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductJpaRepository;
+import vn.t3nexus.catalog.infrastructure.persistence.product.ProductMapper;
 
+import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 public class ProductPersistenceAdapter implements ProductRepository {
 
-    private final ProductJpaRepository jpaRepository;
-    private final ProductAttributeValueJpaRepository attributeValueRepository;
-    private final ProductVariantDefiningAttributeJpaRepository variantDefiningAttributeRepository;
-    private final ProductImageJpaRepository imageRepository;
-
-    @Override
-    public Optional<Product> findByIdForUpdate(ProductId id) {
-        return jpaRepository.findByIdForUpdate(id.getValue()).map(this::toDomain);
-    }
+    private final ProductJpaRepository products;
+    private final ProductAttributeJpaRepository attributes;
+    private final ProductAttributeOptionJpaRepository options;
+    private final ProductImageJpaRepository images;
 
     @Override
     public Optional<Product> findById(ProductId id) {
-        return jpaRepository.findById(id.getValue()).map(this::toDomain);
-    }
-
-    private Product toDomain(ProductJpaEntity entity) {
-        String rawId = entity.getId();
-        List<ProductAttributeValueJpaEntity> attrs = attributeValueRepository.findByProductId(rawId);
-        List<ProductVariantDefiningAttributeJpaEntity> variantDefining =
-                variantDefiningAttributeRepository.findByProductId(rawId);
-        List<ProductImageJpaEntity> images = imageRepository.findByProductId(rawId);
-        return ProductMapper.toDomain(entity, attrs, variantDefining, images);
+        return products.findById(id.getValue()).map(this::toDomain);
     }
 
     @Override
-    @Transactional
-    public void save(Product product) {
-        String rawId = product.getId().getValue();
-        jpaRepository.save(ProductMapper.toJpaEntity(product));
+    public Optional<Product> findOwned(ProductId id, UUID sellerId) {
+        return products.findByIdAndSellerId(id.getValue(), sellerId).map(this::toDomain);
+    }
 
-        attributeValueRepository.deleteByProductId(rawId);
-        List<ProductAttributeValueJpaEntity> attrEntities = ProductMapper.toAttributeValueEntities(product);
-        if (!attrEntities.isEmpty()) {
-            attributeValueRepository.saveAll(attrEntities);
-        }
-
-        variantDefiningAttributeRepository.deleteByProductId(rawId);
-        List<ProductVariantDefiningAttributeJpaEntity> variantDefiningEntities =
-                ProductMapper.toVariantDefiningAttributeEntities(product);
-        if (!variantDefiningEntities.isEmpty()) {
-            variantDefiningAttributeRepository.saveAll(variantDefiningEntities);
-        }
-
-        imageRepository.deleteByProductId(rawId);
-        List<ProductImageJpaEntity> imageEntities = ProductMapper.toImageEntities(product);
-        if (!imageEntities.isEmpty()) {
-            imageRepository.saveAll(imageEntities);
-        }
+    /** Cần giao dịch đang mở (khóa dòng sống tới hết giao dịch); use case luôn có {@code @Transactional}. */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Product> findOwnedForUpdate(ProductId id, UUID sellerId) {
+        return products.findForUpdate(id.getValue(), sellerId).map(this::toDomain);
     }
 
     @Override
-    @Transactional
-    public void delete(ProductId id) {
-        String rawId = id.getValue();
-        imageRepository.deleteByProductId(rawId);
-        variantDefiningAttributeRepository.deleteByProductId(rawId);
-        attributeValueRepository.deleteByProductId(rawId);
-        jpaRepository.deleteById(rawId);
-    }
-
-    @Override
-    public List<Product> findBySellerIdPaged(String sellerId, int page, int size) {
-        List<ProductJpaEntity> entities =
-                jpaRepository.findBySellerIdOrderByCreatedAtDesc(sellerId, PageRequest.of(page, size));
-
-        List<String> productIds = entities.stream().map(ProductJpaEntity::getId).toList();
-
-        Map<String, List<ProductAttributeValueJpaEntity>> attrsByProduct =
-                attributeValueRepository.findByProductIdIn(productIds).stream()
-                        .collect(Collectors.groupingBy(ProductAttributeValueJpaEntity::getProductId));
-
-        Map<String, List<ProductVariantDefiningAttributeJpaEntity>> variantDefiningByProduct =
-                variantDefiningAttributeRepository.findByProductIdIn(productIds).stream()
-                        .collect(Collectors.groupingBy(ProductVariantDefiningAttributeJpaEntity::getProductId));
-
-        Map<String, List<ProductImageJpaEntity>> imagesByProduct =
-                imageRepository.findByProductIdIn(productIds).stream()
-                        .collect(Collectors.groupingBy(ProductImageJpaEntity::getProductId));
-
-        return entities.stream()
-                .map(e -> ProductMapper.toDomain(
-                        e,
-                        attrsByProduct.getOrDefault(e.getId(), List.of()),
-                        variantDefiningByProduct.getOrDefault(e.getId(), List.of()),
-                        imagesByProduct.getOrDefault(e.getId(), List.of())))
+    public List<ProductSummary> findSummaries(UUID sellerId, ProductStatus status, int page, int size) {
+        return products.findSummaries(sellerId, status, PageRequest.of(page, size)).stream()
+                .map(row -> new ProductSummary((UUID) row[0], (String) row[1], (ProductStatus) row[2],
+                        (Long) row[3], (Long) row[4], (Long) row[5], (Long) row[6], (Instant) row[7]))
                 .toList();
     }
 
     @Override
-    public boolean existsByBrandId(String brandId) {
-        return jpaRepository.existsByBrandId(brandId);
+    public long countBySeller(UUID sellerId, ProductStatus status) {
+        return products.countBySeller(sellerId, status);
     }
 
     @Override
-    public long countBySellerId(String sellerId) {
-        return jpaRepository.countBySellerId(sellerId);
+    public boolean existsByCategory(UUID categoryId) {
+        return products.existsByCategoryId(categoryId);
+    }
+
+    /**
+     * {@code saveAndFlush}: khóa lạc quan qua {@code version} nổ ngay trong giao dịch (ADR-0011). Thuộc tính và ảnh ghi lại
+     * (xóa rồi chèn) chỉ khi khác bản đã lưu, để sửa tiêu đề không đụng bảng con.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void save(Product product) {
+        products.saveAndFlush(ProductMapper.toJpaEntity(product));
+        UUID id = product.getId().getValue();
+        saveAttributes(product, id);
+        saveImages(product, id);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void delete(ProductId id) {
+        products.deleteById(id.getValue());
+        products.flush();
+    }
+
+    private void saveAttributes(Product product, UUID id) {
+        List<ProductAttribute> stored = ProductMapper.toAttributes(attributes.findByProductIdOrderByTemplateId(id),
+                options.findByProductIdOrderByTemplateIdAscOptionIdAsc(id));
+        if (ProductMapper.asSet(stored).equals(ProductMapper.asSet(product.getAttributes()))) {
+            return;
+        }
+        attributes.deleteByProductId(id);
+        attributes.saveAllAndFlush(ProductMapper.toAttributeEntities(product));
+        options.saveAllAndFlush(ProductMapper.toOptionEntities(product));
+    }
+
+    private void saveImages(Product product, UUID id) {
+        if (sameImages(images.findByProductIdOrderByPosition(id), product.getImages())) {
+            return;
+        }
+        images.deleteByProductId(id);
+        images.saveAllAndFlush(ProductMapper.toImageEntities(product));
+    }
+
+    /** Cùng danh sách khi cùng mã ảnh ở cùng vị trí (ảnh bất biến sau khi thêm). */
+    private static boolean sameImages(List<ProductImageJpaEntity> stored, List<ProductImage> wanted) {
+        if (stored.size() != wanted.size()) {
+            return false;
+        }
+        for (int i = 0; i < stored.size(); i++) {
+            if (!stored.get(i).getId().equals(wanted.get(i).getId().getValue())
+                    || stored.get(i).getPosition() != wanted.get(i).getPosition()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Product toDomain(ProductJpaEntity entity) {
+        List<ProductAttributeJpaEntity> attributeRows = attributes.findByProductIdOrderByTemplateId(entity.getId());
+        List<ProductAttributeOptionJpaEntity> optionRows =
+                options.findByProductIdOrderByTemplateIdAscOptionIdAsc(entity.getId());
+        return ProductMapper.toDomain(entity, attributeRows, optionRows,
+                images.findByProductIdOrderByPosition(entity.getId()));
     }
 }

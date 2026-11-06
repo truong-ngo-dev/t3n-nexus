@@ -6,21 +6,23 @@ import java.util.List;
 
 public interface CategoryRepository extends Repository<Category, CategoryId> {
 
-
     boolean existsByParentId(CategoryId parentId);
 
-    boolean hasProductReference(CategoryId categoryId);
+    /**
+     * Tên đã dùng trong cùng cha (so theo khóa tên); {@code parentId} null là cấp một. Kiểm sớm để trả lỗi rõ; ràng
+     * buộc duy nhất của cơ sở dữ liệu là chốt cuối (ADR-0011).
+     */
+    boolean existsByParentAndNameKey(CategoryId parentId, String nameKey);
 
-    /** {@code parentId} null nghĩa là root (L1) — so trùng tên trong đúng phạm vi anh em, không toàn sàn. */
-    boolean existsByParentAndNameIgnoreCase(CategoryId parentId, String name);
+    /** Như {@link #existsByParentAndNameKey} nhưng bỏ qua chính danh mục đang đổi tên. */
+    boolean existsByParentAndNameKeyExcludingId(CategoryId parentId, String nameKey, CategoryId excludingId);
 
-    boolean existsByParentAndNameIgnoreCaseExcludingId(CategoryId parentId, String name, CategoryId excludingId);
-
-    /** Có tổ tiên (không tính bản thân) đang INACTIVE không — "dùng được" = ACTIVE + mọi tổ tiên ACTIVE (AGG-CAT-03). */
+    /** Có tổ tiên (không tính bản thân) đang ngừng dùng không: "dùng được" = chính nó và mọi tổ tiên đang dùng. */
     boolean hasInactiveAncestor(CategoryId id);
 
-    /** Mọi anh em cùng cha ({@code parentId} null = root), theo {@code sortOrder}. Dùng tính sortOrder mới và validate reorder. */
+    /** Mọi anh em cùng cha ({@code parentId} null = cấp một), theo {@code sortOrder}. */
     List<Category> findSiblings(CategoryId parentId);
 
+    /** Toàn bộ cây, một lần truy vấn; dùng dựng cây đọc. */
     List<Category> findAll();
 }

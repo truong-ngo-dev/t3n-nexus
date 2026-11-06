@@ -8,28 +8,31 @@ import vn.t3nexus.catalog.domain.brand.BrandStatus;
 import vn.t3nexus.lib.common.domain.cqrs.QueryHandler;
 
 import java.util.List;
+import java.util.UUID;
 
-/** Danh sách công khai: chỉ brand ACTIVE, có tìm theo tên + phân trang. */
+/**
+ * Danh sách thương hiệu đang dùng cho mọi người đã đăng nhập (người bán chọn khi khai sản phẩm, người mua lọc): chỉ
+ * thương hiệu {@code ACTIVE}, tìm theo tên không phân biệt hoa thường, dấu; phân trang.
+ */
 @Service
 @RequiredArgsConstructor
 public class ListBrands implements QueryHandler<ListBrands.Query, ListBrands.Result> {
 
-    private final BrandRepository brandRepository;
+    private final BrandRepository repository;
 
     @Override
     @Transactional(readOnly = true)
     public Result handle(Query query) {
-        List<BrandSummary> items = brandRepository
-                .search(query.keyword(), BrandStatus.ACTIVE, query.page(), query.size()).stream()
-                .map(b -> new BrandSummary(b.getId().getValue(), b.getName(), b.getSlug()))
+        String key = BrandKeyword.of(query.keyword());
+        List<Item> items = repository.search(key, BrandStatus.ACTIVE, query.page(), query.size()).stream()
+                .map(b -> new Item(b.getId().getValue(), b.getName()))
                 .toList();
-        long total = brandRepository.count(query.keyword(), BrandStatus.ACTIVE);
-        return new Result(items, total);
+        return new Result(items, repository.count(key, BrandStatus.ACTIVE));
     }
 
     public record Query(String keyword, int page, int size) {}
 
-    public record Result(List<BrandSummary> items, long total) {}
+    public record Result(List<Item> items, long total) {}
 
-    public record BrandSummary(String id, String name, String slug) {}
+    public record Item(UUID id, String name) {}
 }

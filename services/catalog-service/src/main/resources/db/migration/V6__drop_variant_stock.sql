@@ -1,1 +1,0 @@
-ALTER TABLE variant DROP COLUMN stock;

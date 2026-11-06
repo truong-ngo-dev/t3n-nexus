@@ -1,132 +1,124 @@
 package vn.t3nexus.catalog.infrastructure.persistence.product;
 
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeOptionId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.brand.BrandId;
 import vn.t3nexus.catalog.domain.category.CategoryId;
-import vn.t3nexus.catalog.domain.product.*;
+import vn.t3nexus.catalog.domain.product.Product;
+import vn.t3nexus.catalog.domain.product.ProductAttribute;
+import vn.t3nexus.catalog.domain.product.ProductImage;
+import vn.t3nexus.catalog.domain.product.ProductImageId;
+import vn.t3nexus.catalog.domain.product.ProductId;
 
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 public final class ProductMapper {
 
     private ProductMapper() {}
 
-    public static Product toDomain(ProductJpaEntity entity,
-                                   List<ProductAttributeValueJpaEntity> attrEntities,
-                                   List<ProductVariantDefiningAttributeJpaEntity> variantDefiningEntities,
-                                   List<ProductImageJpaEntity> imageEntities) {
-        Map<String, List<ProductAttributeValueJpaEntity>> entitiesByTemplate = attrEntities.stream()
-                .collect(Collectors.groupingBy(
-                        ProductAttributeValueJpaEntity::getTemplateId,
-                        LinkedHashMap::new,
-                        Collectors.toList()));
-
-        Set<String> variantDefiningTemplateIds = variantDefiningEntities.stream()
-                .map(ProductVariantDefiningAttributeJpaEntity::getTemplateId)
-                .collect(Collectors.toSet());
-
-        List<ProductAttributeValue> attributeValues = entitiesByTemplate.entrySet().stream()
-                .map(e -> new ProductAttributeValue(
-                        AttributeTemplateId.of(e.getKey()),
-                        e.getValue().stream().map(ProductAttributeValueJpaEntity::getValue).toList(),
-                        variantDefiningTemplateIds.contains(e.getKey())))
-                .toList();
-
-        List<ProductImage> images = imageEntities.stream()
-                .map(i -> ProductImage.reconstitute(
-                        ProductImageId.of(i.getId()),
-                        i.getObjectKey(),
-                        i.getDisplayOrder()))
-                .toList();
-
-        WarrantyInfo warrantyInfo = entity.getWarrantyType() == null
-                ? null
-                : new WarrantyInfo(entity.getWarrantyMonths(), entity.getWarrantyType(), entity.getWarrantyCoverage());
-
+    public static Product toDomain(ProductJpaEntity entity, List<ProductAttributeJpaEntity> attributes,
+                                   List<ProductAttributeOptionJpaEntity> options,
+                                   List<ProductImageJpaEntity> images) {
         return Product.reconstitute(
                 ProductId.of(entity.getId()),
                 entity.getSellerId(),
                 CategoryId.of(entity.getCategoryId()),
-                BrandId.of(entity.getBrandId()),
-                entity.getName(),
+                entity.getBrandId() == null ? null : BrandId.of(entity.getBrandId()),
+                entity.getTitle(),
                 entity.getDescription(),
-                warrantyInfo,
                 entity.getStatus(),
-                entity.isAdminBlocked(),
-                attributeValues,
-                images,
+                toAttributes(attributes, options),
+                toImages(images),
                 entity.getPublishedAt(),
+                entity.getVersion(),
                 entity.getCreatedAt(),
-                entity.getUpdatedAt()
-        );
+                entity.getUpdatedAt());
     }
 
+    /** Sản phẩm mới (chưa lưu) có {@code version} null để Hibernate nhận biết bản ghi mới. */
     public static ProductJpaEntity toJpaEntity(Product product) {
         ProductJpaEntity entity = new ProductJpaEntity();
         entity.setId(product.getId().getValue());
         entity.setSellerId(product.getSellerId());
         entity.setCategoryId(product.getCategoryId().getValue());
-        entity.setBrandId(product.getBrandId().getValue());
-        entity.setName(product.getName());
+        entity.setBrandId(product.getBrandId() == null ? null : product.getBrandId().getValue());
+        entity.setTitle(product.getTitle());
         entity.setDescription(product.getDescription());
         entity.setStatus(product.getStatus());
-        entity.setAdminBlocked(product.isAdminBlocked());
-        entity.setPublishedAt(product.getPublishedAt());
+        entity.setVersion(product.version());
         entity.setCreatedAt(product.getCreatedAt());
         entity.setUpdatedAt(product.getUpdatedAt());
-
-        if (product.getWarrantyInfo() != null) {
-            entity.setWarrantyMonths(product.getWarrantyInfo().months());
-            entity.setWarrantyType(product.getWarrantyInfo().type());
-            entity.setWarrantyCoverage(product.getWarrantyInfo().coverage());
-        }
-
+        entity.setPublishedAt(product.getPublishedAt());
         return entity;
     }
 
-    public static List<ProductAttributeValueJpaEntity> toAttributeValueEntities(Product product) {
-        String productId = product.getId().getValue();
-        return product.getAttributeValues().stream()
-                .flatMap(av -> av.values().stream().map(value -> {
-                    ProductAttributeValueJpaEntity e = new ProductAttributeValueJpaEntity();
-                    e.setProductId(productId);
-                    e.setTemplateId(av.templateId().getValue());
-                    e.setValue(value);
-                    return e;
-                }))
-                .toList();
+    public static List<ProductAttributeJpaEntity> toAttributeEntities(Product product) {
+        UUID productId = product.getId().getValue();
+        List<ProductAttributeJpaEntity> rows = new ArrayList<>();
+        for (ProductAttribute attribute : product.getAttributes()) {
+            ProductAttributeJpaEntity row = new ProductAttributeJpaEntity();
+            row.setProductId(productId);
+            row.setTemplateId(attribute.templateId().getValue());
+            row.setAxis(attribute.axis());
+            row.setValue(attribute.value());
+            rows.add(row);
+        }
+        return rows;
     }
 
-    public static List<ProductVariantDefiningAttributeJpaEntity> toVariantDefiningAttributeEntities(Product product) {
-        String productId = product.getId().getValue();
-        return product.getAttributeValues().stream()
-                .filter(ProductAttributeValue::isVariantDefining)
-                .map(av -> {
-                    ProductVariantDefiningAttributeJpaEntity e = new ProductVariantDefiningAttributeJpaEntity();
-                    e.setProductId(productId);
-                    e.setTemplateId(av.templateId().getValue());
-                    return e;
-                })
+    public static List<ProductAttributeOptionJpaEntity> toOptionEntities(Product product) {
+        UUID productId = product.getId().getValue();
+        List<ProductAttributeOptionJpaEntity> rows = new ArrayList<>();
+        for (ProductAttribute attribute : product.getAttributes()) {
+            for (AttributeOptionId option : attribute.optionIds()) {
+                ProductAttributeOptionJpaEntity row = new ProductAttributeOptionJpaEntity();
+                row.setProductId(productId);
+                row.setTemplateId(attribute.templateId().getValue());
+                row.setOptionId(option.getValue());
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    /** Dạng so sánh của danh sách thuộc tính, không phụ thuộc thứ tự: dùng để biết có cần ghi lại hay không. */
+    public static Set<ProductAttribute> asSet(List<ProductAttribute> attributes) {
+        return new LinkedHashSet<>(attributes);
+    }
+
+    public static List<ProductAttribute> toAttributes(List<ProductAttributeJpaEntity> attributes,
+                                                       List<ProductAttributeOptionJpaEntity> options) {
+        Map<UUID, Set<AttributeOptionId>> optionsByTemplate = new LinkedHashMap<>();
+        for (ProductAttributeOptionJpaEntity option : options) {
+            optionsByTemplate.computeIfAbsent(option.getTemplateId(), k -> new LinkedHashSet<>())
+                    .add(AttributeOptionId.of(option.getOptionId()));
+        }
+        List<ProductAttribute> result = new ArrayList<>();
+        for (ProductAttributeJpaEntity row : attributes) {
+            result.add(new ProductAttribute(AttributeTemplateId.of(row.getTemplateId()), row.isAxis(),
+                    optionsByTemplate.getOrDefault(row.getTemplateId(), Set.of()), row.getValue()));
+        }
+        return result;
+    }
+
+    public static List<ProductImage> toImages(List<ProductImageJpaEntity> rows) {
+        return rows.stream()
+                .map(r -> ProductImage.of(ProductImageId.of(r.getId()), r.getObjectKey(), r.getContentType(),
+                        r.getSizeBytes(), r.getPosition()))
                 .toList();
     }
 
     public static List<ProductImageJpaEntity> toImageEntities(Product product) {
-        String productId = product.getId().getValue();
+        UUID productId = product.getId().getValue();
         return product.getImages().stream()
-                .map(img -> {
-                    ProductImageJpaEntity e = new ProductImageJpaEntity();
-                    e.setId(img.getId().getValue());
-                    e.setProductId(productId);
-                    e.setObjectKey(img.getObjectKey());
-                    e.setDisplayOrder(img.getDisplayOrder());
-                    e.setCreatedAt(Instant.now());
-                    return e;
-                })
+                .map(i -> new ProductImageJpaEntity(i.getId().getValue(), productId, i.getObjectKey(),
+                        i.getContentType(), i.getSizeBytes(), i.getPosition()))
                 .toList();
     }
 }

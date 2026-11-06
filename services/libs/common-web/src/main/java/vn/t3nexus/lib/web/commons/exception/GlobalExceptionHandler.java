@@ -9,6 +9,7 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
@@ -48,6 +49,18 @@ public class GlobalExceptionHandler {
         // (ví dụ nội dung là một chuỗi JSON mã hóa hai lần thì cả mật khẩu bên trong nằm trong thông báo), nên thông báo không bao giờ vào log.
         log.info("[GlobalExceptionHandler] MALFORMED_REQUEST (400): {}", rootType(ex));
         return ApiResponse.error("Nội dung yêu cầu không đúng định dạng", "MALFORMED_REQUEST");
+    }
+
+    /**
+     * Tham số đường dẫn hoặc truy vấn sai kiểu (ví dụ mã không phải UUID, số bằng chữ): lỗi do client, không phải 500.
+     * Chỉ nêu tên tham số, không lặp lại giá trị người dùng gửi (cả ở phản hồi lẫn log).
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ApiResponse<?> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request, HttpServletResponse response) {
+        response.setStatus(HttpStatus.BAD_REQUEST.value());
+        tag(request, "INVALID_PARAMETER");
+        log.info("[GlobalExceptionHandler] INVALID_PARAMETER (400): {}", ex.getName());
+        return ApiResponse.error("Tham số '" + ex.getName() + "' không đúng định dạng", "INVALID_PARAMETER");
     }
 
     @ExceptionHandler(DomainException.class)

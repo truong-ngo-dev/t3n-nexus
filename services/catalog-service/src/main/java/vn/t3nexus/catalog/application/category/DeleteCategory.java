@@ -1,59 +1,57 @@
 package vn.t3nexus.catalog.application.category;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.t3nexus.catalog.domain.CatalogActor;
+import vn.t3nexus.catalog.domain.ChangeContext;
 import vn.t3nexus.catalog.domain.category.Category;
 import vn.t3nexus.catalog.domain.category.CategoryErrorCode;
 import vn.t3nexus.catalog.domain.category.CategoryId;
 import vn.t3nexus.catalog.domain.category.CategoryRepository;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheInvalidationPublisher;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
+import vn.t3nexus.catalog.domain.product.ProductRepository;
 import vn.t3nexus.lib.common.application.EventDispatcher;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
+import vn.t3nexus.lib.common.domain.service.IdGenerator;
 
-/** Xoá hẳn — công cụ hoàn tác cho danh mục tạo sai vị trí/trùng lặp, chưa ai dùng (analysis.md AGG-CAT-03). */
-@Slf4j
+import java.time.Clock;
+import java.util.UUID;
+
+/**
+ * Xóa danh mục: chỉ khi không còn con (INV-CAT-05). Cũng chỉ khi chưa có sản phẩm nào tham chiếu danh mục (INV-CAT-98); không có khóa ngoại giữa hai aggregate, nên đua giữa xóa danh mục và tạo sản phẩm vào nó là rủi ro chấp nhận được (service.md).
+ */
 @Service
 @RequiredArgsConstructor
-public class DeleteCategory implements CommandHandler<DeleteCategory.Command, DeleteCategory.Result> {
+public class DeleteCategory implements CommandHandler<DeleteCategory.Command, Void> {
 
-    private final CategoryRepository categoryRepository;
-    private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final CategoryRepository repository;
+    private final ProductRepository products;
+    private final IdGenerator idGenerator;
+    private final Clock clock;
     private final EventDispatcher eventDispatcher;
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheNames.CATEGORY_TREE, allEntries = true)
-    public Result handle(Command command) {
-        CategoryId id = CategoryId.of(command.id());
-        Category category = categoryRepository.findById(id)
+    public Void handle(Command command) {
+        command.actor().requireAdmin();
+        CategoryId id = CategoryId.of(command.categoryId());
+        Category category = repository.findById(id)
                 .orElseThrow(() -> new DomainException(CategoryErrorCode.CATEGORY_NOT_FOUND));
-
-        if (categoryRepository.existsByParentId(id)) {
-            throw new DomainException(CategoryErrorCode.HAS_CHILDREN);
+        if (repository.existsByParentId(id)) {
+            throw new DomainException(CategoryErrorCode.CATEGORY_HAS_CHILDREN);
         }
-        // Không có FK product → category (service.md T-09) — race với CreateProduct được chấp nhận (C-05).
-        if (categoryRepository.hasProductReference(id)) {
-            throw new DomainException(CategoryErrorCode.HAS_PRODUCT_REFERENCE);
+        if (products.existsByCategory(command.categoryId())) {
+            throw new DomainException(CategoryErrorCode.CATEGORY_HAS_PRODUCTS);
         }
 
-        category.markDeleted();
-        categoryRepository.delete(id);
+        category.markDeleted(new ChangeContext(command.actor(), idGenerator.generate(), clock.instant()));
+        repository.delete(id);
+
         eventDispatcher.dispatchAll(category.getDomainEvents());
         category.clearDomainEvents();
-        cacheInvalidationPublisher.clear(CacheNames.CATEGORY_TREE);
-
-        log.info("[DeleteCategory] deleted: categoryId={}, traceId={}", command.id(), MDC.get("traceId"));
-
-        return new Result();
+        return null;
     }
 
-    public record Command(String id) {}
-
-    public record Result() {}
+    public record Command(CatalogActor actor, UUID categoryId) {}
 }

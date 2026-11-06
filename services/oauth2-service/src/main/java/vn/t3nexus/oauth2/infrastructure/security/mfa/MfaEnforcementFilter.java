@@ -14,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import vn.t3nexus.oauth2.infrastructure.security.extension.authentication.UserAccountDetails;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Safety net for the Authorization Server endpoints.
@@ -66,6 +67,6 @@ public class MfaEnforcementFilter extends OncePerRequestFilter {
 
         if (!mfaEnabled) return false;
         return auth.getAuthorities().stream()
-                .noneMatch(a -> a.getAuthority().equals(FACTOR_OTT));
+                .noneMatch(a -> Objects.equals(a.getAuthority(), FACTOR_OTT));
     }
 }

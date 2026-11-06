@@ -1,76 +1,56 @@
 package vn.t3nexus.catalog.domain.variant;
 
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeOptionId;
 import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplate;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateErrorCode;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateStatus;
+import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
 import vn.t3nexus.catalog.domain.product.Product;
-import vn.t3nexus.catalog.domain.product.ProductAttributeValue;
-import vn.t3nexus.catalog.domain.product.ProductErrorCode;
+import vn.t3nexus.catalog.domain.product.ProductAttribute;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * Tổ hợp phân loại hợp lệ của 1 đơn vị bán được mới (analysis.md AGG-CAT-05, INV-CAT-97, INV-CAT-99).
- * <ul>
- *   <li><b>Đúng 1 giá trị cho mỗi trục</b> Sản phẩm đã đánh dấu {@code isVariantDefining} — không thiếu, không thừa,
- *       không có 2 giá trị cùng 1 trục, không có cặp cho thuộc tính không phải trục (đó là thông số chung).</li>
- *   <li>Giá trị nằm trong tập Sản phẩm đã khai cho trục (INV-CAT-99 — Liên tục).</li>
- *   <li>Thuộc tính và giá trị <b>đang dùng được</b> lúc tạo (INV-CAT-97 — Tiên quyết); Admin tắt sau đó không làm
- *       đơn vị cũ sai.</li>
- * </ul>
+ * Tổ hợp hợp lệ của một biến thể mới (INV-CAT-33, 94): đúng một giá trị cho mỗi trục của sản phẩm (thuộc tính đánh dấu
+ * {@code axis}), không thừa không thiếu, mỗi giá trị nằm trong tập giá trị của trục, và mẫu cùng tùy chọn còn dùng được
+ * lúc tạo (Quản trị tắt sau đó không làm biến thể cũ sai). Sản phẩm không có trục chỉ nhận tổ hợp rỗng (INV-CAT-44).
+ * Hàm thuần; sai là {@link VariantErrorCode#VARIANT_COMBINATION_INVALID}.
  */
 public final class VariantCombinationPolicy {
 
-    private VariantCombinationPolicy() {}
+    private VariantCombinationPolicy() {
+    }
 
     public static void validate(Product product, List<VariantAttributePair> pairs,
-                                Map<String, AttributeTemplate> templatesById) {
-        Map<String, ProductAttributeValue> declaredByTemplate = product.getAttributeValues().stream()
-                .collect(Collectors.toMap(av -> av.templateId().getValue(), av -> av));
-        Set<String> axisIds = declaredByTemplate.values().stream()
-                .filter(ProductAttributeValue::isVariantDefining)
-                .map(av -> av.templateId().getValue())
-                .collect(Collectors.toSet());
+                                Map<AttributeTemplateId, AttributeTemplate> templates) {
+        Map<AttributeTemplateId, Set<AttributeOptionId>> axes = new HashMap<>();
+        for (ProductAttribute attribute : product.getAttributes()) {
+            if (attribute.axis()) {
+                axes.put(attribute.templateId(), attribute.optionIds());
+            }
+        }
 
-        Set<String> seenAxes = new HashSet<>();
+        Set<AttributeTemplateId> chosen = new HashSet<>();
         for (VariantAttributePair pair : pairs) {
-            String templateId = pair.templateId().getValue();
-
-            if (!seenAxes.add(templateId)) {
-                throw new DomainException(ProductErrorCode.VARIANT_DUPLICATE_AXIS);
+            Set<AttributeOptionId> allowed = axes.get(pair.templateId());
+            if (allowed == null || !chosen.add(pair.templateId()) || !allowed.contains(pair.optionId())) {
+                throw invalid();
             }
-            if (!axisIds.contains(templateId)) {
-                throw new DomainException(ProductErrorCode.VARIANT_ATTRIBUTE_NOT_AXIS);
-            }
-
-            AttributeTemplate template = templatesById.get(templateId);
-            if (template == null) {
-                throw new DomainException(AttributeTemplateErrorCode.TEMPLATE_NOT_FOUND);
-            }
-            if (template.getStatus() == AttributeTemplateStatus.INACTIVE) {
-                throw new DomainException(AttributeTemplateErrorCode.TEMPLATE_INACTIVE);
-            }
-
-            var option = template.getOptions().stream()
-                    .filter(o -> o.getId().equals(pair.optionId()))
-                    .findFirst()
-                    .orElseThrow(() -> new DomainException(AttributeTemplateErrorCode.OPTION_NOT_FOUND));
-            if (!option.isActive()) {
-                throw new DomainException(ProductErrorCode.INVALID_ATTRIBUTE_VALUE);
-            }
-
-            if (!declaredByTemplate.get(templateId).values().contains(pair.optionId().getValue())) {
-                throw new DomainException(ProductErrorCode.VARIANT_OPTION_NOT_DECLARED_BY_PRODUCT);
+            AttributeTemplate template = templates.get(pair.templateId());
+            if (template == null || !template.isUsable() || template.getOptions().stream()
+                    .noneMatch(o -> o.getId().equals(pair.optionId()) && o.isActive())) {
+                throw invalid();
             }
         }
-
-        if (!seenAxes.containsAll(axisIds)) {
-            throw new DomainException(ProductErrorCode.VARIANT_MISSING_VARIANT_DEFINING_ATTRIBUTE);
+        if (!chosen.equals(axes.keySet())) {
+            throw invalid();
         }
+    }
+
+    private static DomainException invalid() {
+        return new DomainException(VariantErrorCode.VARIANT_COMBINATION_INVALID);
     }
 }

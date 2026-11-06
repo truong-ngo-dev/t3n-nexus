@@ -17,7 +17,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
@@ -25,6 +27,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.common.domain.exception.ErrorCode;
+
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -82,6 +86,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/teapot")
         void teapot() {
             throw new ResponseStatusException(HttpStatus.I_AM_A_TEAPOT, "Tôi là ấm trà");
+        }
+
+        @GetMapping("/items/{id}")
+        String item(@PathVariable("id") UUID id) {
+            return id.toString();
+        }
+
+        @GetMapping("/page")
+        String page(@RequestParam("size") int size) {
+            return "size=" + size;
         }
     }
 
@@ -146,6 +160,47 @@ class GlobalExceptionHandlerTest {
         assertThat(appender.list).isNotEmpty();
         assertThat(appender.list).allSatisfy(e -> assertThat(e.getFormattedMessage()).doesNotContain("SuperSecret99"));
     }
+
+    @Test
+    void a_path_variable_of_the_wrong_type_is_a_400_invalid_parameter_not_a_500_and_does_not_echo_the_value() throws Exception {
+        MvcResult result = mvc.perform(get("/items/not-a-uuid-secret-value")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        JsonNode body = json(result);
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("code").asString()).isEqualTo("INVALID_PARAMETER");
+        assertThat(body.path("message").asString()).contains("id");
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("not-a-uuid-secret-value");
+        assertThat(result.getRequest().getAttribute("error.code")).isEqualTo("INVALID_PARAMETER");
+        assertThat(appender.list).hasSize(1);
+        assertThat(appender.list.get(0).getLevel()).isEqualTo(Level.INFO);
+        assertThat(appender.list.get(0).getThrowableProxy()).isNull();
+        assertThat(appender.list.get(0).getFormattedMessage()).doesNotContain("not-a-uuid-secret-value");
+    }
+
+    @Test
+    void a_query_parameter_of_the_wrong_type_is_a_400_naming_the_parameter() throws Exception {
+        MvcResult result = mvc.perform(get("/page").param("size", "abc")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        JsonNode body = json(result);
+        assertThat(body.path("code").asString()).isEqualTo("INVALID_PARAMETER");
+        assertThat(body.path("message").asString()).contains("size");
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("abc");
+    }
+
+    @Test
+    void well_typed_parameters_still_pass_through() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        MvcResult byPath = mvc.perform(get("/items/" + id)).andReturn();
+        MvcResult byQuery = mvc.perform(get("/page").param("size", "20")).andReturn();
+
+        assertThat(byPath.getResponse().getStatus()).isEqualTo(200);
+        assertThat(byPath.getResponse().getContentAsString()).isEqualTo(id.toString());
+        assertThat(byQuery.getResponse().getStatus()).isEqualTo(200);
+    }
+
     @Test
     void error_responses_carry_the_trace_id_from_the_logging_context() throws Exception {
         MvcResult result = mvc.perform(get("/domain-409")).andReturn();

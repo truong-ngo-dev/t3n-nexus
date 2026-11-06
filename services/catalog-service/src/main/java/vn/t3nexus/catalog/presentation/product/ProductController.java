@@ -1,196 +1,113 @@
 package vn.t3nexus.catalog.presentation.product;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
-import vn.t3nexus.catalog.application.product.*;
-import vn.t3nexus.catalog.presentation.product.model.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
+import vn.t3nexus.catalog.application.product.CreateProduct;
+import vn.t3nexus.catalog.application.product.DeleteDraft;
+import vn.t3nexus.catalog.application.product.GetMyProduct;
+import vn.t3nexus.catalog.application.product.ListMyProducts;
+import vn.t3nexus.catalog.application.product.PublishProduct;
+import vn.t3nexus.catalog.application.product.UnpublishProduct;
+import vn.t3nexus.catalog.application.product.UpdateProduct;
+import vn.t3nexus.catalog.domain.CatalogActor;
+import vn.t3nexus.catalog.domain.product.AttributeInput;
+import vn.t3nexus.catalog.domain.product.ProductStatus;
+import vn.t3nexus.catalog.presentation.CatalogActorResolver;
+import vn.t3nexus.catalog.presentation.SellerBodyReader;
+import vn.t3nexus.catalog.presentation.product.model.ProductResponse;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
 
 import java.util.List;
+import java.util.UUID;
 
+/**
+ * Sản phẩm của người bán (CAP-CAT-04, CAP-CAT-09): tạo nháp, xem, sửa, đăng, gỡ, xóa nháp.
+ * Vai {@code USER} và quyền chủ kiểm trong use case; chủ lấy từ token.
+ */
 @RestController
 @RequiredArgsConstructor
 public class ProductController {
 
+    /** Trần kích thước trang; vượt thì cắt về trần. */
+    private static final int MAX_PAGE_SIZE = 50;
+
     private final CreateProduct createProduct;
     private final UpdateProduct updateProduct;
-    private final DeleteProduct deleteProduct;
+    private final GetMyProduct getMyProduct;
+    private final ListMyProducts listMyProducts;
     private final PublishProduct publishProduct;
     private final UnpublishProduct unpublishProduct;
-    private final BlockProduct blockProduct;
-    private final UnblockProduct unblockProduct;
-    private final GetPublishedProduct getPublishedProduct;
-    private final GetSellerProduct getSellerProduct;
-    private final ListSellerProducts listSellerProducts;
-    private final RemoveProductImage removeProductImage;
-    private final GetProductImageUploadUrl getProductImageUploadUrl;
-    private final ConfirmProductImageUpload confirmProductImageUpload;
-
-    // ── Seller ──────────────────────────────────────────────────────────────
+    private final DeleteDraft deleteDraft;
 
     @PostMapping("/api/seller/products")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<String> createProduct(
-            @RequestHeader("X-Seller-Id") String sellerId,
-            @Valid @RequestBody CreateProductRequest request) {
-        List<CreateProduct.AttributeValue> attrs = request.attributeValues().stream()
-                .map(a -> new CreateProduct.AttributeValue(a.templateId(), a.values(), a.isVariantDefining()))
-                .toList();
-        CreateProduct.Result result = createProduct.handle(new CreateProduct.Command(
-                sellerId,
-                request.categoryId(),
-                request.brandId(),
-                request.name(),
-                request.description(),
-                request.warrantyMonths(),
-                request.warrantyType(),
-                request.warrantyCoverage(),
-                attrs));
-        return ApiResponse.ok(result.id());
+    public ApiResponse<ProductResponse> create(@AuthenticationPrincipal Jwt jwt, @RequestBody JsonNode body) {
+        CatalogActor actor = CatalogActorResolver.from(jwt);
+        JsonNode json = SellerBodyReader.requireObject(body);
+        List<AttributeInput> attributes = SellerBodyReader.attributes(json, "attributes").value();
+        return ok(createProduct.handle(new CreateProduct.Command(actor,
+                SellerBodyReader.textOrNull(json, "title"), SellerBodyReader.textOrNull(json, "description"),
+                SellerBodyReader.requiredUuid(json, "categoryId"), SellerBodyReader.uuid(json, "brandId").value(),
+                attributes == null ? List.of() : attributes)));
     }
 
     @GetMapping("/api/seller/products")
-    public ApiResponse<ProductSummaryResponse.PagedResponse> listProducts(
-            @RequestHeader("X-Seller-Id") String sellerId,
+    public ApiResponse<ListMyProducts.Result> list(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) ProductStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        ListSellerProducts.Result result = listSellerProducts.handle(
-                new ListSellerProducts.Query(sellerId, page, size));
-        List<ProductSummaryResponse> items = result.items().stream()
-                .map(dto -> new ProductSummaryResponse(
-                        dto.id(), dto.name(), dto.status(),
-                        dto.categoryId(), dto.brandId(),
-                        dto.thumbnailObjectKey(), dto.createdAt()))
-                .toList();
-        return ApiResponse.ok(new ProductSummaryResponse.PagedResponse(items, result.total(), page, size));
+        return ApiResponse.ok(listMyProducts.handle(new ListMyProducts.Query(CatalogActorResolver.from(jwt), status,
+                Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE))));
     }
 
     @GetMapping("/api/seller/products/{id}")
-    public ApiResponse<ProductResponse> getSellerProduct(
-            @RequestHeader("X-Seller-Id") String sellerId,
-            @PathVariable String id) {
-        GetProduct.Result result = getSellerProduct.handle(new GetSellerProduct.Query(sellerId, id));
-        return ApiResponse.ok(toProductResponse(result));
+    public ApiResponse<ProductResponse> get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return ok(getMyProduct.handle(new GetMyProduct.Query(CatalogActorResolver.from(jwt), id)));
     }
 
-    @PutMapping("/api/seller/products/{id}")
-    public ApiResponse<Void> updateProduct(
-            @RequestHeader("X-Seller-Id") String sellerId,
-            @PathVariable String id,
-            @Valid @RequestBody UpdateProductRequest request) {
-        List<UpdateProduct.AttributeValueDto> attrDtos = request.attributeValues().stream()
-                .map(a -> new UpdateProduct.AttributeValueDto(a.templateId(), a.values(), a.isVariantDefining()))
-                .toList();
-        updateProduct.handle(new UpdateProduct.Command(
-                sellerId,
-                id,
-                request.name(),
-                request.description(),
-                request.warrantyMonths(),
-                request.warrantyType(),
-                request.warrantyCoverage(),
-                attrDtos));
-        return ApiResponse.ok(null);
-    }
-
-    @DeleteMapping("/api/seller/products/{id}")
-    public ApiResponse<Void> deleteProduct(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id) {
-        deleteProduct.handle(new DeleteProduct.Command(sellerId, id));
-        return ApiResponse.ok(null);
+    @PatchMapping("/api/seller/products/{id}")
+    public ApiResponse<ProductResponse> update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                               @RequestBody JsonNode body) {
+        CatalogActor actor = CatalogActorResolver.from(jwt);
+        JsonNode json = SellerBodyReader.requireObject(body);
+        return ok(updateProduct.handle(new UpdateProduct.Command(actor, id,
+                SellerBodyReader.text(json, "title"), SellerBodyReader.text(json, "description"),
+                SellerBodyReader.uuid(json, "brandId"), SellerBodyReader.attributes(json, "attributes"))));
     }
 
     @PostMapping("/api/seller/products/{id}/publish")
-    public ApiResponse<Void> publishProduct(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id) {
-        publishProduct.handle(new PublishProduct.Command(sellerId, id));
-        return ApiResponse.ok(null);
+    public ApiResponse<ProductResponse> publish(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        CatalogActor actor = CatalogActorResolver.from(jwt);
+        return ok(publishProduct.handle(new PublishProduct.Command(actor, id)));
     }
 
     @PostMapping("/api/seller/products/{id}/unpublish")
-    public ApiResponse<Void> unpublishProduct(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id) {
-        unpublishProduct.handle(new UnpublishProduct.Command(sellerId, id));
+    public ApiResponse<ProductResponse> unpublish(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        CatalogActor actor = CatalogActorResolver.from(jwt);
+        return ok(unpublishProduct.handle(new UnpublishProduct.Command(actor, id)));
+    }
+
+    @DeleteMapping("/api/seller/products/{id}")
+    public ApiResponse<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        CatalogActor actor = CatalogActorResolver.from(jwt);
+        deleteDraft.handle(new DeleteDraft.Command(actor, id));
         return ApiResponse.ok(null);
     }
 
-    @PostMapping("/api/seller/products/{id}/images/upload-url")
-    public ApiResponse<UploadUrlResponse> getImageUploadUrl(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id) {
-        GetProductImageUploadUrl.Result result = getProductImageUploadUrl.handle(
-                new GetProductImageUploadUrl.Query(sellerId, id));
-        return ApiResponse.ok(new UploadUrlResponse(result.uploadUrl(), result.objectKey(), result.ttlSeconds()));
+    private static ApiResponse<ProductResponse> ok(vn.t3nexus.catalog.application.product.ProductView view) {
+        return ApiResponse.ok(ProductResponse.from(view));
     }
-
-    @PostMapping("/api/seller/products/{id}/images/confirm")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<String> confirmImageUpload(
-            @RequestHeader("X-Seller-Id") String sellerId,
-            @PathVariable String id,
-            @Valid @RequestBody ConfirmImageUploadRequest request) {
-        ConfirmProductImageUpload.Result result = confirmProductImageUpload.handle(
-                new ConfirmProductImageUpload.Command(sellerId, id, request.objectKey()));
-        return ApiResponse.ok(result.imageId());
-    }
-
-    @DeleteMapping("/api/seller/products/{id}/images/{imageId}")
-    public ApiResponse<Void> removeImage(@RequestHeader("X-Seller-Id") String sellerId, @PathVariable String id,
-                                     @PathVariable String imageId) {
-        removeProductImage.handle(new RemoveProductImage.Command(sellerId, id, imageId));
-        return ApiResponse.ok(null);
-    }
-
-    // ── Public ──────────────────────────────────────────────────────────────
-
-    @GetMapping("/api/products/{id}")
-    public ApiResponse<ProductResponse> getPublishedProduct(@PathVariable String id) {
-        GetProduct.Result result = getPublishedProduct.handle(new GetPublishedProduct.Query(id));
-        return ApiResponse.ok(toProductResponse(result));
-    }
-
-    // ── Admin ────────────────────────────────────────────────────────────────
-
-    @PostMapping("/api/admin/products/{id}/block")
-    public ApiResponse<Void> blockProduct(
-            @PathVariable String id,
-            @Valid @RequestBody BlockProductRequest request) {
-        blockProduct.handle(new BlockProduct.Command(id, request.reason()));
-        return ApiResponse.ok(null);
-    }
-
-    @PostMapping("/api/admin/products/{id}/unblock")
-    public ApiResponse<Void> unblockProduct(@PathVariable String id) {
-        unblockProduct.handle(new UnblockProduct.Command(id));
-        return ApiResponse.ok(null);
-    }
-
-    // ── Mapper ──────────────────────────────────────────────────────────────
-
-    private ProductResponse toProductResponse(GetProduct.Result result) {
-        ProductResponse.WarrantyInfoResponse warranty = result.warrantyInfo() == null ? null
-                : new ProductResponse.WarrantyInfoResponse(
-                        result.warrantyInfo().months(),
-                        result.warrantyInfo().type(),
-                        result.warrantyInfo().coverage());
-
-        List<ProductResponse.AttributeValueResponse> attrs = result.attributeValues().stream()
-                .map(a -> new ProductResponse.AttributeValueResponse(
-                        a.templateId(), a.templateName(), a.templateDisplayName(),
-                        a.values().stream()
-                                .map(v -> new ProductResponse.AttributeValueItemResponse(v.value(), v.displayValue()))
-                                .toList(),
-                        a.isVariantDefining()))
-                .toList();
-
-        List<ProductResponse.ProductImageResponse> images = result.images().stream()
-                .map(i -> new ProductResponse.ProductImageResponse(i.imageId(), i.objectKey(), i.displayOrder()))
-                .toList();
-
-        return new ProductResponse(
-                result.id(), result.sellerId(),
-                result.categoryId(), result.categoryName(),
-                result.brandId(), result.brandName(),
-                result.name(), result.description(), result.status(),
-                warranty, attrs, images);
-    }
-
-    public record UploadUrlResponse(String uploadUrl, String objectKey, int ttlSeconds) {}
 }

@@ -4,11 +4,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
-public interface AttributeOptionJpaRepository extends JpaRepository<AttributeOptionJpaEntity, String> {
+public interface AttributeOptionJpaRepository extends JpaRepository<AttributeOptionJpaEntity, UUID> {
 
-    List<AttributeOptionJpaEntity> findByTemplateId(String templateId);
+    List<AttributeOptionJpaEntity> findByTemplateId(UUID templateId);
 
-    /** Batch — dùng bởi {@code findAllByIds}/{@code search}, chỉ load option của đúng các template cần. */
-    List<AttributeOptionJpaEntity> findByTemplateIdIn(Collection<String> templateIds);
+    /** Theo lô: chỉ nạp tùy chọn của đúng các mẫu cần. */
+    List<AttributeOptionJpaEntity> findByTemplateIdIn(Collection<UUID> templateIds);
 }

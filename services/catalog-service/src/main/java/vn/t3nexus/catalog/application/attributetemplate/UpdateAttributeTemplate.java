@@ -1,43 +1,23 @@
 package vn.t3nexus.catalog.application.attributetemplate;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplate;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateErrorCode;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateId;
-import vn.t3nexus.catalog.domain.attributetemplate.AttributeTemplateRepository;
-import vn.t3nexus.catalog.infrastructure.crosscutting.cache.CacheNames;
+import vn.t3nexus.catalog.domain.CatalogActor;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
-import vn.t3nexus.lib.common.domain.exception.DomainException;
 
-@Slf4j
+import java.util.UUID;
+
+/** Sửa tên hiển thị và gợi ý nhập của mẫu; áp ngay mọi nơi đang dùng, bất kể trạng thái. */
 @Service
 @RequiredArgsConstructor
-public class UpdateAttributeTemplate
-        implements CommandHandler<UpdateAttributeTemplate.Command, UpdateAttributeTemplate.Result> {
+public class UpdateAttributeTemplate implements CommandHandler<UpdateAttributeTemplate.Command, TemplateView> {
 
-    private final AttributeTemplateRepository templateRepository;
+    private final TemplateUpdater updater;
 
     @Override
-    @Transactional
-    @CacheEvict(value = CacheNames.CATEGORY_ATTRIBUTES, allEntries = true)
-    public Result handle(Command command) {
-        AttributeTemplate template = templateRepository.findById(AttributeTemplateId.of(command.id()))
-                .orElseThrow(() -> new DomainException(AttributeTemplateErrorCode.TEMPLATE_NOT_FOUND));
-
-        template.updateDetails(command.displayName(), command.hint());
-        templateRepository.save(template);
-
-        log.info("[UpdateAttributeTemplate] updated: templateId={}, traceId={}", command.id(), MDC.get("traceId"));
-
-        return new Result(command.id());
+    public TemplateView handle(Command c) {
+        return updater.update(c.actor(), c.templateId(), (t, ctx) -> t.updateDetails(c.displayName(), c.hint(), ctx));
     }
 
-    public record Command(String id, String displayName, String hint) {}
-
-    public record Result(String id) {}
+    public record Command(CatalogActor actor, UUID templateId, String displayName, String hint) {}
 }

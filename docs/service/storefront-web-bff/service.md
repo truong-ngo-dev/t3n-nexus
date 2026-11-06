@@ -12,6 +12,8 @@
 
 BFF kênh web của ứng dụng Cửa hàng (host `shop`, ADR-0006): thay trình duyệt làm việc với Xác thực (OAuth2 mã ủy quyền kèm PKCE), giữ token phía máy chủ, trình duyệt chỉ có cookie phiên; chuyển tiếp API kèm token; chống CSRF; nhận báo kết thúc phiên từ Xác thực.
 
+Cơ chế BFF web dùng chung nằm ở thư viện `services/libs/web-bff-starter` (gói `vn.t3nexus.lib.webbff`): đăng nhập OAuth2 (client `<ứng dụng>-web`), giữ token phía máy chủ trong phiên Redis, làm mới token (gửi `sid`), CSRF, ánh xạ hai chiều `sid` ↔ phiên BFF ở Redis với khóa `<ứng dụng>:sid:<sid>` và `<ứng dụng>:session:<mã phiên>`, cookie phiên `<ỨNG DỤNG>_SESSION` (`STOREFRONT_SESSION`), điểm cuối nội bộ `POST /bff/internal/sessions/revoke` (token dịch vụ phạm vi `<ứng dụng>.internal`), `GET /bff/auth/login`, `GET /bff/auth/session`, `GET /bff/auth/ws-ticket`, `POST /bff/auth/logout`, giới hạn tần suất theo người dùng, khung lỗi chung, CORS. Module `storefront-web-bff` chỉ có lớp khởi động mang chú thích `@EnableWebBff`, cấu hình `bff.app-name=storefront`, client OAuth2 `spring.security.oauth2.client.*` và tuyến `bff.routes.<dịch vụ>.uri`.
+
 - **Loại service:** gateway kiểu BFF (không có domain).
 - **Stack:** Java 21, Spring Boot 4, Spring Cloud Gateway Server WebFlux, Spring Security (OAuth2 Client, Resource Server), Spring Session Redis, Redis phản ứng (reactive).
 - **Kiến trúc trong service:** cấu hình và bộ lọc, không hexagonal. **Module:** `infrastructure/configuration` (bảo mật, tuyến, Redis, CORS), `infrastructure/ratelimit`, `presentation` (endpoint phiên, đăng xuất, nhận báo).
@@ -23,7 +25,7 @@ BFF kênh web của ứng dụng Cửa hàng (host `shop`, ADR-0006): thay trìn
 
 ## 2. Ánh xạ domain → code
 
-N/A: không có aggregate, thuật ngữ nghiệp vụ hay trục trạng thái. Khái niệm kỹ thuật:
+N/A: không có aggregate, thuật ngữ nghiệp vụ hay trục trạng thái. Toàn bộ cơ chế BFF web nằm ở thư viện `services/libs/web-bff-starter` (gói `vn.t3nexus.lib.webbff`), module này chỉ có lớp khởi động mang chú thích `@EnableWebBff`, cấu hình `bff.app-name=storefront`, tuyến `bff.routes.<dịch vụ>.uri` và client OAuth2 `spring.security.oauth2.client.*`. Đường dẫn `/api/<dịch vụ bỏ hậu tố -service>/**` được viết lại thành `/api/**`. Khái niệm kỹ thuật:
 
 | Khái niệm | Nghĩa | Biểu diễn |
 |---|---|---|
@@ -212,6 +214,7 @@ Chưa rà code.
 ## 17. Dependencies
 
 - **Services:** Xác thực (`oauth2-service`), `api-gateway` đứng trước, các dịch vụ sau đang có tuyến (`identity`, `customer`, `catalog`, `order`).
+- **Thư viện:** `libs/web-bff-starter`.
 - **Infrastructure:** Redis (phiên, ánh xạ, ticket WebSocket, giới hạn tần suất); không dùng cơ sở dữ liệu quan hệ hay Kafka.
 
 ---

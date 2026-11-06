@@ -1,267 +1,237 @@
-# Data Schema — catalog-service
+# Danh mục hàng: dữ liệu
 
-**Engine:** PostgreSQL (port 5435, db: `catalog_db`)
+> **Trạng thái:** Sống · **Cập nhật:** `2026-11-06` · Phần cấu trúc (thương hiệu, mẫu thuộc tính, tùy chọn, danh mục, dòng gán, hộp thư event) **Đã làm** theo migration `V1` của feature 05; bảng sản phẩm và biến thể (mục 10) **Đã làm** ở feature 07 bằng migration `V2`; bảng ảnh **Đã làm** bằng migration `V3` (feature 08); bảng `seller_state` và cột `published_at` của `product` ở migration `V4` **Đã làm** (feature 09). Giải pháp: [`tech.md` của feature 05](../../stage/c1a-listing/05-category-structure/tech.md) T1.
+> Cơ sở dữ liệu quan hệ riêng của BC: Postgres 16, cơ sở dữ liệu `catalog_db`. Hộp thư event chuyển bằng CDC nên cần `wal_level=logical` và một tài khoản chủ cơ sở dữ liệu vừa chạy migration vừa chạy dịch vụ (cùng cách `seller-service`); đã khai báo trong `infra/docker-compose.yml` (`postgres-catalog`, cổng dev `5436`); container dev dựng lại sau khi gộp `V1` là việc riêng, chưa làm.
 
----
+## 1. Quy ước chung
 
-## Tables
+- Khóa chính là `UUID` v7 sinh ở ứng dụng (ADR-0001); thời điểm là `TIMESTAMPTZ`; trạng thái là `VARCHAR(20)` kèm `CHECK`.
+- Mọi aggregate sửa được (trừ biến thể, mục 10) có `version BIGINT NOT NULL` ánh xạ `@Version`, **bắt đầu từ 0**, tăng một mỗi lần cập nhật; chạy ngầm, người gọi không gửi (ADR-0011).
+- Ràng buộc duy nhất có tên `uq_<bảng>_<ý nghĩa>`; lớp trình bày đổi lỗi theo tên (mục 8).
+- **Khóa tên** (`name_key`, chỉ thương hiệu và danh mục): tên đã chuẩn hóa để so trùng (bỏ khoảng trắng đầu cuối và gộp khoảng trắng giữa, bỏ dấu tiếng Việt với `đ` thành `d`, chữ thường). Cột tên giữ nguyên dạng nhập để hiển thị.
+- **Mã kỹ thuật** (`attribute_template.name`, `attribute_option.value`): không chuẩn hóa mà bắt buộc đúng dạng, có `CHECK` ở cơ sở dữ liệu; nên so trùng thẳng trên chính cột, không có khóa phụ.
+- Không có xóa mềm hay xóa cứng cho mẫu, tùy chọn, thương hiệu (INV-CAT-12, 21); chỉ danh mục xóa cứng được (INV-CAT-05, 98).
 
-### `brand`
+## 2. `brand` (AGG-CAT-03)
 
-| Column       | Type        | Nullable | Notes              |
-|--------------|-------------|----------|--------------------|
-| `id`         | `uuid`      | NO       | PK                 |
-| `name`       | `varchar`   | NO       | UNIQUE (không phân biệt hoa/thường — `uq_brand_name` trên `LOWER(name)`, V17) |
-| `slug`       | `varchar`   | NO       | UNIQUE             |
-| `status`     | `varchar`   | NO       | `ACTIVE, INACTIVE` |
-| `created_at` | `timestamp` | NO       |                    |
-| `updated_at` | `timestamp` | NO       |                    |
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | `UUID` | Khóa chính |
+| `name` | `VARCHAR(100)` | Tên hiển thị |
+| `name_key` | `VARCHAR(100)` | Khóa so trùng |
+| `status` | `VARCHAR(20)` | `ACTIVE`, `INACTIVE` |
+| `version` | `BIGINT` | |
+| `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-> Không có cột nào tham chiếu `category` — Brand không giới hạn theo danh mục (xem analysis.md §5.3.2 mục 5).
-> "Chính hãng"/đại lý ủy quyền là một khái niệm khác (seller ↔ brand, có thể kèm phạm vi), nếu làm sẽ là aggregate
-> riêng (`BrandAuthorization`), không sửa bảng này.
+Ràng buộc: `pk_brand (id)`; `uq_brand_name_key (name_key)` (INV-CAT-20); `ck_brand_status`.
 
----
+## 3. `attribute_template` (AGG-CAT-02)
 
-### `attribute_template`
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | `UUID` | Khóa chính |
+| `name` | `VARCHAR(100)` | Mã kỹ thuật `^[a-z0-9]+(_[a-z0-9]+)*$`; đặt lúc tạo, **không có lệnh đổi** |
+| `display_name` | `VARCHAR(100)` | Tên hiển thị; sửa được, áp ngay mọi nơi |
+| `hint` | `VARCHAR(200)` | Gợi ý nhập cho người bán; tùy chọn |
+| `input_type` | `VARCHAR(20)` | `SINGLE_SELECT`, `MULTI_SELECT`, `TEXT`, `NUMBER`, `BOOLEAN`, `DATE`; **không đổi** (INV-CAT-12) |
+| `unit` | `VARCHAR(20)` | Đơn vị; chỉ `NUMBER`; không đổi |
+| `status` | `VARCHAR(20)` | `ACTIVE`, `INACTIVE` |
+| `version` | `BIGINT` | Tăng cả khi tùy chọn của mẫu thay đổi |
+| `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-| Column         | Type        | Nullable | Notes                                           |
-|----------------|-------------|----------|-------------------------------------------------|
-| `id`           | `uuid`      | NO       | PK                                              |
-| `name`         | `varchar`   | NO       | UNIQUE, immutable — machine key ổn định (mọi nơi tham chiếu bằng ID, không bằng `name`) |
-| `display_name` | `varchar`   | NO       |                                                 |
-| `hint`         | `varchar(200)` | YES   | Gợi ý cách nhập cho seller (V16) |
-| `input_type`   | `varchar`   | NO       | `SINGLE_SELECT, MULTI_SELECT, TEXT, NUMBER, BOOLEAN, DATE` (V16) — immutable |
-| `unit`         | `varchar(20)` | YES    | Chỉ khi `input_type = NUMBER` (CHECK `chk_attribute_template_unit`); immutable (V16) |
-| `status`       | `varchar`   | NO       | `ACTIVE, INACTIVE` — tắt/bật, không guard |
-| `version`      | `bigint`    | NO       | Optimistic lock (V16) — 2 Admin sửa cùng template: bên sau lỗi |
-| `created_at`   | `timestamp` | NO       |                                                 |
-| `updated_at`   | `timestamp` | NO       |                                                 |
+Ràng buộc: `pk_attribute_template`; `uq_attribute_template_name (name)` (INV-CAT-10); `ck_attribute_template_name_format`; `ck_attribute_template_input_type`; `ck_attribute_template_status`; `ck_attribute_template_unit (unit IS NULL OR input_type = 'NUMBER')`.
 
-> **V8:** bỏ cột `scope` (không còn GLOBAL/CATEGORY). **V9:** thêm `status` (thay hard delete).
->
-> **V16:** tách `SELECT` → `SINGLE_SELECT`/`MULTI_SELECT` (dữ liệu cũ: template có sản phẩm khai > 1 giá trị cho thuộc
-> tính không phải trục biến thể → `MULTI_SELECT`, còn lại `SINGLE_SELECT`), thêm `DATE`; thêm `unit`, `hint`, `version`.
-> Guard "không tắt template đang required" đã bỏ (xem `service.md` § AttributeTemplate — hành vi và guard).
+## 4. `attribute_option`
 
-### `attribute_option`
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | `UUID` | Khóa chính; sản phẩm lưu giá trị theo mã này |
+| `template_id` | `UUID` | Mẫu sở hữu |
+| `value` | `VARCHAR(100)` | Mã kỹ thuật `^[a-z0-9]+([_-][a-z0-9]+)*$`; đặt lúc thêm, không đổi |
+| `display_value` | `VARCHAR(100)` | Tên hiển thị; sửa được |
+| `sort_order` | `INT` | Thứ tự chuẩn trong mẫu |
+| `status` | `VARCHAR(20)` | `ACTIVE`, `INACTIVE` |
+| `created_at` | `TIMESTAMPTZ` | |
 
-| Column          | Type        | Nullable | Notes                     |
-|-----------------|-------------|----------|---------------------------|
-| `id`            | `uuid`      | NO       | PK                        |
-| `template_id`   | `uuid`      | NO       | FK → `attribute_template` |
-| `value`         | `varchar`   | NO       | Immutable — machine key; **duy nhất trong template, không phân biệt hoa/thường** (unique index `uq_attribute_option_template_value` trên `(template_id, LOWER(value))`, V16) |
-| `display_value` | `varchar`   | NO       |                           |
-| `status`        | `varchar`   | NO       | `ACTIVE, INACTIVE` — tắt/bật, không guard |
-| `sort_order`    | `int`       | NO       | Thứ tự chuẩn trong template (V16; khởi tạo theo `created_at`) |
-| `created_at`    | `timestamp` | NO       |                           |
+Ràng buộc: `pk_attribute_option`; `fk_attribute_option_template (template_id) REFERENCES attribute_template ON DELETE RESTRICT`; `uq_attribute_option_template_value (template_id, value)` (INV-CAT-11); `ck_attribute_option_value_format`; `ck_attribute_option_status`. Tùy chọn là thực thể con của mẫu: ghi từng dòng (thêm, đổi trạng thái, đổi thứ tự), không xóa-rồi-chèn-lại.
 
-> **V10** từng thêm `usage_count` để guard "không tắt option đang được variant dùng"; **V16 bỏ** cột này cùng guard
-> (tắt chỉ chặn lựa chọn mới). V16 cũng đổi `value` của bản trùng trong dữ liệu cũ (`value || '_' || 6 ký tự cuối id`,
-> giữ bản tạo sớm nhất) trước khi tạo unique index — an toàn vì mọi tham chiếu dùng `id`.
->
-> Option **không bao giờ bị xoá**: lưu template là upsert từng dòng option, không xoá-rồi-chèn-lại (dòng option đang được
-> `variant_combination_item` tham chiếu bằng FK).
+## 5. `category` (AGG-CAT-01)
 
----
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | `UUID` | Khóa chính |
+| `parent_id` | `UUID` | Cha; rỗng ở cấp một; không đổi sau khi tạo |
+| `level` | `SMALLINT` | 1, 2, 3; cấp ba là lá |
+| `name` | `VARCHAR(100)` | Tên hiển thị |
+| `name_key` | `VARCHAR(100)` | Khóa so trùng trong cùng cha |
+| `sort_order` | `INT` | Thứ tự giữa các anh em cùng cha; không duy nhất |
+| `status` | `VARCHAR(20)` | `ACTIVE`, `INACTIVE`; ngừng dùng không cascade xuống con |
+| `version` | `BIGINT` | Tăng khi đổi tên, sắp xếp, trạng thái, danh sách gán |
+| `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-### `category`
+Ràng buộc: `pk_category`; `fk_category_parent (parent_id) REFERENCES category ON DELETE RESTRICT` (không xóa cha còn con, kể cả khi đua nhau với việc thêm con); `ck_category_level (level BETWEEN 1 AND 3)`; `ck_category_root_level ((level = 1) = (parent_id IS NULL))`; `ck_category_status`.
 
-| Column       | Type        | Nullable | Notes                             |
-|--------------|-------------|----------|-----------------------------------|
-| `id`         | `uuid`      | NO       | PK                                |
-| `name`       | `varchar`   | NO       | Duy nhất trong cùng `parent_id` (không phân biệt hoa/thường) — kiểm ở application layer (V18), không unique index DB vì `parent_id NULL` (root) không so sánh bằng nhau được bằng index thường |
-| `slug`       | `varchar`   | NO       | Tự sinh từ tên, **không** unique, đổi theo tên — tra cứu theo `id` (V19 bỏ `uq_category_slug`; service.md T-10) |
-| `parent_id`  | `uuid`      | YES      | FK → `category` (nullable = root) |
-| `level`      | `smallint`  | NO       | 1, 2, 3                           |
-| `image_url`  | `varchar`   | YES      |                                   |
-| `sort_order` | `int`       | NO       | Thứ tự giữa anh em cùng `parent_id` trên storefront (V18) — trước đó cây xếp theo tên |
-| `status`     | `varchar`   | NO       | `ACTIVE, INACTIVE` — soft toggle điều hướng (ẩn khỏi `GetCategoryTree`, chặn `CreateProduct` mới), KHÔNG guard theo children/product reference (khác `DeleteCategory` hard-delete). "Dùng được" = ACTIVE + mọi tổ tiên ACTIVE (tính qua `category_closure`, không lưu cột riêng) |
-| `created_at` | `timestamp` | NO       |                                   |
-| `updated_at` | `timestamp` | NO       |                                   |
+**Tên duy nhất trong cùng cha (INV-CAT-02)** cần hai chỉ mục duy nhất từng phần, vì cấp một có `parent_id` rỗng nên không so được bằng chỉ mục thường:
+- `uq_category_parent_name_key (parent_id, name_key) WHERE parent_id IS NOT NULL`
+- `uq_category_root_name_key (name_key) WHERE parent_id IS NULL`
 
-### `category_closure`
+Chỉ mục tra cứu: `idx_category_parent (parent_id, sort_order)` (đọc con theo cha, kiểm "còn con").
 
-| Column          | Type   | Nullable | Notes                |
-|-----------------|--------|----------|----------------------|
-| `ancestor_id`   | `uuid` | NO       | PK (composite)       |
-| `descendant_id` | `uuid` | NO       | PK (composite)       |
-| `depth`         | `int`  | NO       | 0 = self-referencing |
+**"Dùng được" (INV-CAT-97):** chính nó và mọi tổ tiên `ACTIVE`. Cây tối đa ba cấp nên tổ tiên là cha và ông, đọc bằng tối đa hai lần tra theo khóa chính; không có bảng riêng cho tổ tiên.
 
-**Indexes:**
-- `idx_closure_ancestor` on `(ancestor_id)`
-- `idx_closure_descendant` on `(descendant_id)`
+## 6. `category_attribute_assignment`
 
-**Insert logic khi tạo Category:**
-```sql
-INSERT INTO category_closure (ancestor_id, descendant_id, depth)
-  VALUES (newId, newId, 0)
-  UNION ALL
-  SELECT ancestor_id, newId, depth + 1
-  FROM category_closure WHERE descendant_id = parentId;
-```
+Dòng gán mẫu cho danh mục lá; thuộc aggregate danh mục, ghi thay toàn bộ trong một giao dịch.
 
-### `category_attribute_assignment`
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `category_id` | `UUID` | Danh mục lá (cấp ba); kiểm ở miền |
+| `template_id` | `UUID` | Mẫu |
+| `required` | `BOOLEAN` | Bắt buộc khi đăng sản phẩm (chỉ ép khi mẫu dùng được) |
+| `display_order` | `INT` | Thứ tự hiển thị |
+| `constraints` | `JSONB` | Ràng buộc riêng theo danh mục; hình theo kiểu nhập của mẫu (mục dưới); không rỗng, `{}` khi không ràng buộc |
 
-| Column                | Type      | Nullable | Notes          |
-|-----------------------|-----------|----------|----------------|
-| `category_id`         | `uuid`    | NO       | PK (composite) — FK trỏ tới category phải có `level = 3` (enforce ở application layer, không phải DB constraint) |
-| `template_id`         | `uuid`    | NO       | PK (composite) |
-| `is_required`         | `boolean` | NO       |                |
-| `display_order`       | `int`     | NO       |                |
-| `constraints`         | `jsonb`   | NO       | Ràng buộc theo ngành hàng — shape theo `inputType` của template (§5.3.1): TEXT{maxLength} \| NUMBER{min,max,integerOnly} \| MULTI_SELECT{maxSelections} \| DATE{inputPrecision,minDate,maxDate}. Không ràng buộc thêm = mọi field `null` |
-| `discovery`            | `jsonb`   | NO       | Cách tham gia tìm hàng: `{search, filter, sort}` — mỗi nhánh độc lập, `null` = tắt. Xem `analysis.md` §5.3.3 cho shape đầy đủ (`FilterConfig`/`SortConfig`) |
+Ràng buộc: `pk_category_attribute_assignment (category_id, template_id)` (mỗi mẫu một lần cho một danh mục, INV-CAT-03); `fk_caa_category (category_id) ... ON DELETE CASCADE`; `fk_caa_template (template_id) ... ON DELETE RESTRICT`.
 
-> **V8:** bỏ cột `is_variant_defining` — không còn được khai báo trước ở đâu, chỉ là hệ quả của việc
-> attribute có xuất hiện trong `variant_combination_item` của Variant hay không. Đồng thời: chỉ category
-> leaf (`level = 3`) mới có row trong bảng này — không có kế thừa từ category cha (L1/L2 luôn rỗng).
->
-> **V18:** `is_filterable`/`is_searchable` (2 cờ phẳng) → `constraints` + `discovery` (jsonb). Lý do: cách 1
-> thuộc tính tham gia tìm kiếm không còn là on/off đơn giản (trọng số search, kiểu filter SELECT/BOOLEAN/
-> RANGE, bucket, sort) và ràng buộc nhập liệu khác nhau hẳn theo `inputType` — ép vào cột quan hệ sẽ ra một
-> đống cột luôn NULL chéo nhau giữa các kiểu. Domain (`AttributeConstraints`/`Discovery`, record Java thuần)
-> validate shape đúng kiểu trước khi lưu; persistence chỉ serialize/deserialize, không tự diễn giải nội dung.
+**Hình của `constraints`:** mẫu chỉ kiểm định dạng chung theo kiểu nhập (chữ, số, ngày, đúng sai); quy tắc cụ thể của ngành hàng (độ dài tối đa, khoảng giá trị, số lựa chọn tối đa...) khai báo ở dòng gán này, khi gán mẫu cho danh mục lá. Áp những quy tắc đó lên giá trị của sản phẩm là việc kiểm khi đăng sản phẩm (feature 07). `TEXT`: `maxLength`; `NUMBER`: `min`, `max`, `integerOnly`; `MULTI_SELECT`: `maxSelections`; `DATE`: `inputPrecision` (`YEAR`, `MONTH`, `DAY`), `minDate`, `maxDate`; `SINGLE_SELECT`, `BOOLEAN`: không có. Trường không áp dụng cho kiểu của mẫu bị từ chối (400 `ATTRIBUTE_CONSTRAINTS_INVALID`). Miền kiểm hình trước khi lưu; lưu trữ chỉ chuyển đổi, không diễn giải.
 
----
+## 7. `outbox_events` · hộp thư event
+
+Hình bảng chung của thư viện `outbox-starter` (cùng tên và kiểu cột, chép từ `libs/outbox-starter/src/main/resources/db/outbox-schema.sql`, không sửa). Ghi cùng giao dịch với dữ liệu và bản ghi kiểm toán (R12); Debezium đọc (ADR-0008).
+
+## 8. Ánh xạ tên ràng buộc sang lỗi (ADR-0011)
+
+| Ràng buộc | Mã lỗi (409, trừ ghi chú) |
+|---|---|
+| `uq_category_parent_name_key`, `uq_category_root_name_key` | `CATEGORY_NAME_TAKEN` |
+| `uq_attribute_template_name` | `ATTRIBUTE_TEMPLATE_NAME_TAKEN` |
+| `uq_attribute_option_template_value` | `ATTRIBUTE_OPTION_VALUE_TAKEN` |
+| `uq_brand_name_key` | `BRAND_NAME_TAKEN` |
+| `fk_category_parent`, vi phạm khi **xóa** cha còn con | `CATEGORY_HAS_CHILDREN` |
+| `fk_category_parent`, vi phạm khi **chèn** con dưới cha vừa bị xóa (đua nhau với xóa) | `CATEGORY_NOT_FOUND` (404): cha không còn nữa |
+| `uq_variant_product_combination` | `VARIANT_COMBINATION_TAKEN` (feature 07) |
+| `uq_variant_seller_sku` | `VARIANT_SKU_TAKEN` (feature 07) |
+| Vi phạm khóa lạc quan (`@Version`) | `CONCURRENT_UPDATE` |
+
+Cùng một khóa ngoài có hai nghĩa tùy câu lệnh bị vi phạm (xóa hay chèn); bộ xử lý phân biệt bằng câu lệnh SQL của lỗi, không bằng nội dung thông báo của máy chủ. Ràng buộc không có trong bảng thì lỗi hệ thống 500, để lộ chứ không đoán. Mỗi ràng buộc trên có test phá thử (bỏ ràng buộc thì test đỏ).
+
+## 9. Dữ liệu khởi tạo
+
+Bộ mẫu demo (10 thương hiệu, 13 mẫu và 35 tùy chọn, 22 danh mục, 57 dòng gán) nạp bằng script `infra/seed/catalog.sql` (feature 06), chạy tay sau Flyway, một giao dịch; không có trong migration. Chỉ nạp khi `brand`, `attribute_template`, `category` đều trống. Nội dung: `docs/stage/c1a-listing/06-category-seed-data/tech.md` T2.
+
+## 10. Sản phẩm, biến thể và ảnh (AGG-CAT-04, AGG-CAT-05) · Đã làm
+
+Thêm bằng migration `V2__create_product_variant.sql` ở feature 07 và `V3__create_product_image.sql` ở feature 08; không sửa `V1`. Giải pháp: [`tech.md` của feature 07](../../stage/c1a-listing/07-product-variant/tech.md) T1 và [`tech.md` của feature 08](../../stage/c1a-listing/08-product-image/tech.md) T2. **Không có khóa ngoại từ sản phẩm sang danh mục, thương hiệu, mẫu thuộc tính** (tham chiếu giữa aggregate bằng mã, kiểm ở ứng dụng). Bảng ảnh: đã làm bằng migration `V3`.
 
 ### `product`
 
-| Column              | Type        | Nullable | Notes                                                            |
-|---------------------|-------------|----------|------------------------------------------------------------------|
-| `id`                | `uuid`      | NO       | PK                                                               |
-| `seller_id`         | `uuid`      | NO       | không thay đổi sau khi tạo                                       |
-| `category_id`       | `uuid`      | NO       | FK → `category`; phải là leaf (`level = 3`, enforce ở application layer) — không thay đổi sau khi có Variant |
-| `brand_id`          | `uuid`      | NO       | FK → `brand`                                                     |
-| `name`              | `varchar`   | NO       |                                                                  |
-| `description`       | `text`      | YES      |                                                                  |
-| `status`            | `varchar`   | NO       | `DRAFT, PUBLISHED, UNPUBLISHED` — không có `BLOCKED`             |
-| `admin_blocked`     | `boolean`   | NO       | Cờ độc lập với `status` — Admin block/unblock không đổi `status` |
-| `warranty_months`   | `int`       | YES      |                                                                  |
-| `warranty_type`     | `varchar`   | YES      |                                                                  |
-| `warranty_coverage` | `varchar`   | YES      |                                                                  |
-| `published_at`      | `timestamptz` | YES    | Thời điểm publish **lần đầu** — giữ nguyên khi unpublish rồi publish lại. `NULL` = chưa từng publish → không phát `ProductSearchSnapshotEvent` (V15) |
-| `search_version`    | `bigint`    | NO       | Default 0. Version tăng đơn điệu của `ProductSearchSnapshotEvent` — tăng mỗi lần Product hoặc Variant của nó đổi. **Không map vào `ProductJpaEntity`** (mapper dựng entity mới mỗi lần save → merge sẽ ghi đè về 0); chỉ đọc/ghi qua native query (V15) |
-| `created_at`        | `timestamp` | NO       |                                                                  |
-| `updated_at`        | `timestamp` | NO       |                                                                  |
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | `UUID` | Khóa chính |
+| `seller_id` | `UUID` | Chủ (mã tài khoản người bán, từ token); không đổi |
+| `category_id` | `UUID` | Danh mục lá lúc tạo; không đổi |
+| `brand_id` | `UUID` | Rỗng được |
+| `title` | `VARCHAR(200)` | 5 đến 200 ký tự |
+| `description` | `TEXT` | Chữ thuần, tối đa 5.000 ký tự; rỗng được |
+| `status` | `VARCHAR(20)` | `DRAFT`, `PUBLISHED`, `UNPUBLISHED`; feature 07 chỉ ghi `DRAFT` |
+| `version` | `BIGINT` | Số **dùng chung** cho sản phẩm và biến thể (INV-CAT-36, ADR-0012): tăng mỗi lần sản phẩm hay biến thể đổi |
+| `published_at` | `TIMESTAMPTZ` | Thời điểm đăng đầu tiên, rỗng với nháp chưa từng đăng |
+| `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-**Indexes:**
-- `idx_product_seller` on `(seller_id)`
-- `idx_product_category` on `(category_id)`
-- `idx_product_status` on `(status)`
+Ràng buộc: `pk_product`; `ck_product_status`; `ck_product_title_length`; `ck_product_description_length`; `ck_product_published_at CHECK ((status = 'DRAFT') = (published_at IS NULL))`; `idx_product_seller (seller_id, created_at DESC, id)`.
 
-### `product_attribute_value`
+### `product_attribute` và `product_attribute_option`
 
-| Column        | Type      | Nullable | Notes          |
-|---------------|-----------|----------|----------------|
-| `product_id`  | `uuid`    | NO       | PK (composite) |
-| `template_id` | `uuid`    | NO       | PK (composite) |
-| `value`       | `varchar` | NO       | PK (composite) — với template `inputType=SELECT`, chứa `AttributeOptionId` (không phải business value string); với TEXT/NUMBER/BOOLEAN chứa raw value. Tên cột giữ nguyên `value` để tránh migration không cần thiết |
+Giá trị thuộc tính của sản phẩm. Hai bảng cha-con: cha giữ một dòng cho mỗi cặp (sản phẩm, mẫu), con giữ các tùy chọn đã chọn.
 
-> **V7:** PK mở rộng từ `(product_id, template_id)` sang `(product_id, template_id, value)` — cho phép
-> Product khai 1..N giá trị cho 1 attribute (VD 1 tập option con của master pool để Variant chọn 1
-> combination cụ thể từ đó).
+| `product_attribute` | Kiểu | Ghi chú |
+|---|---|---|
+| `product_id`, `template_id` | `UUID` | Khóa chính cả hai cột |
+| `axis` | `BOOLEAN` | Thuộc tính này là **trục biến thể** (kiểu chọn một, tối đa 2 dòng một sản phẩm, kiểm ở miền) |
+| `value` | `VARCHAR(255)` | Giá trị rời của chữ, số, đúng/sai, ngày, dạng chuỗi chuẩn hóa; rỗng với kiểu chọn |
 
-### `product_variant_defining_attribute`
+| `product_attribute_option` | Kiểu | Ghi chú |
+|---|---|---|
+| `product_id`, `template_id`, `option_id` | `UUID` | Khóa chính cả ba cột; `option_id` là **mã tùy chọn** của mẫu (không lưu chữ). Với dòng cha làm trục, các dòng này là tập giá trị của trục |
 
-| Column        | Type      | Nullable | Notes          |
-|---------------|-----------|----------|----------------|
-| `product_id`  | `uuid`    | NO       | PK (composite), FK → `product` (`ON DELETE CASCADE`) |
-| `template_id` | `uuid`    | NO       | PK (composite), FK → `attribute_template` (`ON DELETE RESTRICT`) |
-
-> **V11:** `isVariantDefining` quay lại làm khái niệm khai báo tường minh (V8 từng bỏ ở
-> `category_attribute_assignment`), nhưng lần này ở Product/Seller, per-listing, không phải Admin áp đặt
-> toàn category. Tách bảng riêng thay vì nhét cột vào `product_attribute_value` — vì đó là thuộc tính của
-> CẶP `(product_id, template_id)`, không phải của từng `(product_id, template_id, value)`; nhét vào
-> `product_attribute_value` sẽ lặp lại cùng 1 giá trị boolean trên mọi row cùng template, tốn thêm 1 hàng
-> lặp mỗi option khi attribute có cardinality cao (VD "Màu sắc" 30 option). Tồn tại row = true, không cần
-> cột boolean, giống cách `variant_combination_item` không lưu "false" cho pair không dùng. Xem
-> `service.md` § Attribute Value Model.
-
-### `product_image`
-
-| Column          | Type        | Nullable | Notes            |
-|-----------------|-------------|----------|------------------|
-| `id`            | `uuid`      | NO       | PK               |
-| `product_id`    | `uuid`      | NO       | FK → `product`   |
-| `object_key`    | `varchar`   | NO       | MinIO object key |
-| `display_order` | `int`       | NO       | 0 = thumbnail    |
-| `created_at`    | `timestamp` | NO       |                  |
-
-**Indexes:**
-- `idx_product_image_product` on `(product_id)`
-
----
+Ràng buộc: `pk_product_attribute`; `fk_pa_product (product_id) → product ON DELETE CASCADE`; `ck_product_attribute_axis_no_value (NOT axis OR value IS NULL)`; `pk_product_attribute_option`; `fk_pao_attribute (product_id, template_id) → product_attribute ON DELETE CASCADE`. Không có khóa ngoại tới `attribute_template` hay `attribute_option` (khác aggregate). Chuẩn hóa chuỗi: số `toPlainString` bỏ số 0 thừa, tối đa 4 chữ số thập phân; đúng/sai `true`/`false`; ngày `yyyy`, `yyyy-MM` hoặc `yyyy-MM-dd` theo độ chính xác; chữ cắt khoảng trắng đầu cuối. Thay danh sách thuộc tính là xóa rồi ghi lại các dòng của sản phẩm đó trong một giao dịch.
 
 ### `variant`
 
-| Column             | Type           | Nullable | Notes                                     |
-|--------------------|----------------|----------|-------------------------------------------|
-| `id`               | `varchar(26)`  | NO       | PK (= skuId)                              |
-| `product_id`       | `varchar(26)`  | NO       | ref → `product.id` (no FK constraint)     |
-| `combination_hash` | `varchar(64)`  | NO       | deterministic hash của VariantCombination |
-| `sku_code`         | `varchar(100)` | YES      | seller-assigned SKU code                  |
-| `price`            | `bigint`       | NO       | đơn vị: đồng, phải > 0                    |
-| `status`           | `varchar`      | NO       | `ACTIVE, INACTIVE`                        |
-| `created_at`       | `timestamp`    | NO       |                                           |
-| `updated_at`       | `timestamp`    | NO       |                                           |
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | `UUID` | Khóa chính; các BC khác tham chiếu bằng mã này |
+| `product_id` | `UUID` | Sản phẩm; không đổi |
+| `seller_id` | `UUID` | Sao từ sản phẩm, bất biến; có để ràng buộc SKU duy nhất theo người bán |
+| `combination_key` | `VARCHAR(80)` | Các mã tùy chọn của tổ hợp sắp theo mã mẫu tăng dần, nối bằng dấu phẩy (tối đa 73 ký tự); rỗng cho biến thể mặc định (INV-CAT-44) |
+| `price` | `BIGINT` | Đồng; 1 đến 1.000.000.000 (INV-CAT-40) |
+| `sku` | `VARCHAR(50)` | 1 đến 50 ký tự; rỗng được |
+| `status` | `VARCHAR(20)` | `ACTIVE`, `INACTIVE` |
+| `created_at`, `updated_at` | `TIMESTAMPTZ` | Biến thể **không có `version` riêng**: mọi lệnh biến thể tuần tự qua dòng sản phẩm (ADR-0012) |
 
-**Unique:** `uq_variant_combination` on `(product_id, combination_hash)`  
-**Indexes:**
-- `idx_variant_product` on `(product_id)`
-
-> Không có cột `stock`/`quantity` — số lượng tồn kho thuộc sở hữu hoàn toàn của `inventory-service` (aggregate `Stock`, xem `service/inventory-service/data.md`). `VariantCreatedEvent` mang theo `active`/`productPublished` để inventory-service tự khởi tạo `sellerActive`/`productPublished` đúng ngay từ đầu.
+Ràng buộc: `pk_variant`; `fk_variant_product (product_id) → product ON DELETE RESTRICT` (xóa nháp ở feature 09 xóa biến thể tường minh trước); `uq_variant_product_combination (product_id, combination_key)` (INV-CAT-92); `uq_variant_seller_sku (seller_id, sku) WHERE sku IS NOT NULL` (INV-CAT-96); `ck_variant_price`; `ck_variant_sku_length`; `ck_variant_status`; `idx_variant_product (product_id)`.
 
 ### `variant_combination_item`
 
-| Column        | Type   | Nullable | Notes                   |
-|---------------|--------|----------|-------------------------|
-| `variant_id`  | `uuid` | NO       | PK (composite)          |
-| `template_id` | `uuid` | NO       | PK (composite)          |
-| `option_id`   | `uuid` | NO       | FK → `attribute_option` |
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `variant_id`, `template_id` | `UUID` | Khóa chính cả hai cột: mỗi biến thể một giá trị cho mỗi trục |
+| `option_id` | `UUID` | Mã tùy chọn được chọn |
 
-### `sku_image`
+Ràng buộc: `pk_variant_combination_item`; `fk_vci_variant (variant_id) → variant ON DELETE CASCADE`. **Không có khóa ngoại tới giá trị trục của sản phẩm:** "tổ hợp nằm trong tập trục" (INV-CAT-94) và "không rút giá trị trục đang được biến thể dùng" (INV-CAT-33) do ứng dụng kiểm dưới khóa dòng sản phẩm (ADR-0012), không do cơ sở dữ liệu.
 
-| Column          | Type          | Nullable | Notes                                 |
-|-----------------|---------------|----------|---------------------------------------|
-| `id`            | `varchar(26)` | NO       | PK                                    |
-| `variant_id`    | `varchar(26)` | NO       | ref → `variant.id` (no FK constraint) |
-| `object_key`    | `varchar`     | NO       | MinIO object key                      |
-| `display_order` | `int`         | NO       |                                       |
+### `product_image` (AGG-CAT-04)
 
----
+Ảnh của sản phẩm (entity của AGG-CAT-04). Ghi chú: tối đa 9 ảnh không có CHECK, giữ bằng khóa dòng sản phẩm; viết lại cả danh sách khi thứ tự hoặc tập ảnh đổi; khóa ngoại tới `product` CASCADE.
 
-### `outbox_events`
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | `UUID` | Khóa chính |
+| `product_id` | `UUID` | Thuộc sản phẩm; xóa sản phẩm thì xóa ảnh theo |
+| `object_key` | `VARCHAR(200)` | Khóa đối tượng trên kho đối tượng |
+| `content_type` | `VARCHAR(20)` | `image/jpeg`, `image/png`, `image/webp` |
+| `size_bytes` | `BIGINT` | Dung lượng thật của tệp |
+| `position` | `INTEGER` | Thứ tự hiển thị, từ 0; 0 là ảnh chính |
 
-| Column           | Type          | Notes                        |
-|------------------|---------------|------------------------------|
-| `id`             | `uuid`        | PK                           |
-| `event_id`       | `uuid`        | dedup key                    |
-| `aggregate_type` | `varchar`     | e.g. `Product`, `Variant`    |
-| `aggregate_id`   | `varchar(36)` |                              |
-| `event_type`     | `varchar`     | e.g. `ProductPublishedEvent` |
-| `routing_key`    | `varchar`     | Kafka topic                  |
-| `payload`        | `jsonb`       | `EventEnvelope` serialized   |
-| `occurred_on`    | `timestamp`   |                              |
-| `created_at`     | `timestamp`   |                              |
-| `published_at`   | `timestamp`   | NULL = chưa publish          |
-| `trace_id`       | `varchar`     | OTel trace propagation       |
-| `span_id`        | `varchar`     | OTel span propagation        |
+Ràng buộc và chỉ mục: `pk_product_image (id)`; `fk_product_image_product (product_id) REFERENCES product (id) ON DELETE CASCADE`; `uq_product_image_position (product_id, position)`; `uq_product_image_object_key (object_key)`; `ck_product_image_position (position >= 0)`; `ck_product_image_size (size_bytes > 0)`; `idx_product_image_product (product_id)`.
 
----
+### `upload_slot`
 
-## Cache (Redis)
+Chỗ tải lên đã cấp (mẫu của `upload-starter` ADR-0013, dùng xong thì xóa, không có khóa ngoại).
 
-**Strategy:** Caffeine L1 + Redis L2. Redis pub/sub broadcast L1 invalidation cross-instance.  
-**Key prefix:** `catalog:{entity}:{id}`
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | `UUID` | Khóa chính, mã chỗ cấp |
+| `purpose` | `VARCHAR(40)` | Mục đích tải lên (`product-image`...) |
+| `account_id` | `UUID` | Người xin chỗ |
+| `target_id` | `UUID` | Đối tượng gắn ảnh (mã sản phẩm) |
+| `object_key` | `VARCHAR(200)` | Khóa đối tượng do dịch vụ sinh |
+| `content_type` | `VARCHAR(40)` | Kiểu tệp đã khai |
+| `declared_size` | `BIGINT` | Dung lượng khai báo |
+| `expires_at` | `TIMESTAMPTZ` | Thời điểm hết hạn |
+| `created_at` | `TIMESTAMPTZ` | Thời điểm tạo |
 
-| Key                                  | L1 TTL | L2 TTL | Invalidate khi                                                              |
-|--------------------------------------|--------|--------|-----------------------------------------------------------------------------|
-| `catalog:product:{id}`               | 2 min  | 10 min | Product update/publish/unpublish/block/unblock, Variant activate/deactivate |
-| `catalog:product:{id}:variants`      | 2 min  | 10 min | Variant add/update/activate/deactivate                                      |
-| `catalog:category:tree`              | 30 min | 1 hr   | `CategoryUpdatedEvent`                                                      |
-| `catalog:categories:{id}:attributes` | 30 min | 1 hr   | Admin sửa CategoryAttributeAssignment                                       |
+Ràng buộc và chỉ mục: `pk_upload_slot (id)`; `uq_upload_slot_object_key (object_key)`; `ck_upload_slot_size (declared_size > 0)`; `idx_upload_slot_target (target_id)`; `idx_upload_slot_expires (expires_at)`.
 
-**Invalidation channel:** `catalog:cache:invalidate` (Redis pub/sub)
+### `seller_state`
 
-> Brand (`brands:active`) đã bỏ cache — danh sách công khai/droplist giờ có tìm kiếm + phân trang, luôn đọc
-> DB trực tiếp để đảm bảo tươi ngay sau khi admin sửa (đặc biệt sau khi thêm ràng buộc tên duy nhất).
+Bản sao trạng thái người bán (không phải aggregate): cập nhật từ `seller.profile.approved`/`rejected`, ghi đè khi `version` mới hơn bằng một câu upsert có điều kiện, không khóa ngoại (tài khoản thuộc bounded context khác).
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `account_id` | `UUID` | Khóa chính |
+| `status` | `VARCHAR(20)` | `APPROVED`, `REJECTED` |
+| `version` | `BIGINT` | Phiên bản hồ sơ người bán |
+| `updated_at` | `TIMESTAMPTZ` | Thời điểm cập nhật |
+
+Ràng buộc: `pk_seller_state (account_id)`; `ck_seller_state_status CHECK (status IN ('APPROVED', 'REJECTED'))`; `ck_seller_state_version CHECK (version >= 0)`.
+
+### Chống đua
+
+- **Khóa dòng:** lệnh thêm, sửa, ngừng, bật biến thể và lệnh sửa danh sách thuộc tính (có thể đổi trục) đọc dòng `product` bằng `SELECT … FOR UPDATE`, rồi mới đếm, kiểm, ghi; tối đa 50 biến thể giữ ở đây vì đếm không phải tính duy nhất (ADR-0012).
+- **Khóa lạc quan:** lệnh chỉ sửa tiêu đề, mô tả, thương hiệu dùng `@Version` của `product` (ADR-0011).
+- **Chốt cuối ở lưu trữ:** `uq_variant_product_combination` và `uq_variant_seller_sku` (SKU còn phải chặn đua giữa **hai sản phẩm khác nhau** của cùng người bán, nơi khóa dòng một sản phẩm không bao được).
+
+## 11. Chưa có
+
+- Cấu hình khám phá theo danh mục (thuộc tính nào lọc được, sắp xếp): C1b, thêm vào dòng gán thuộc tính.

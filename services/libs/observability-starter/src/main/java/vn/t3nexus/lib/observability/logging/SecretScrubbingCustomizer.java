@@ -1,6 +1,7 @@
 package vn.t3nexus.lib.observability.logging;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import org.jspecify.annotations.NonNull;
 import org.springframework.boot.json.JsonWriter;
 import org.springframework.boot.logging.structured.StructuredLoggingJsonMembersCustomizer;
 import org.springframework.core.env.Environment;
@@ -22,7 +23,7 @@ public class SecretScrubbingCustomizer implements StructuredLoggingJsonMembersCu
     }
 
     @Override
-    public void customize(JsonWriter.Members<ILoggingEvent> members) {
+    public void customize(JsonWriter.@NonNull Members<ILoggingEvent> members) {
         if (reveal) return;
         members.applyingValueProcessor(
                 JsonWriter.ValueProcessor.of(String.class, SecretPatterns::scrub)

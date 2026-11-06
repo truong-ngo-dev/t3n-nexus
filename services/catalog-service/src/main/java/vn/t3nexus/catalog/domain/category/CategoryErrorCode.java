@@ -4,19 +4,15 @@ import vn.t3nexus.lib.common.domain.exception.ErrorCode;
 
 public enum CategoryErrorCode implements ErrorCode {
 
-    CATEGORY_NOT_FOUND        ("20201", "Category not found",                           "error.category.not_found",             404),
-    MAX_DEPTH_EXCEEDED        ("20203", "Category tree max depth (3 levels) exceeded",  "error.category.max_depth_exceeded",    422),
-    HAS_CHILDREN              ("20204", "Category has sub-categories",                  "error.category.has_children",          409),
-    HAS_PRODUCT_REFERENCE     ("20205", "Category is referenced by products",           "error.category.has_product_reference", 409),
-    ASSIGNMENT_ALREADY_EXISTS ("20206", "Attribute template appears more than once in the request", "error.category.assignment_exists", 409),
-    ATTRIBUTE_ASSIGNMENT_REQUIRES_LEAF ("20208", "Attributes can only be assigned to leaf (L3) categories", "error.category.assignment_requires_leaf", 422),
-    CATEGORY_NOT_LEAF         ("20209", "Product must belong to a leaf (L3) category",  "error.category.not_leaf",              422),
-    CATEGORY_INACTIVE         ("20210", "Category is inactive",                         "error.category.inactive",              422),
-    CATEGORY_NAME_EXISTS_IN_PARENT ("20211", "Category name already exists under this parent", "error.category.name_exists_in_parent", 409),
-    INVALID_CONSTRAINTS       ("20212", "Attribute constraints invalid for its input type", "error.category.invalid_constraints", 422),
-    INVALID_DISCOVERY         ("20213", "Attribute discovery config invalid for its input type", "error.category.invalid_discovery", 422),
-    INVALID_RANGE_FILTER      ("20214", "Range filter config invalid",                  "error.category.invalid_range_filter",  422),
-    INVALID_CATEGORY_ORDER    ("20215", "Category order must contain every sibling exactly once", "error.category.invalid_order", 422);
+    CATEGORY_NOT_FOUND              ("CATEGORY_NOT_FOUND",              "Không tìm thấy danh mục",                                  "error.category.not_found",               404),
+    CATEGORY_MAX_DEPTH_EXCEEDED     ("CATEGORY_MAX_DEPTH_EXCEEDED",     "Cây danh mục tối đa ba cấp",                               "error.category.max_depth_exceeded",      409),
+    CATEGORY_NOT_LEAF               ("CATEGORY_NOT_LEAF",               "Chỉ danh mục cấp ba (lá) mới có thuộc tính được gán",      "error.category.not_leaf",                409),
+    CATEGORY_NAME_TAKEN             ("CATEGORY_NAME_TAKEN",             "Tên danh mục đã được dùng trong cùng cha",                 "error.category.name_taken",              409),
+    CATEGORY_HAS_CHILDREN           ("CATEGORY_HAS_CHILDREN",           "Danh mục còn danh mục con; hãy ngừng dùng thay vì xóa",    "error.category.has_children",            409),
+    CATEGORY_HAS_PRODUCTS           ("CATEGORY_HAS_PRODUCTS",           "Danh mục đang có sản phẩm; hãy ngừng dùng thay vì xóa",    "error.category.has_products",            409),
+    CATEGORY_INVALID_ORDER          ("CATEGORY_INVALID_ORDER",          "Thứ tự phải nêu mọi danh mục cùng cha đúng một lần",       "error.category.invalid_order",           409),
+    ATTRIBUTE_ASSIGNMENT_DUPLICATED ("ATTRIBUTE_ASSIGNMENT_DUPLICATED", "Một mẫu thuộc tính xuất hiện nhiều lần trong danh sách gán", "error.category.assignment_duplicated",   409),
+    ATTRIBUTE_CONSTRAINTS_INVALID   ("ATTRIBUTE_CONSTRAINTS_INVALID",   "Ràng buộc không hợp với kiểu nhập của mẫu thuộc tính",     "error.category.constraints_invalid",     400);
 
     private final String code;
     private final String defaultMessage;

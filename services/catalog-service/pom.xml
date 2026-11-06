@@ -50,50 +50,6 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
-        <!-- Cache -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-cache</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
-        </dependency>
-
-        <!-- Messaging -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-kafka</artifactId>
-        </dependency>
-
-        <!-- MinIO -->
-        <dependency>
-            <groupId>io.minio</groupId>
-            <artifactId>minio</artifactId>
-            <version>9.0.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp-jvm</artifactId>
-            <version>5.2.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.squareup.okio</groupId>
-            <artifactId>okio</artifactId>
-            <version>3.9.0</version>
-        </dependency>
-
-        <!-- ULID -->
-        <dependency>
-            <groupId>com.github.f4b6a3</groupId>
-            <artifactId>ulid-creator</artifactId>
-            <version>5.2.3</version>
-        </dependency>
-
         <!-- Internal libs -->
         <dependency>
             <groupId>vn.t3nexus</groupId>
@@ -103,6 +59,16 @@
         <dependency>
             <groupId>vn.t3nexus</groupId>
             <artifactId>common-events</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>audit-events</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>common-utils</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -117,12 +83,21 @@
         </dependency>
         <dependency>
             <groupId>vn.t3nexus</groupId>
-            <artifactId>observability-starter</artifactId>
+            <artifactId>upload-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>vn.t3nexus</groupId>
-            <artifactId>rate-limiter-starter</artifactId>
+            <artifactId>event-consumer-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>vn.t3nexus</groupId>
+            <artifactId>observability-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -142,6 +117,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

@@ -21,9 +21,13 @@
 		<module>common-web</module>
 		<module>observability-starter</module>
 		<module>outbox-starter</module>
+		<module>event-consumer-starter</module>
+		<module>audit-events</module>
 		<module>event-sourcing-starter</module>
 		<module>idempotency-support</module>
 		<module>rate-limiter-starter</module>
+		<module>upload-starter</module>
+		<module>web-bff-starter</module>
 		<module>reactive-rate-limiter-starter</module>
 	</modules>
 

@@ -8,23 +8,22 @@ import org.springframework.stereotype.Repository;
 import vn.t3nexus.catalog.domain.brand.BrandStatus;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
-public interface BrandJpaRepository extends JpaRepository<BrandJpaEntity, String> {
+public interface BrandJpaRepository extends JpaRepository<BrandJpaEntity, UUID> {
 
-    boolean existsBySlug(String slug);
+    boolean existsByNameKey(String nameKey);
 
-    boolean existsByNameIgnoreCase(String name);
-
-    boolean existsByNameIgnoreCaseAndIdNot(String name, String id);
+    boolean existsByNameKeyAndIdNot(String nameKey, UUID id);
 
     // CAST(:keyword AS string): tham số null không suy ra được kiểu lúc prepare (cùng lỗi đã gặp ở
-    // AttributeTemplateJpaRepository/ScheduledJobJpaRepository).
+    // AttributeTemplateJpaRepository). Từ khóa đã là khóa tên chuẩn hóa nên so với cột name_key.
     @Query("""
             SELECT b FROM BrandJpaEntity b
-            WHERE (:keyword IS NULL OR LOWER(b.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
+            WHERE (:keyword IS NULL OR b.nameKey LIKE CONCAT('%', CAST(:keyword AS string), '%'))
               AND (:status IS NULL OR b.status = :status)
-            ORDER BY b.name, b.id
+            ORDER BY b.nameKey, b.id
             """)
     List<BrandJpaEntity> search(@Param("keyword") String keyword,
                                 @Param("status") BrandStatus status,
@@ -32,7 +31,7 @@ public interface BrandJpaRepository extends JpaRepository<BrandJpaEntity, String
 
     @Query("""
             SELECT COUNT(b) FROM BrandJpaEntity b
-            WHERE (:keyword IS NULL OR LOWER(b.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
+            WHERE (:keyword IS NULL OR b.nameKey LIKE CONCAT('%', CAST(:keyword AS string), '%'))
               AND (:status IS NULL OR b.status = :status)
             """)
     long countSearch(@Param("keyword") String keyword, @Param("status") BrandStatus status);

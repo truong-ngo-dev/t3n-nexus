@@ -1,8 +1,9 @@
 package vn.t3nexus.catalog.presentation.category.model;
 
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
+import java.util.UUID;
 
-/** {@code parentId} null = sắp lại các danh mục gốc (L1). Phải chứa MỌI anh em cùng cha, mỗi cái đúng 1 lần. */
-public record ReorderCategoriesRequest(String parentId, @NotEmpty List<String> categoryIds) {}
+/** Thứ tự mới của các anh em cùng cha; {@code parentId} rỗng là các danh mục cấp một. */
+public record ReorderCategoriesRequest(UUID parentId, @NotNull List<UUID> categoryIds) {}
