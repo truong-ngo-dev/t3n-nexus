@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, ChangeDetectionStrategy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { SessionService } from '@t3n/auth';
 import { ROLE_LABEL } from '../../shared/role-label';
@@ -7,6 +7,7 @@ import { ROLE_LABEL } from '../../shared/role-label';
   selector: 'app-account',
   standalone: true,
   imports: [MatCardModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './account.component.html',
 })
 export class AccountComponent {

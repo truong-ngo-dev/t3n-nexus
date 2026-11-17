@@ -4,14 +4,14 @@
 
 ## Câu hỏi đã chốt
 
-| # | Câu hỏi | Chốt |
-|---|---|---|
-| Q1 | Mỗi cổng một BFF riêng hay dùng chung? | **Riêng** (`seller-web-bff`, `ops-web-bff`), người dùng chốt `2026-11-06`; ADR-0006 đã quy định |
-| Q2 | Mã dùng chung giữa các BFF làm thế nào? | **Thư viện `libs/web-bff-starter`** (người dùng đồng ý `2026-11-06`); `storefront-web-bff` chuyển sang dùng |
+| #  | Câu hỏi                                                                 | Chốt                                                                                                                                                                      |
+|----|-------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Q1 | Mỗi cổng một BFF riêng hay dùng chung?                                  | **Riêng** (`seller-web-bff`, `ops-web-bff`), người dùng chốt `2026-11-06`; ADR-0006 đã quy định                                                                           |
+| Q2 | Mã dùng chung giữa các BFF làm thế nào?                                 | **Thư viện `libs/web-bff-starter`** (người dùng đồng ý `2026-11-06`); `storefront-web-bff` chuyển sang dùng                                                               |
 | Q3 | Tên ứng dụng ở khóa Redis, phạm vi nội bộ, `registrationId` lấy từ đâu? | Một thuộc tính `bff.app-name` (`storefront`, `seller`, `ops`); suy ra `registrationId = <app-name>-web`, tiền tố khóa `<app-name>:`, phạm vi nội bộ `<app-name>.internal` |
-| Q4 | `oauth2-service` biết BFF nào cần báo khi kết thúc phiên? | Danh sách client BFF trong cấu hình `app.clients.<mã>.*` (redirect URI, URI đăng xuất, bí mật, PKCE, `bff-base-url`); seeder và bộ báo đọc cùng danh sách |
-| Q5 | Chặn vai sai ngay ở BFF (`USER` vào Vận hành)? | **Không ở C1a**: service quyết định (mặc định từ chối); ghi `deferred` |
-| Q6 | Bảng tuyến của BFF mỗi ứng dụng | Khai báo bằng cấu hình `bff.routes.<dịch vụ>.uri`; starter dựng `/api/<dịch vụ>/**` → `/api/**` cho từng dịch vụ có khai báo |
+| Q4 | `oauth2-service` biết BFF nào cần báo khi kết thúc phiên?               | Danh sách client BFF trong cấu hình `app.clients.<mã>.*` (redirect URI, URI đăng xuất, bí mật, PKCE, `bff-base-url`); seeder và bộ báo đọc cùng danh sách                 |
+| Q5 | Chặn vai sai ngay ở BFF (`USER` vào Vận hành)?                          | **Không ở C1a**: service quyết định (mặc định từ chối); ghi `deferred`                                                                                                    |
+| Q6 | Bảng tuyến của BFF mỗi ứng dụng                                         | Khai báo bằng cấu hình `bff.routes.<dịch vụ>.uri`; starter dựng `/api/<dịch vụ>/**` → `/api/**` cho từng dịch vụ có khai báo                                              |
 
 ## T1. Thư viện `libs/web-bff-starter` · Dự kiến
 

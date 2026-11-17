@@ -1,0 +1,8 @@
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message: string | null;
+  errors: string[] | null;
+  code?: string;
+  traceId: string;
+}

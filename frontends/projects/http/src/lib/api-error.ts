@@ -40,6 +40,8 @@ export function toApiError(error: unknown): ApiError {
     const retryAfterSeconds = secondsOf(error.headers.get('Retry-After'));
     return { kind: 'rate-limited', status, ...(retryAfterSeconds !== undefined && { retryAfterSeconds }) };
   }
-  if (status === 503) return { kind: 'unavailable', status };
+  // 502/503/504: hệ thống tạm thời không với tới được (cổng hoặc dịch vụ phía sau), người dùng thử lại sau.
+  // Giữ `status`: với thao tác ghi, 504 có thể đã được xử lý nên nơi gọi phải kiểm lại trạng thái trước khi gửi lại.
+  if (status === 502 || status === 503 || status === 504) return { kind: 'unavailable', status };
   return { kind: 'other', status, ...(code && { code }) };
 }

@@ -22,8 +22,12 @@ describe('toApiError (KT-06)', () => {
     },
   );
 
-  it('503 là tạm thời, hiện thử lại', () => {
-    expect(toApiError(response(503))).toEqual({ kind: 'unavailable', status: 503 });
+  it.each([502, 503, 504])('%i là tạm thời không với tới được, hiện thử lại và giữ status', (status) => {
+    expect(toApiError(response(status))).toEqual({ kind: 'unavailable', status });
+  });
+
+  it('500 là lỗi máy chủ chưa bắt, không phải tạm thời: giữ ở other', () => {
+    expect(toApiError(response(500))).toEqual({ kind: 'other', status: 500 });
   });
 
   it('mất mạng (status 0) là lỗi mạng', () => {

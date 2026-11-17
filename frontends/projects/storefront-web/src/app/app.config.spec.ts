@@ -20,6 +20,7 @@ describe('Cấu hình ứng dụng', () => {
 
   afterEach(() => http.verify());
 
+  // noinspection DuplicatedCode
   it('lúc khởi động thăm dò phiên và chờ xong rồi mới coi là khởi động xong (kể cả khi lỗi)', async () => {
     let done = false;
     const init = TestBed.inject(ApplicationInitStatus);

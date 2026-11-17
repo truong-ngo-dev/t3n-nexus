@@ -1,6 +1,7 @@
 package vn.t3nexus.oauth2.infrastructure.security.oauth2.client;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -58,7 +59,7 @@ public class RegisteredClientSeeder implements ApplicationRunner {
     }
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void run(@NonNull ApplicationArguments args) {
         boolean dev = environment.acceptsProfiles(Profiles.of("dev"));
         for (Map.Entry<String, BffClientsProperties.Bff> entry : bffs.entrySet()) {
             String name = entry.getKey();

@@ -8,7 +8,7 @@ const LIMIT = 10; // luật mặc định của cổng: POST /register ở host 
  * Bộ thật thường ngày chạy cổng với luật đăng ký được nâng lên 100.000 (nếu không 10 lần đăng ký mỗi giờ là hết), nên test này bị bỏ qua ở đó.
  */
 test.describe('giới hạn tần suất của đăng ký qua cổng (feature 01 và 06)', () => {
-  test.skip(process.env.E2E_GATEWAY_RULES !== 'default', 'Cần cổng chạy luật mặc định (E2E_GATEWAY_RULES=default)');
+  test.skip(process.env["E2E_GATEWAY_RULES"] !== 'default', 'Cần cổng chạy luật mặc định (E2E_GATEWAY_RULES=default)');
 
   test('KT-25: vượt 10 yêu cầu POST /register mỗi giờ thì 429 kèm Retry-After và thân lỗi chuẩn', async ({ request }) => {
     // Nội dung hợp lệ về cú pháp nhưng sai (email lạ) để không tạo tài khoản: luật đếm mọi yêu cầu, bất kể kết quả

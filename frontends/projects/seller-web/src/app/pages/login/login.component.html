@@ -1,0 +1,11 @@
+<section class="login">
+  <h1>Đăng nhập để bán hàng</h1>
+
+  @if (failed) {
+    <p class="login-error" role="alert" data-testid="login-error">Đăng nhập không thành công. Hãy thử lại.</p>
+  }
+
+  <a mat-flat-button data-testid="login" [href]="loginUrl">{{ failed ? 'Thử lại' : 'Đăng nhập' }}</a>
+
+  <!-- Liên kết "Đăng ký ở Cửa hàng": chưa làm, chờ cấu hình địa chỉ Cửa hàng -->
+</section>

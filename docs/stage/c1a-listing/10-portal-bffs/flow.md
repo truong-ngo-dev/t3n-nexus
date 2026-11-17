@@ -20,11 +20,11 @@ Ngoài phạm vi (feature 11, 12): dự án Angular `seller-web`, `ops-web` (kí
 
 ## 2. Đầu vào và đầu ra
 
-| Ứng dụng | Host | BFF (cổng) | Client OAuth2 | Vai cần có | Tuyến tới |
-|---|---|---|---|---|---|
-| Cửa hàng | `shop.localhost` | `storefront-web-bff` (8090) | `storefront-web` | `USER` | giữ nguyên |
-| Người bán | `seller.localhost` | `seller-web-bff` (8091) | `seller-web` | `USER` (có hồ sơ người bán) | `seller-service`, `catalog-service`, `oauth2-service` |
-| Vận hành | `ops.localhost` | `ops-web-bff` (8092) | `ops-web` | `ADMIN` | `seller-service`, `catalog-service`, `audit-service`, `oauth2-service` |
+| Ứng dụng  | Host               | BFF (cổng)                  | Client OAuth2    | Vai cần có                  | Tuyến tới                                                              |
+|-----------|--------------------|-----------------------------|------------------|-----------------------------|------------------------------------------------------------------------|
+| Cửa hàng  | `shop.localhost`   | `storefront-web-bff` (8090) | `storefront-web` | `USER`                      | giữ nguyên                                                             |
+| Người bán | `seller.localhost` | `seller-web-bff` (8091)     | `seller-web`     | `USER` (có hồ sơ người bán) | `seller-service`, `catalog-service`, `oauth2-service`                  |
+| Vận hành  | `ops.localhost`    | `ops-web-bff` (8092)        | `ops-web`        | `ADMIN`                     | `seller-service`, `catalog-service`, `audit-service`, `oauth2-service` |
 
 Đường dẫn của BFF giữ một dạng: `/api/{dịch vụ}/**` viết lại thành `/api/**` (như `storefront-web-bff`), cộng `/bff/auth/**`, `/oauth2/authorization/**`, `/login/oauth2/code/**`. Phân quyền theo vai và quyền sở hữu vẫn do từng service quyết định; BFF **không** là chỗ chặn nghiệp vụ.
 
@@ -45,19 +45,19 @@ Giao diện gọi `/api/catalog/seller/products` cùng nguồn gốc kèm tiêu 
 
 ## 4. Đường không suôn sẻ và các điểm cần rà
 
-| # | Tình huống | Hành vi cần có |
-|---|---|---|
-| E1 | Chưa đăng nhập gọi `/api/**` | 401 theo khung lỗi chung, không chuyển hướng |
-| E2 | Thiếu hoặc sai CSRF ở phương thức ghi | 403, không chuyển tiếp |
-| E3 | Người dùng `USER` đăng nhập ở Vận hành rồi gọi `/api/catalog/admin/**` | Service trả 403; BFF không biến thành 200 (BFF chỉ chuyển tiếp, phân quyền ở service) |
-| E4 | Đăng xuất ở Người bán khi cùng thiết bị cũng đang đăng nhập Cửa hàng | Cả hai phiên kết thúc (đăng xuất một lần), mỗi BFF xóa khóa của mình; phiên của người dùng khác hoặc thiết bị khác **không** bị đụng |
-| E5 | `oauth2-service` báo thu hồi một phiên ứng dụng | Chỉ BFF của client chứa phiên đó nhận lời gọi, kèm token phạm vi `<ứng dụng>.internal`; BFF không có phiên của người đó không nhận gì |
-| E6 | Gọi `/bff/internal/**` không có token dịch vụ hoặc sai phạm vi (`storefront.internal` hay `ops.internal` gọi vào seller) | 401/403, không xóa gì |
-| E7 | Host lạ | 404 ở cổng (đã có) |
-| E8 | Ba BFF dùng chung Redis | Tiền tố khóa (`seller:`, `ops:`, `storefront:`) và tên cookie phiên (`SELLER_SESSION`, `OPS_SESSION`, `STOREFRONT_SESSION`) theo ứng dụng, không đè nhau |
-| E11 | Tuyến của ứng dụng khác (vd `/api/customer/**` ở Người bán) | Không có tuyến: BFF chỉ chuyển tới các dịch vụ nó khai báo |
-| E9 | Redirect URI và trang đích đăng xuất của client | Chỉ đúng host của ứng dụng; sai thì Xác thực từ chối |
-| E10 | `storefront-web-bff` sau khi chuyển sang thư viện | Toàn bộ test hiện có vẫn xanh, hành vi không đổi |
+| #   | Tình huống                                                                                                               | Hành vi cần có                                                                                                                                           |
+|-----|--------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| E1  | Chưa đăng nhập gọi `/api/**`                                                                                             | 401 theo khung lỗi chung, không chuyển hướng                                                                                                             |
+| E2  | Thiếu hoặc sai CSRF ở phương thức ghi                                                                                    | 403, không chuyển tiếp                                                                                                                                   |
+| E3  | Người dùng `USER` đăng nhập ở Vận hành rồi gọi `/api/catalog/admin/**`                                                   | Service trả 403; BFF không biến thành 200 (BFF chỉ chuyển tiếp, phân quyền ở service)                                                                    |
+| E4  | Đăng xuất ở Người bán khi cùng thiết bị cũng đang đăng nhập Cửa hàng                                                     | Cả hai phiên kết thúc (đăng xuất một lần), mỗi BFF xóa khóa của mình; phiên của người dùng khác hoặc thiết bị khác **không** bị đụng                     |
+| E5  | `oauth2-service` báo thu hồi một phiên ứng dụng                                                                          | Chỉ BFF của client chứa phiên đó nhận lời gọi, kèm token phạm vi `<ứng dụng>.internal`; BFF không có phiên của người đó không nhận gì                    |
+| E6  | Gọi `/bff/internal/**` không có token dịch vụ hoặc sai phạm vi (`storefront.internal` hay `ops.internal` gọi vào seller) | 401/403, không xóa gì                                                                                                                                    |
+| E7  | Host lạ                                                                                                                  | 404 ở cổng (đã có)                                                                                                                                       |
+| E8  | Ba BFF dùng chung Redis                                                                                                  | Tiền tố khóa (`seller:`, `ops:`, `storefront:`) và tên cookie phiên (`SELLER_SESSION`, `OPS_SESSION`, `STOREFRONT_SESSION`) theo ứng dụng, không đè nhau |
+| E11 | Tuyến của ứng dụng khác (vd `/api/customer/**` ở Người bán)                                                              | Không có tuyến: BFF chỉ chuyển tới các dịch vụ nó khai báo                                                                                               |
+| E9  | Redirect URI và trang đích đăng xuất của client                                                                          | Chỉ đúng host của ứng dụng; sai thì Xác thực từ chối                                                                                                     |
+| E10 | `storefront-web-bff` sau khi chuyển sang thư viện                                                                        | Toàn bộ test hiện có vẫn xanh, hành vi không đổi                                                                                                         |
 
 ## 5. Trạng thái sau khi xong
 
@@ -75,7 +75,7 @@ Giao diện gọi `/api/catalog/seller/products` cùng nguồn gốc kèm tiêu 
 
 ## 7. Việc đã giao cho feature này
 
-| Việc | Ghi chú |
-|---|---|
-| Hoãn: ẩn nút theo vai, bản đồ quyền cho giao diện | Hoãn tới khi có nhiều vai nội bộ (`00-features.md` dòng 12) |
-| Hoãn: giới hạn đăng nhập theo vai ở BFF (`USER` vào Vận hành) | Hiện chỉ service từ chối (E3); xem `tech.md` Q5 |
+| Việc                                                          | Ghi chú                                                     |
+|---------------------------------------------------------------|-------------------------------------------------------------|
+| Hoãn: ẩn nút theo vai, bản đồ quyền cho giao diện             | Hoãn tới khi có nhiều vai nội bộ (`00-features.md` dòng 12) |
+| Hoãn: giới hạn đăng nhập theo vai ở BFF (`USER` vào Vận hành) | Hiện chỉ service từ chối (E3); xem `tech.md` Q5             |

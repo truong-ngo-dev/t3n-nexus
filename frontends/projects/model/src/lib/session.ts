@@ -1,3 +1,4 @@
+import { isRecord } from './is-record';
 import { isRole, Role } from './role';
 
 /** Phiên của người đã đăng nhập, đúng phần `GET /bff/auth/session` trả về. */
@@ -11,8 +12,8 @@ export interface Session {
  * đó là lỗi (không xác định), tuyệt đối không cho vào (R1). Trường thừa bị bỏ qua.
  */
 export function parseSession(body: unknown): Session | null {
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
-  const { userId, role } = body as Record<string, unknown>;
+  if (!isRecord(body)) return null;
+  const { userId, role } = body;
   if (typeof userId !== 'string' || userId === '' || !isRole(role)) return null;
   return { userId, role };
 }

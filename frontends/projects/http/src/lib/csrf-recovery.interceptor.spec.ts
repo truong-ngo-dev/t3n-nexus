@@ -1,5 +1,6 @@
 import { HttpClient, HttpResponse, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpBackend } from '@angular/common/http';
+import { MOCK_PLATFORM_LOCATION_CONFIG } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { PAGE_NAVIGATION, SESSION_URL, SessionService } from '@t3n/auth';
 import { csrfRecoveryInterceptor } from '@t3n/http';
@@ -20,6 +21,9 @@ describe('csrfRecoveryInterceptor (KT-04)', () => {
         provideHttpClient(withInterceptors([csrfRecoveryInterceptor])),
         { provide: HttpBackend, useValue: backend },
         { provide: PAGE_NAVIGATION, useValue: { assign: jest.fn() } },
+        // Từ Angular 20, bộ XSRF có sẵn so nguồn gốc bằng `new URL(PlatformLocation.href)`; vị trí giả mặc định của TestBed
+        // có href `//` (không hợp lệ) nên bộ này bỏ qua và không gắn mã. Cho vị trí giả một địa chỉ đầy đủ.
+        { provide: MOCK_PLATFORM_LOCATION_CONFIG, useValue: { startUrl: 'http://localhost/' } },
       ],
     });
     http = TestBed.inject(HttpClient);

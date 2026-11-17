@@ -1,0 +1,64 @@
+// Giao diện khung ứng dụng người bán
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-header {
+  --mat-toolbar-container-background-color: var(--mat-sys-surface);
+  --mat-toolbar-container-text-color: var(--mat-sys-on-surface);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.app-title {
+  font: var(--mat-sys-title-large);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.status-label {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-large);
+  margin-right: 16px;
+}
+
+.logout-error {
+  margin: 0;
+  padding: 12px 24px;
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+  font: var(--mat-sys-body-medium);
+}
+
+.content {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.state-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 64px 16px;
+  text-align: center;
+
+  h2,
+  p {
+    margin: 0;
+  }
+
+  h2 {
+    font: var(--mat-sys-title-large);
+  }
+
+  p {
+    color: var(--mat-sys-on-surface-variant);
+  }
+}

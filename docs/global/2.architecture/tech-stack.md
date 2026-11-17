@@ -13,7 +13,7 @@
 
 | Hạng mục     | Công nghệ                      | Ghi chú                                        |
 |--------------|--------------------------------|------------------------------------------------|
-| Framework    | Angular 19 + Angular Material  | 3 app web: storefront, seller-portal, admin-portal |
+| Framework    | Angular 22 + Angular Material  | 3 app web: storefront, seller-portal, admin-portal |
 | Workspace    | Angular CLI nhiều dự án (`frontends/`) | Không dùng Nx; thư viện logic `model`, `auth`, `http` qua `paths` (ADR-0007) |
 | Test         | Jest · Playwright (Chrome)     | Jest cho logic, Playwright đầu-cuối (bộ nhanh giả lập, bộ thật qua cổng) |
 | Auth pattern | Authorization Code Flow + PKCE | httpOnly cookie qua storefront-web-bff                |

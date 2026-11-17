@@ -1,27 +1,31 @@
 # frontends
 
-Giao diện của t3n-nexus, viết lại từ `web/` (Angular CLI 19 nhiều dự án, không dùng Nx). Thiết kế: `docs/stage/c0-foundation/05-ui-shell/` (`flow.md`, `tech.md`, `plan.md`).
+Giao diện của t3n-nexus, viết lại từ `web/` (Angular CLI 22 nhiều dự án, không dùng Nx). Thiết kế: `docs/stage/c0-foundation/05-ui-shell/` (`flow.md`, `tech.md`, `plan.md`).
 
 | Dự án | Loại | Vai trò |
 |---|---|---|
 | `storefront-web` | ứng dụng | Cửa hàng (Trang chủ, Đăng ký, Đăng nhập, Tài khoản) |
+| `seller-web` | ứng dụng | Người bán (thiết kế: `docs/stage/c1a-listing/11-seller-web/`) |
 | `model` | thư viện logic | Kiểu dùng chung (`Role`, `Session`) |
 | `auth` | thư viện logic | Dịch vụ phiên, guard, gọi API đăng ký |
 | `http` | thư viện logic | Bộ chặn HTTP |
 
-Thư viện chỉ chứa logic (không thành phần giao diện) và được dùng qua `tsconfig` `paths` trỏ vào mã nguồn (`@t3n/auth` → `projects/auth/src/public-api.ts`), không build riêng. Hướng phụ thuộc, ESLint kiểm: `model` ← `auth` ← `http` ← `storefront-web`; thư viện không import `@angular/material` hay mã ứng dụng.
+Thư viện chỉ chứa logic (không thành phần giao diện) và được dùng qua `tsconfig` `paths` trỏ vào mã nguồn (`@t3n/auth` → `projects/auth/src/public-api.ts`), không build riêng. Hướng phụ thuộc, ESLint kiểm: `model` ← `auth` ← `http` ← (`storefront-web`, `seller-web`); thư viện không import `@angular/material` hay mã ứng dụng; ứng dụng không import ứng dụng khác.
 
 ## Chạy
 
-Cần Node (đã chạy được trên v26 dù Angular 19 chưa hỗ trợ chính thức; nếu gặp lỗi lạ thì thử Node LTS trước).
+Cần Node `^22.22.3`, `^24.15.0` hoặc `>=26` (yêu cầu của Angular 22; đang chạy trên v26.8.2).
 
 ```
 npm install
 npm start          # ng serve storefront-web ở cổng 4201, tắt live-reload và hmr
 npm run build      # ng build storefront-web
+npm run start:seller   # ng serve seller-web ở cổng 4202 (cùng cờ)
+npm run build:seller   # ng build seller-web
 npm test           # Jest (logic)
 npm run lint       # ESLint: ranh giới thư viện, từ vựng cũ
-npm run e2e        # Playwright (Chrome đã cài trên máy)
+npm run e2e        # Playwright của Cửa hàng (Chrome đã cài trên máy)
+npm run e2e:seller # Playwright của Người bán, phiên và hồ sơ giả (cổng 4202)
 ```
 
 Mở giao diện **qua cổng**: `http://shop.localhost:8000` (cần `api-gateway`, `storefront-web-bff`, `oauth2-service` chạy). `--live-reload=false --hmr=false` bắt buộc vì kênh WebSocket của live-reload không đi qua cổng được; sửa mã xong phải tải lại trang bằng tay.
@@ -40,6 +44,10 @@ Mở giao diện **qua cổng**: `http://shop.localhost:8000` (cần `api-gatewa
 | `http://localhost:4201` | Chỉ để Playwright chạy riêng giao diện (`npm run e2e`, phiên được giả) |
 
 **Mở thẳng `http://localhost:4201` không có phiên.** Dev server không có `/bff/**` nên trả HTML cho `/bff/auth/session`; ứng dụng coi là lỗi (trạng thái "không xác định") và hiện màn lỗi kèm nút Thử lại, không coi là khách (R10, R12). Không phải lỗi mã: hãy mở qua cổng.
+
+### Người bán (`seller-web`)
+
+Chạy `npm run start:seller` (cổng 4202) rồi mở **`http://seller.localhost:8000`** (cần `api-gateway`, `seller-web-bff`, `oauth2-service`; mặc định của cổng cho host `seller` đã trỏ 4202, không cần đặt biến). Mở thẳng `http://localhost:4202` không có phiên, như Cửa hàng ở trên.
 
 ## Bộ đầu-cuối thật (`npm run e2e:real`)
 
@@ -66,7 +74,7 @@ npm start    # ở frontends/
 
 ## Kiểm ranh giới (KT-18)
 
-`npm run lint` kiểm cả `projects/` và `e2e/`:
+`npm run lint` kiểm cả `projects/`, `e2e/`, `e2e-real/` và `e2e-seller/`:
 - hướng phụ thuộc `model` ← `auth` ← `http` ← `storefront-web`; `auth` không import `http`;
 - thư viện không import `@angular/material`, `@angular/cdk`, mã ứng dụng, hay đường dẫn tương đối sang thư viện khác;
 - từ vựng cũ (`CUSTOMER`, `SELLER`, `GUEST`, `SHIPPER`, `webgw`, `oss_id`, `fullName`) không quay lại trong `.ts`. Vai chỉ là `USER` hoặc `ADMIN`. (Chưa quét `.html`.)

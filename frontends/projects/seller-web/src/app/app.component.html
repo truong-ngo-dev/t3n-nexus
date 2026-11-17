@@ -1,0 +1,34 @@
+<mat-toolbar class="app-header">
+  <span class="app-title">Người bán</span>
+  <span class="spacer"></span>
+
+  @if (showStatus()) {
+    <span class="status-label" data-testid="status-label">{{ getStatusLabel() }}</span>
+  }
+  @if (isAuthenticated()) {
+    <button mat-button type="button" data-testid="logout" (click)="logout()" [disabled]="loggingOut()">Đăng xuất</button>
+  }
+</mat-toolbar>
+
+@if (logoutError()) {
+  <p class="logout-error" role="alert" data-testid="logout-error">{{logoutError()}}</p>
+}
+
+<main class="content">
+  @switch (checkScreen()) {
+    @case ('loading') {
+      <section class="state-screen" data-testid="checking">
+        <mat-spinner diameter="32"></mat-spinner>
+        <p>Đang kiểm tra tài khoản…</p>
+      </section>
+    }
+    @case ('error') {
+      <section class="state-screen" data-testid="screen-error">
+        <h2>Không tải được thông tin tài khoản</h2>
+        <p>Kiểm tra kết nối rồi thử lại.</p>
+        <button mat-flat-button type="button" data-testid="retry" (click)="retry()" [disabled]="retrying()">Thử lại</button>
+      </section>
+    }
+  }
+  <router-outlet></router-outlet>
+</main>

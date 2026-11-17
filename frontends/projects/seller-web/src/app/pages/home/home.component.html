@@ -1,0 +1,35 @@
+@let s = state();
+@switch (s.kind) {
+  @case ('none') {
+    <section class="home-state" data-testid="home-none">
+      <h1>Bắt đầu bán hàng</h1>
+      <p>Bạn chưa có hồ sơ người bán. Nộp hồ sơ để được duyệt và mở gian hàng.</p>
+      <!-- 11b: nút "Nộp hồ sơ" -->
+    </section>
+  }
+
+  @case ('pending') {
+    <section class="home-state" data-testid="home-pending">
+      <h1>Hồ sơ đang chờ duyệt</h1>
+      <p>Chúng tôi sẽ xem xét hồ sơ của bạn. Bạn bán hàng được sau khi hồ sơ được duyệt.</p>
+    </section>
+  }
+
+  @case ('rejected') {
+    <section class="home-state" data-testid="home-rejected">
+      <h1>Hồ sơ chưa được duyệt</h1>
+      <p>Lý do:</p>
+      <blockquote class="reject-reason" data-testid="reject-reason">{{ s.reason }}</blockquote>
+      <!-- 11b: nút "Sửa và nộp lại" -->
+    </section>
+  }
+
+  @case ('approved') {
+    <section class="home-state" data-testid="home-approved">
+      <h1>Gian hàng của bạn đã được duyệt</h1>
+      <p>Bạn có thể bắt đầu đăng sản phẩm.</p>
+      <!-- 11c: nút "Quản lý sản phẩm" -->
+    </section>
+  }
+}
+

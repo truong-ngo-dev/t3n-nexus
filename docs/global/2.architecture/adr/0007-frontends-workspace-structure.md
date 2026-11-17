@@ -10,13 +10,13 @@ Giao diện cũ `web/` (Angular + Nx) mang hợp đồng cũ (vai `CUSTOMER`, ro
 
 ## Quyết định
 
-- **`frontends/` là một workspace Angular CLI nhiều dự án, không dùng Nx.** Hiện có một ứng dụng và ba thư viện logic; chưa cần đồ thị tác vụ và bộ nhớ đệm của Nx. Bàn lại khi có từ ba ứng dụng trở lên và thời gian build thành vấn đề.
-- **Mỗi ứng dụng một dự án** (`projects/storefront-web`; về sau `seller-web`, `ops-web`), tên theo ứng dụng ở `5-ui-analysis.md`.
+- **`frontends/` là một workspace Angular CLI nhiều dự án, không dùng Nx.** Hiện có hai ứng dụng (Cửa hàng, Người bán) và ba thư viện logic; chưa cần đồ thị tác vụ và bộ nhớ đệm của Nx. Bàn lại khi có từ ba ứng dụng trở lên và thời gian build thành vấn đề.
+- **Mỗi ứng dụng một dự án** (`projects/storefront-web`, `projects/seller-web`; về sau `ops-web`), tên theo ứng dụng ở `5-ui-analysis.md`.
 - **Thư viện chỉ chứa logic, không có thành phần giao diện**: `model` (kiểu, vai), `auth` (phiên, guard, đăng ký, đăng xuất), `http` (bộ chặn CSRF, 401, lỗi API). Dùng qua `tsconfig` `paths` trỏ vào mã nguồn (`@t3n/*` → `public-api.ts`), không build ra `dist`.
 - **Hướng phụ thuộc, ESLint ép bằng `no-restricted-imports`:** `model` không import gì của dự án; `auth` chỉ import `model`; `http` import `model` và `auth`; ứng dụng import cả ba; không ai import ứng dụng.
 - **Vai chỉ có `USER`, `ADMIN`** định nghĩa một chỗ ở `model`; ESLint chặn từ vựng vai cũ (`CUSTOMER`, `SELLER`, `SHIPPER`, `GUEST`).
-- **Test:** Jest cho logic (thư viện, thành phần), Playwright trên Chrome đã cài (`channel: 'chrome'`) cho đầu-cuối: bộ nhanh có giả lập (`npm run e2e`) và bộ thật qua cổng (`npm run e2e:real`, ghi dữ liệu thử tiền tố `e2e-` rồi dọn).
-- **Chạy dev qua cổng:** `ng serve` cổng 4201, `--host 127.0.0.1`, tắt live-reload và hmr (WebSocket không đi qua cổng được); cổng trỏ `SHOP_FRONTEND_URL=http://localhost:4201`.
+- **Test:** Jest cho logic (thư viện, thành phần), Playwright trên Chrome đã cài (`channel: 'chrome'`) cho đầu-cuối: bộ nhanh có giả lập (`npm run e2e` cho Cửa hàng, `npm run e2e:seller` cho Người bán) và bộ thật qua cổng (`npm run e2e:real`, ghi dữ liệu thử tiền tố `e2e-` rồi dọn).
+- **Chạy dev qua cổng:** `ng serve` cổng 4201 (Cửa hàng) và 4202 (Người bán), `--host 127.0.0.1`, tắt live-reload và hmr (WebSocket không đi qua cổng được); cổng trỏ `SHOP_FRONTEND_URL=http://localhost:4201`; host `seller` của cổng mặc định trỏ 4202.
 - **Giao diện dùng Angular Material**, bố cục tối giản; chưa có hệ thành phần dùng chung giữa các ứng dụng.
 
 ## Đã loại
@@ -28,9 +28,9 @@ Giao diện cũ `web/` (Angular + Nx) mang hợp đồng cũ (vai `CUSTOMER`, ro
 
 ## Hệ quả
 
-- Thêm ứng dụng mới là thêm một dự án vào `angular.json` và import ba thư viện sẵn có.
+- Thêm ứng dụng mới là thêm một dự án vào `angular.json` và import ba thư viện sẵn có. `seller-web` (feature 11) dựng đúng theo cách này, không phải sửa thư viện.
 - Thư viện không có giao diện nên dùng chung được cho ứng dụng không phải Angular Material.
-- Angular 19 chạy được trên Node 26 dù chưa hỗ trợ chính thức (kết quả thử một lần): nếu gặp lỗi lạ, thử Node LTS trước.
+- Workspace nâng từ Angular 19 lên 22 `2026-11-11` (đã hỗ trợ chính thức Node 26): xem `stage/c1a-listing/11-seller-web/plan.md` bước 3b. Các quyết định ở trên không đổi; Jest 30, `jest-preset-angular` 17, TypeScript 6, builder `@angular/build`.
 
 ## Nguồn
 
