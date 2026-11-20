@@ -81,6 +81,7 @@ final class SellerProfileSamples {
                 actorOf(owner),
                 legal,
                 shop,
+                UUID.randomUUID(),
                 NOW
         );
     }

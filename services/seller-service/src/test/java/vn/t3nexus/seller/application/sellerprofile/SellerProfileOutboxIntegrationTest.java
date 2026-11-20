@@ -16,7 +16,7 @@ import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.outbox.OutboxEventStore;
 import vn.t3nexus.seller.SellerPostgresTestBase;
 import vn.t3nexus.seller.SellerServiceApplication;
-import vn.t3nexus.seller.domain.sellerprofile.SellerActor;
+import vn.t3nexus.seller.application.sellerprofile.shared.Patch;
 import vn.t3nexus.seller.domain.sellerprofile.SellerErrorCode;
 import vn.t3nexus.seller.domain.sellerprofile.SellerProfile;
 import vn.t3nexus.seller.domain.sellerprofile.SellerProfileId;

@@ -118,7 +118,7 @@ Xong khi: KT-09 đạt hoặc ghi rõ phần chưa kiểm vào `tech.md` và `de
 
 ### Bước 8. Phá thử, đóng feature · Người
 
-Chạy cả bộ `seller-service` và các mô-đun nó phụ thuộc (`./mvnw -o -pl seller-service -am test`). Ghi nhận sai lệch đã biết: `SubmitSellerProfile`, `ResubmitSellerProfile` (feature 03) gọi thẳng `OutboxEventStore` thay vì qua event handler như duyệt, từ chối; chuyển cho đồng nhất là việc nhỏ ngoài phạm vi, làm khi bạn muốn. Phá thử tổng hợp theo `tech.md` T10. Cập nhật `service.md`, `data.md`, `api.yaml`, `5. event-catalog.md` từ "Dự kiến" sang "Đã làm" khi khớp mã; ghi `deferred.md` của feature (phần có chỗ trong phạm vi: `audit-service` nhận và đọc lại bản ghi, dừng rồi chạy lại Connect, cả hai chuyển sang feature 13); `00-features.md` đổi trạng thái feature 04 và thêm điều học được.
+Chạy cả bộ `seller-service` và các mô-đun nó phụ thuộc (`./mvnw -o -pl seller-service -am test`). Ghi nhận sai lệch đã biết: `SubmitSellerProfile`, `ResubmitSellerProfile` (feature 03) gọi thẳng `OutboxEventStore` thay vì qua event handler như duyệt, từ chối; chuyển cho đồng nhất là việc nhỏ ngoài phạm vi, làm khi bạn muốn (**đã làm `2026-11-19`** khi dựng giao diện Người bán, feature 11: `SellerProfileSubmittedHandler`, xem `03/tech.md` T5). Phá thử tổng hợp theo `tech.md` T10. Cập nhật `service.md`, `data.md`, `api.yaml`, `5. event-catalog.md` từ "Dự kiến" sang "Đã làm" khi khớp mã; ghi `deferred.md` của feature (phần có chỗ trong phạm vi: `audit-service` nhận và đọc lại bản ghi, dừng rồi chạy lại Connect, cả hai chuyển sang feature 13); `00-features.md` đổi trạng thái feature 04 và thêm điều học được.
 
 Xong khi: bộ test xanh; tài liệu khớp mã; `deferred.md` chỉ chứa phần hoãn có chỗ trong phạm vi.
 

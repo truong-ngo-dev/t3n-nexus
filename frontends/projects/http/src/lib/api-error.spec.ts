@@ -1,61 +1,74 @@
 import { HttpBackend, HttpClient, HttpErrorResponse, HttpHeaders, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { PAGE_NAVIGATION, SESSION_URL, SessionService } from '@t3n/auth';
-import { csrfRecoveryInterceptor, toApiError, unauthorizedInterceptor } from '@t3n/http';
+import { csrfRecoveryInterceptor, toErrorInfo, unauthorizedInterceptor } from '@t3n/http';
 import { FakeBackend, fail, ok } from './testing/fake-backend';
 
 function response(status: number, error: unknown = null, headers: Record<string, string> = {}): HttpErrorResponse {
   return new HttpErrorResponse({ status, error, headers: new HttpHeaders(headers) });
 }
 
-describe('toApiError (KT-06)', () => {
+describe('toErrorInfo (KT-06)', () => {
   it('429 kèm Retry-After số giây: giữ số giây để hiện thông báo', () => {
-    expect(toApiError(response(429, null, { 'Retry-After': '30' }))).toEqual({ kind: 'rate-limited', status: 429, retryAfterSeconds: 30 });
+    expect(toErrorInfo(response(429, null, { 'Retry-After': '30' }))).toEqual({ kind: 'rate-limited', status: 429, retryAfterSeconds: 30 });
   });
 
   it.each([[{}], [{ 'Retry-After': 'soon' }], [{ 'Retry-After': '-5' }], [{ 'Retry-After': '' }]])(
     '429 thiếu hoặc sai Retry-After %j: không đoán số giây',
     (headers) => {
-      const mapped = toApiError(response(429, null, headers));
+      const mapped = toErrorInfo(response(429, null, headers));
       expect(mapped.kind).toBe('rate-limited');
       expect(mapped.retryAfterSeconds).toBeUndefined();
     },
   );
 
   it.each([502, 503, 504])('%i là tạm thời không với tới được, hiện thử lại và giữ status', (status) => {
-    expect(toApiError(response(status))).toEqual({ kind: 'unavailable', status });
+    expect(toErrorInfo(response(status))).toEqual({ kind: 'unavailable', status });
   });
 
   it('500 là lỗi máy chủ chưa bắt, không phải tạm thời: giữ ở other', () => {
-    expect(toApiError(response(500))).toEqual({ kind: 'other', status: 500 });
+    expect(toErrorInfo(response(500))).toEqual({ kind: 'other', status: 500 });
   });
 
   it('mất mạng (status 0) là lỗi mạng', () => {
-    expect(toApiError(response(0))).toEqual({ kind: 'network', status: 0 });
+    expect(toErrorInfo(response(0))).toEqual({ kind: 'network', status: 0 });
   });
 
   it('401 là chưa đăng nhập', () => {
-    expect(toApiError(response(401, { code: 'UNAUTHENTICATED' })).kind).toBe('unauthenticated');
+    expect(toErrorInfo(response(401, { code: 'UNAUTHENTICATED' })).kind).toBe('unauthenticated');
   });
 
   it('403 CSRF_TOKEN_INVALID tách khỏi 403 FORBIDDEN', () => {
-    expect(toApiError(response(403, { code: 'CSRF_TOKEN_INVALID' })).kind).toBe('csrf');
-    expect(toApiError(response(403, { code: 'FORBIDDEN' })).kind).toBe('forbidden');
-    expect(toApiError(response(403)).kind).toBe('forbidden');
+    expect(toErrorInfo(response(403, { code: 'CSRF_TOKEN_INVALID' })).kind).toBe('csrf');
+    expect(toErrorInfo(response(403, { code: 'FORBIDDEN' })).kind).toBe('forbidden');
+    expect(toErrorInfo(response(403)).kind).toBe('forbidden');
   });
 
   it('lỗi khác giữ mã trạng thái và mã lỗi của khung lỗi chung, không đoán từ chữ thông điệp', () => {
-    expect(toApiError(response(409, { code: 'EMAIL_TAKEN', message: 'Email đã tồn tại' }))).toEqual({ kind: 'other', status: 409, code: 'EMAIL_TAKEN' });
+    expect(toErrorInfo(response(409, { code: 'EMAIL_TAKEN', message: 'Email đã tồn tại' }))).toEqual({ kind: 'other', status: 409, code: 'EMAIL_TAKEN' });
   });
 
   it('nội dung lỗi không phải đối tượng hoặc mã không phải chuỗi: bỏ mã', () => {
-    expect(toApiError(response(500, 'oops'))).toEqual({ kind: 'other', status: 500 });
-    expect(toApiError(response(400, { code: 7 }))).toEqual({ kind: 'other', status: 400 });
+    expect(toErrorInfo(response(500, 'oops'))).toEqual({ kind: 'other', status: 500 });
+    expect(toErrorInfo(response(400, { code: 7 }))).toEqual({ kind: 'other', status: 400 });
+  });
+
+  it('lỗi 400 kèm errors: giữ các phần tử chuỗi để gắn lỗi vào đúng ô (tên trường), không đọc message', () => {
+    expect(toErrorInfo(response(400, { code: 'SELLER_FIELD_INVALID', message: 'Trường không hợp lệ: shopName', errors: ['shopName'] })))
+      .toEqual({ kind: 'other', status: 400, code: 'SELLER_FIELD_INVALID', errors: ['shopName'] });
+  });
+
+  it.each([[[]], ['shopName'], [null], [[1, {}]]])('errors %j không dùng được: bỏ, không để mảng rỗng hay phần tử lạ', (errors) => {
+    expect(toErrorInfo(response(400, { code: 'X', errors }))).toEqual({ kind: 'other', status: 400, code: 'X' });
+  });
+
+  it('errors lẫn phần tử lạ: chỉ giữ phần tử chuỗi', () => {
+    expect(toErrorInfo(response(400, { code: 'X', errors: ['a', 3, 'b'] }))).toEqual({ kind: 'other', status: 400, code: 'X', errors: ['a', 'b'] });
   });
 
   it('giá trị không phải HttpErrorResponse: lỗi khác, không ném', () => {
-    expect(toApiError(new Error('boom'))).toEqual({ kind: 'other' });
-    expect(toApiError(undefined)).toEqual({ kind: 'other' });
+    expect(toErrorInfo(new Error('boom'))).toEqual({ kind: 'other' });
+    expect(toErrorInfo(undefined)).toEqual({ kind: 'other' });
   });
 });
 

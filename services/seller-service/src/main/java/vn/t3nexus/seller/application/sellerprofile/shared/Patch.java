@@ -1,4 +1,4 @@
-package vn.t3nexus.seller.application.sellerprofile;
+package vn.t3nexus.seller.application.sellerprofile.shared;
 
 /**
  * Mô tả một trường của lệnh cập nhật một phần.

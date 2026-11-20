@@ -42,13 +42,23 @@ export interface SellerProfile {
 }
 
 /**
- * Đọc thân `GET /api/seller/profile` (lớp bọc `ApiResponse`, hồ sơ nằm ở `data`). Trả `null` nếu sai khuôn.
- * Chỉ `success` và `status` được kiểm lúc chạy, vì `status` quyết định luồng. Các trường còn lại chỉ để hiển thị
- * nên được chấp nhận theo hợp đồng: lời khẳng định kiểu duy nhất ở đây, cố ý và gom một chỗ.
+ * Yêu cầu nộp và nộp lại hồ sơ (api.yaml `SubmitSellerProfileRequest`): đúng ba trường nhập của hồ sơ, nên suy ra từ `SellerProfile`
+ * thay vì khai báo lại. Dùng chung cho `POST /profile` và `POST /profile/resubmit` (nộp lại gửi toàn bộ trường).
+ * Đặt ở `shared/model` vì dịch vụ HTTP (cũng ở `shared/`) cần nó; `shared/` không được import ngược từ `pages/`.
  */
-export function parseSellerProfile(body: unknown): SellerProfile | null {
-  if (!isRecord(body) || body['success'] !== true) return null;
-  const data = body['data'];
+export type SubmitSellerProfileRequest = Pick<SellerProfile, 'sellerType' | 'legalInfo' | 'shop'>;
+
+/**
+ * Đọc `data` của `GET /api/seller/profile` (hồ sơ). Dùng làm `parseData` của `unwrapData` ở `@t3n/http`, nên nhận **`data`**,
+ * không phải cả thân: khung `ApiResponse` và `success` đã được `unwrapData` kiểm trước. Trả `null` nếu sai khuôn
+ * (`unwrapData` sẽ phát `InvalidApiResponse` lý do `data-mismatch`).
+ *
+ * Mức kiểm "chặt vừa": chỉ `status` được kiểm lúc chạy, vì nó quyết định luồng. Các trường còn lại chỉ để hiển thị
+ * nên được chấp nhận theo hợp đồng: lời khẳng định kiểu duy nhất ở đây, cố ý và gom một chỗ.
+ *
+ * @param data giá trị của trường `data` trong khung, còn `unknown`
+ */
+export function parseSellerProfile(data: unknown): SellerProfile | null {
   if (!isRecord(data) || !isSellerProfileStatus(data['status'])) return null;
   return data as unknown as SellerProfile;
 }

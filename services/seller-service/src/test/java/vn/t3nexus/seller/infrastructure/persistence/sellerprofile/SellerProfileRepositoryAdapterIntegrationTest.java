@@ -310,7 +310,7 @@ class SellerProfileRepositoryAdapterIntegrationTest extends SellerPostgresTestBa
         // Trong một giao dịch nạp A, resubmit, save -> bị uq_seller_profiles_identity_key_effective
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             SellerProfile a = repository.findById(profileA.getId()).orElseThrow();
-            a.resubmit(actorOf(ownerA), a.legalInfo(), a.shopInfo(), NOW.plusSeconds(3600));
+            a.resubmit(actorOf(ownerA), a.legalInfo(), a.shopInfo(), UUID.randomUUID(), NOW.plusSeconds(3600));
             repository.save(a);
         })).isInstanceOf(DataIntegrityViolationException.class)
                 .satisfies(e -> assertThat(NestedExceptionUtils.getMostSpecificCause(e).getMessage())
@@ -332,7 +332,7 @@ class SellerProfileRepositoryAdapterIntegrationTest extends SellerPostgresTestBa
         // Nạp A, resubmit, lưu
         transactionTemplate.executeWithoutResult(status -> {
             SellerProfile a = repository.findById(profileA.getId()).orElseThrow();
-            a.resubmit(actorOf(ownerA), a.legalInfo(), a.shopInfo(), NOW.plusSeconds(3600));
+            a.resubmit(actorOf(ownerA), a.legalInfo(), a.shopInfo(), UUID.randomUUID(), NOW.plusSeconds(3600));
             repository.save(a);
         });
 

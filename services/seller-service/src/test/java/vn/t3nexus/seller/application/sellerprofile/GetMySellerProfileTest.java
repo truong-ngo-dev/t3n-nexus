@@ -53,6 +53,7 @@ class GetMySellerProfileTest {
                 user(owner),
                 legalInfo,
                 shopInfo,
+                UUID.randomUUID(),
                 NOW
         );
         repository.save(profile);

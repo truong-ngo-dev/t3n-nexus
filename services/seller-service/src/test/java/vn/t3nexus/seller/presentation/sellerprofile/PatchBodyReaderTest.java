@@ -4,7 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import vn.t3nexus.seller.application.sellerprofile.Patch;
+import vn.t3nexus.seller.application.sellerprofile.shared.Patch;
 import vn.t3nexus.seller.domain.sellerprofile.SellerErrorCode;
 import vn.t3nexus.seller.domain.sellerprofile.SellerFieldException;
 import vn.t3nexus.seller.domain.sellerprofile.SellerType;

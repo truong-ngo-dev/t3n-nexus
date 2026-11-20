@@ -48,6 +48,14 @@ public record ApiResponse<T>(
     }
 
     /**
+     * Creates an error response with a message, a stable error code and detail entries (e.g. the name of the offending field),
+     * so a client can attach the error to the right input without parsing the message text.
+     */
+    public static <T> ApiResponse<T> error(String message, String code, List<String> errors) {
+        return new ApiResponse<>(false, null, message, errors, code, currentTraceId());
+    }
+
+    /**
      * Creates a validation error response with detailed messages.
      */
     public static <T> ApiResponse<T> validationError(List<String> errors) {

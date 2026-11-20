@@ -392,6 +392,7 @@ class SellerProfileLeakIntegrationTest extends SellerProfileApiTestBase {
                 new SellerActor(owner, "USER"),
                 LegalInfo.of(SellerType.INDIVIDUAL, "Nguyễn Văn An", null, identityNumber, null, "12 Nguyễn Huệ, Quận 1, TP.HCM"),
                 ShopInfo.of(shopName, null, Contact.of("Nguyễn Văn An", "0912345678", null)),
+                UUID.randomUUID(),
                 java.time.Instant.parse("2026-10-26T03:00:00Z"));
     }
 

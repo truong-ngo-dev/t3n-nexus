@@ -4,10 +4,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
+import vn.t3nexus.seller.application.sellerprofile.shared.Patch;
 import vn.t3nexus.seller.domain.sellerprofile.Contact;
 import vn.t3nexus.seller.domain.sellerprofile.FakeSellerProfileRepository;
 import vn.t3nexus.seller.domain.sellerprofile.LegalInfo;
-import vn.t3nexus.seller.domain.sellerprofile.SellerActor;
 import vn.t3nexus.seller.domain.sellerprofile.SellerErrorCode;
 import vn.t3nexus.seller.domain.sellerprofile.SellerProfile;
 import vn.t3nexus.seller.domain.sellerprofile.SellerProfileId;
@@ -64,6 +64,7 @@ class UpdateLegalInfoTest {
                 user(owner),
                 legalInfo,
                 shopInfo,
+                UUID.randomUUID(),
                 NOW.minusSeconds(3600)
         );
         fakeRepository.save(profile);

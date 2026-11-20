@@ -86,9 +86,71 @@ KT-05: mỗi trạng thái ở mục 2 bằng phiên và hồ sơ giả. Xong kh
 
 KT-06 trên ngăn xếp cách ly `probe-`: đăng nhập, xem trạng thái (`USER` chưa có hồ sơ; `USER` có hồ sơ chờ duyệt; `ADMIN`), đăng xuất. Cập nhật tài liệu: ADR-0007 (thêm dự án `seller-web`), `00-features.md` (hàng 11), `plan.md` (kết quả), `deferred.md`.
 
+## Lát 11b: Hồ sơ gian hàng
+
+Người chốt `2026-11-17`: phạm vi chia hai nhịp; biểu mẫu nộp và biểu mẫu nộp lại dùng chung một thành phần; điều hướng ngang trong thanh trên thay cho thanh bên; **backend trả tên trường ở `errors[0]`** (xem điểm tìm thấy) và giao diện kiểm biểu mẫu trước khi gửi.
+
+**Bố cục biểu mẫu (người chốt `2026-11-18`).** Trang riêng có route (không dùng hộp thoại: biểu mẫu dài, cần guard theo trạng thái, giữ dữ liệu khi lỗi, tải lại và nút Back bình thường). Một trang, **lưới hai cột**, cố gắng vừa một màn hình: ô dài (tên, địa chỉ, mô tả) chiếm cả hàng, ô ngắn đi cặp (số căn cước với mã số thuế; người liên hệ với số điện thoại; ở doanh nghiệp, tên doanh nghiệp với người đại diện, nên số hàng không đổi khi đổi loại hình); màn hẹp (dưới khoảng 600px) về một cột. Không dùng `mat-stepper`. Loại hình là nhóm `mat-radio-group` ba lựa chọn. Nhãn ô pháp lý đổi theo loại hình (họ tên, tên chủ hộ, tên doanh nghiệp; `api.yaml` dùng chung `legalName`). Chưa chọn loại hình thì chưa hiện nhóm pháp lý. Trang xem hồ sơ hiện đủ số căn cước (hồ sơ của chính chủ; không ghi ra log hay event là việc của backend, `tech.md` T7 của feature 03). Lỗi ô hiện sau khi rời ô hoặc sau lần bấm Nộp đầu; bấm Nộp khi còn lỗi thì đưa tiêu điểm tới ô lỗi đầu tiên.
+
+**Phạm vi.** Nhịp 1: nộp hồ sơ và xem hồ sơ. Nhịp 2: sửa và nộp lại khi `REJECTED`. **Hoãn:** sửa riêng gian hàng và pháp lý khi `PENDING_REVIEW` hoặc `APPROVED` (`PATCH shop-info`, `PATCH legal-info`; xem `deferred.md`).
+
+**Ma trận (từ `api.yaml`).**
+
+| Trạng thái | Xem hồ sơ | Nộp hồ sơ | Sửa và nộp lại |
+|---|---|---|---|
+| Chưa có hồ sơ | không | có (`POST /profile`) | không |
+| `PENDING_REVIEW` | có | không (`SELLER_PROFILE_EXISTS`) | không (`INVALID_STATE`) |
+| `APPROVED` | có | không | không |
+| `REJECTED` | có, kèm lý do | không | có (`POST /profile/resubmit`, gửi toàn bộ trường) |
+
+**Trang.** `/profile` (xem), `/profile/new` (nộp), `/profile/edit` (nộp lại). Điều hướng ngang trong thanh trên (Trang chủ, Hồ sơ). Trang chủ thêm nút theo trạng thái ("Nộp hồ sơ", "Sửa và nộp lại", "Xem hồ sơ").
+
+**Điểm tìm thấy: tên trường trong lỗi 400.** `seller-service` không có chỗ riêng cho tên trường (`SellerFieldException.field()` không được dùng; handler chỉ trả `message`), còn `toErrorInfo` cố ý bỏ `message` (R6). Đã sửa backend: lỗi trường kèm `errors: ["<tên trường>"]` (`SellerExceptionHandler`, overload `ApiResponse.error(message, code, errors)` ở `common-web`; `api.yaml` và `03/tech.md` cập nhật). Phía giao diện, `ErrorInfo` thêm `errors` (chỉ phần tử chuỗi). Giao diện vẫn kiểm trước khi gửi nên lỗi trường từ máy chủ hiếm; khi có thì gắn đúng ô.
+
+**Bản đồ lỗi máy chủ.**
+
+| Mã | Chỗ hiện |
+|---|---|
+| `SHOP_NAME_TAKEN` | ô tên gian hàng |
+| `IDENTITY_ALREADY_REGISTERED`, `INVALID_IDENTITY_NUMBER` | ô số căn cước |
+| `INVALID_TAX_CODE` | ô mã số thuế |
+| `LEGAL_INFO_REQUIRED`, `SELLER_FIELD_INVALID` | ô theo `errors[0]`; tên lạ hoặc thiếu thì thông báo chung đầu biểu mẫu |
+| `SELLER_PROFILE_EXISTS`, `INVALID_STATE`, `CONCURRENT_UPDATE` | thông báo đầu biểu mẫu, làm mới trạng thái hồ sơ rồi về trang chủ (trạng thái đã đổi nơi khác) |
+| 5xx, mạng | thông báo đầu biểu mẫu, **giữ nguyên dữ liệu đã nhập**, cho gửi lại |
+| 401 | giữ cách xử lý chung của bộ chặn (về đăng nhập) |
+
+**Kiểm chứng.**
+
+| Mã | Kiểm | Cách |
+|---|---|---|
+| KT-07 | Kiểm biểu mẫu theo loại hình: trường nào bắt buộc (`INDIVIDUAL` không có người đại diện, mã số thuế tùy chọn; `HOUSEHOLD` có mã số thuế; `BUSINESS` có thêm người đại diện), căn cước 12 chữ số, mã số thuế 10 hoặc 13 chữ số, độ dài tên gian hàng 3 đến 60, mô tả tới 500, địa chỉ 10 đến 300, số di động Việt Nam | Jest, hàm thuần |
+| KT-08 | Dựng yêu cầu từ giá trị biểu mẫu: bỏ trường rỗng, chỉ gửi trường hợp với loại hình đang chọn | Jest, hàm thuần |
+| KT-09 | Bản đồ lỗi máy chủ như bảng trên (mã và `errors[0]` thành ô; tên lạ thành thông báo chung) | Jest, hàm thuần |
+| KT-10 | `SellerApiService`: nộp và nộp lại gọi đúng địa chỉ, trả `void` (không đọc thân, vì trạng thái được tải lại sau khi nộp), 2xx mà thân không phải khung thành công thì `InvalidApiResponse`, quá hạn thì `TimeoutError`, lỗi HTTP đi qua nguyên vẹn | Jest |
+| KT-11 | Biểu mẫu: không gửi khi chưa hợp lệ; bấm đúp chỉ một lời gọi; thành công thì làm mới trạng thái rồi sang `/profile`; mỗi lỗi ở bảng trên ra đúng chỗ; 5xx giữ dữ liệu | Jest, thành phần |
+| KT-12 | Guard: `/profile/new` chỉ khi chưa có hồ sơ; `/profile/edit` chỉ khi `REJECTED`; `/profile` khi có hồ sơ; trạng thái khác thì về `/` | Jest |
+| KT-13 | Trang xem hồ sơ: đủ trường theo loại hình (số căn cước hiện đủ), nhãn ô theo loại hình, lý do từ chối khi `REJECTED`, nút "Sửa và nộp lại" đúng chỗ | Jest, thành phần |
+| KT-14 | Luồng qua trình duyệt với phản hồi giả: chưa có hồ sơ đi nộp (kể cả lỗi trùng tên gắn đúng ô); bị từ chối đi nộp lại; hồ sơ chờ duyệt không vào được `/profile/new` | Playwright giả |
+| KT-15 | Một lần qua cổng thật: nộp hồ sơ, thấy "Đang chờ duyệt"; duyệt bằng API quản trị; thấy "Đã duyệt"; từ chối một hồ sơ khác rồi nộp lại | Chạy thật, một lần khi đóng lát |
+
+**Các bước.**
+
+| Bước | Việc | Ai |
+|---|---|---|
+| 1 | `ErrorInfo.errors` ở `@t3n/http` (spec trước) | Agent |
+| 2 | Kiểu yêu cầu, `SellerApiService.submitProfile` và `resubmitProfile` (KT-10) | Người |
+| 3 | Hàm kiểm biểu mẫu, dựng yêu cầu, bản đồ lỗi (KT-07, 08, 09) | Người |
+| 4 | Guard và route `/profile`, `/profile/new`, `/profile/edit` (KT-12) | Người |
+| 5 | Thành phần biểu mẫu dùng chung, chế độ nộp và nộp lại (KT-11) | Người; CSS `agy` |
+| 6 | Trang xem hồ sơ, điều hướng ngang, nút ở trang chủ (KT-13) | Người; CSS `agy` |
+| 7 | Playwright giả (KT-14) | `agy` (khung), Người (ca) |
+| 8 | Chạy thật (KT-15) và cập nhật tài liệu | Agent, Người |
+
+**Trạng thái:** Backend (tên trường ở `errors`) xong `2026-11-18`: `SellerExceptionHandlerTest` 7 ca (2 ca mới), `SellerExceptionHandlerFeature04Test` 4 ca, `GlobalExceptionHandlerTest` 15 ca xanh. Bước 1 xong `2026-11-18`: `ErrorInfo.errors` (chỉ phần tử chuỗi; vắng khi rỗng hoặc sai kiểu), `@t3n/http` 52 ca xanh. Đồng bộ backend `2026-11-19` (phát hiện khi rà flow nộp hồ sơ lúc dựng giao diện): nộp và nộp lại giờ theo khuôn của duyệt và từ chối (aggregate phát `SellerProfileSubmitted`, use case `dispatchAll`, `SellerProfileSubmittedHandler` ghi hộp thư); chi tiết ở `03/tech.md` T5. `seller-service` 339 ca xanh. Bước 2 xong `2026-11-19`: `submitSellerProfile`, `resubmitSellerProfile` trả `Observable<void>` (`expectSuccess` và `requestTimeout` của `@t3n/http`); `SubmitSellerProfileRequest` ở `shared/model/seller.ts` (dịch vụ ở `shared/` không import ngược từ `pages/`). Tầng chung nhánh thành công và nhánh lỗi (`unwrapApiResponse`, `classifyFailure`, `requestTimeout`) có ở `@t3n/http` (126 ca). Các bước còn lại của 11b chưa làm.
+
 ## Các lát sau
 
 Viết chi tiết khi bắt đầu từng lát (đề bài: hợp đồng API thật, tiêu chí xong, khái niệm cần dùng):
 
-- **11b** Hồ sơ gian hàng · **11c** Sản phẩm và biến thể · **11d** Ảnh · **11e** Đăng sản phẩm.
+- **11c** Sản phẩm và biến thể · **11d** Ảnh · **11e** Đăng sản phẩm.
 - Chạy thật mỗi lát một lần khi đóng; bộ Playwright đầy đủ qua cổng ở feature 13.

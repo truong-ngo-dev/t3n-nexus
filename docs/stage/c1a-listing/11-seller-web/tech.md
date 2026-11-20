@@ -7,7 +7,7 @@
 
 `seller-web` import `@t3n/model`, `@t3n/auth`, `@t3n/http` qua `tsconfig` `paths` như `storefront-web`. Không sao chép, không sửa thư viện cho riêng Người bán; thay đổi thư viện chỉ khi cả hai ứng dụng cần.
 
-Phiên (`SessionService`), guard, hai bộ chặn (CSRF, 401), `toApiError` đã đủ cho 11a. `SellerStatusService` (T4) nằm trong ứng dụng vì chỉ Người bán dùng.
+Phiên (`SessionService`), guard, hai bộ chặn (CSRF, 401), `toErrorInfo` đã đủ cho 11a. `SellerStatusService` (T4) nằm trong ứng dụng vì chỉ Người bán dùng.
 
 Cách chia thư viện và cấu trúc workspace (một workspace, thư viện trỏ vào mã nguồn) giữ nguyên tới feature 12; việc chuyển sang gói có phiên bản bàn lại khi rút thư viện giao diện dùng chung (ghi vào kế hoạch feature 12).
 
@@ -48,7 +48,7 @@ Dự án đã sinh bằng `ng generate application`. Chỉnh để khớp `store
 
 - Đường dẫn giữ đúng như backend đã thiết kế (người dùng chốt `2026-11-11`): `/api/seller/seller/profile` (đoạn đầu chọn `seller-service` ở BFF, đoạn sau là đường dẫn riêng của dịch vụ), `/api/catalog/seller/products`...
 - Mọi lời gọi `/api/...` đặt trong các dịch vụ API của ứng dụng (một `SellerApiService` hoặc vài dịch vụ nhỏ theo nhóm); thành phần gọi hàm có tên nghiệp vụ, không viết chuỗi đường dẫn.
-- Lỗi chuyển qua `toApiError` của `@t3n/http` rồi ánh xạ `code` → thông báo ở ứng dụng, thành phần không tự so chuỗi.
+- Lỗi chuyển qua `toErrorInfo` của `@t3n/http` rồi ánh xạ `code` → thông báo ở ứng dụng, thành phần không tự so chuỗi.
 
 **Đã loại.** Đổi tên đoạn tuyến ở BFF (sửa thư viện dùng chung cho một lợi ích thẩm mỹ; xem `deferred.md`).
 

@@ -15,7 +15,9 @@ import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.web.commons.exception.GlobalExceptionHandler;
 import vn.t3nexus.lib.web.commons.response.ApiResponse;
 import vn.t3nexus.seller.domain.sellerprofile.SellerErrorCode;
+import vn.t3nexus.seller.domain.sellerprofile.SellerFieldException;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -62,6 +64,11 @@ public class SellerExceptionHandler {
         if (CONFLICT_CODES.contains(code)) {
             log.info("SELLER_CONFLICT code={}", code);
             meterRegistry.counter("seller.profile.conflict", "code", code).increment();
+        }
+
+        // Lỗi trường: nêu tên trường ở errors để giao diện gắn vào đúng ô (không phải cắt từ message).
+        if (ex instanceof SellerFieldException fieldException) {
+            return ApiResponse.error(ex.getMessage(), code, List.of(fieldException.field()));
         }
 
         return ApiResponse.error(ex.getMessage(), code);

@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.t3nexus.lib.common.domain.cqrs.CommandHandler;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
+import vn.t3nexus.seller.application.sellerprofile.shared.Patch;
 import vn.t3nexus.seller.domain.sellerprofile.LegalInfo;
 import vn.t3nexus.seller.domain.sellerprofile.SellerActor;
 import vn.t3nexus.seller.domain.sellerprofile.SellerErrorCode;

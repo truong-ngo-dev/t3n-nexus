@@ -6,7 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.lib.common.domain.model.DomainEvent;
+import vn.t3nexus.lib.common.application.EventDispatcher;
+import vn.t3nexus.lib.common.domain.service.EventHandler;
 import vn.t3nexus.lib.outbox.OutboxEventStore;
+import vn.t3nexus.seller.application.sellerprofile.event.SellerProfileSubmittedHandler;
 import vn.t3nexus.seller.domain.sellerprofile.FakeSellerProfileRepository;
 import vn.t3nexus.seller.domain.sellerprofile.SellerActor;
 import vn.t3nexus.seller.domain.sellerprofile.SellerErrorCode;
@@ -18,6 +21,7 @@ import vn.t3nexus.seller.domain.sellerprofile.SellerProfileSubmitted;
 import vn.t3nexus.seller.domain.sellerprofile.SellerType;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,13 +45,15 @@ class SubmitSellerProfileTest {
 
     private FakeSellerProfileRepository repository;
     private OutboxEventStore outbox;
+    private EventDispatcher eventDispatcher;
     private SubmitSellerProfile submitSellerProfile;
 
     @BeforeEach
     void setUp() {
         repository = new FakeSellerProfileRepository();
         outbox = mock(OutboxEventStore.class);
-        submitSellerProfile = new SubmitSellerProfile(repository, ids(), clock(), outbox);
+        eventDispatcher = new EventDispatcher(List.<EventHandler<?>>of(new SellerProfileSubmittedHandler(outbox)));
+        submitSellerProfile = new SubmitSellerProfile(repository, ids(), clock(), eventDispatcher);
     }
 
     @Test

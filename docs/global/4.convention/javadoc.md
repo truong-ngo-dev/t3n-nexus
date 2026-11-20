@@ -5,6 +5,13 @@
 Document the **WHY and WHAT IS NON-OBVIOUS** — not what the code already says.
 Well-named identifiers are self-documenting. Javadoc that only restates the method name adds noise.
 
+## Mức truy cập không phải lý do bỏ doc
+
+Quy tắc áp dụng cho **mọi thành phần, kể cả `private`, package-private và `protected`**: class, constructor, field, phương thức.
+Người đọc mã (và người rà) cần biết ý đồ, thứ tự và điều kiện ở các phần `private` nhiều hơn ở API công khai, vì chính ở đó
+nằm các quyết định không hiển nhiên. Các miễn trừ bên dưới chỉ dựa trên **nội dung** ("tên và kiểu đã nói hết", "khớp hợp đồng
+interface"), không bao giờ dựa trên mức truy cập.
+
 ---
 
 ## HTML formatting cho doc nhiều đoạn
@@ -74,7 +81,7 @@ prose có liên từ, `<ul>` sẽ làm mất mạch lý luận giữa các bư�
 | Public API interface             | YES         | Describe contract, not implementation |
 | Public API abstract class        | YES         | Describe role in the system           |
 | Public API concrete class        | YES (brief) | 1–2 sentences on responsibility       |
-| Internal / package-private class | NO          | —                                     |
+| Internal / package-private class | YES (brief) | Vai trò và vì sao không công khai     |
 | Utility class                    | NO          | —                                     |
 
 ```java
@@ -104,6 +111,21 @@ public interface ExpressionEvaluator {
      */
     boolean evaluate(LiteralExpression expression, EvaluationContext context);
 }
+```
+
+---
+
+## Phương thức private, package-private, protected
+
+Phương thức không công khai cũng cần doc khi nó mang **ý đồ, thứ tự hay bất biến** mà đọc thân hàm không thấy ngay:
+vì sao tách ra, gọi ở đâu, đã được kiểm gì trước đó, trả `null` hay ném lỗi khi nào. Hàm `private` chỉ đổi tên hay gói một dòng
+hiển nhiên thì không cần.
+
+```java
+/**
+ * Chỉ gọi từ {@code submit} và {@code restore}: hai đường vào đã kiểm tham số theo nhu cầu riêng, nên hàm này không kiểm lại.
+ */
+private SellerProfile(...) { /*...*/ }
 ```
 
 ---
@@ -151,9 +173,12 @@ public abstract T build();
 
 | Case                                                          | Required |
 |---------------------------------------------------------------|----------|
-| Private constructor                                           | NO       |
-| Protected constructor (e.g. builder-accepting)                | NO       |
+| Private constructor                                           | YES      |
+| Protected constructor (e.g. builder-accepting)                | YES      |
 | Public constructor with validation or non-obvious param rules | YES      |
+
+Constructor `private` nên nói **vì sao private** và đường vào duy nhất (factory nào); nếu hàm dựng không kiểm tham số thì nói rõ
+ai đã kiểm.
 
 ---
 
@@ -184,7 +209,8 @@ public PolicySet build() { /*...*/ }
 
 | Case                                      | Required                                   |
 |-------------------------------------------|--------------------------------------------|
-| Self-explanatory field                    | NO                                         |
+| Field (mọi mức truy cập, kể cả `private`)  | YES (brief): vai trò, nguồn gốc, đơn vị, `null` nghĩa gì, ai được đổi |
+| Field mà tên và kiểu đã nói hết (VD `id`) | NO                                         |
 | Nullable field with non-obvious semantics | YES (inline comment or `@param` on getter) |
 | Field whose ordering affects evaluation   | YES                                        |
 

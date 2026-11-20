@@ -375,7 +375,8 @@ components:
         - `INVALID_IDENTITY_NUMBER`: số căn cước không đủ 12 chữ số
         - `INVALID_TAX_CODE`: mã số thuế không đủ 10 hoặc 13 chữ số
         - `SELLER_FIELD_INVALID`: trường khác sai (tên gian hàng ngoài 3 đến 60 ký tự, mô tả quá 500, số điện thoại, địa chỉ ngoài 10 đến 300...), nêu tên trường
-        Thông báo chỉ nêu tên trường, không nêu giá trị.
+        Thông báo chỉ nêu tên trường, không nêu giá trị. Tên trường nằm ở `errors[0]` (một phần tử: `legalName`, `identityNumber`, `contact.personName`...)
+        để client gắn lỗi vào đúng ô mà không phải cắt chữ từ `message`; các lỗi khác `errors` rỗng.
       content:
         application/json:
           schema:

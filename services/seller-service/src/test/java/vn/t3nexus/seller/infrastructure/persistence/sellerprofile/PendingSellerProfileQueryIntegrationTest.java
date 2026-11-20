@@ -74,6 +74,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                 actorOf(owner1),
                 individual(digits(1, 12)),
                 shop("Gian hàng 1"),
+                UUID.randomUUID(),
                 NOW
         );
 
@@ -82,6 +83,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                 actorOf(owner2),
                 individual(digits(2, 12)),
                 shop("Gian hàng 2"),
+                UUID.randomUUID(),
                 NOW.plusSeconds(10)
         );
 
@@ -139,6 +141,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                 actorOf(owner1),
                 individual(digits(1, 12)),
                 shop("Gian hàng 1"),
+                UUID.randomUUID(),
                 t1
         );
         SellerProfile p2 = SellerProfile.submit(
@@ -146,6 +149,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                 actorOf(owner2),
                 individual(digits(2, 12)),
                 shop("Gian hàng 2"),
+                UUID.randomUUID(),
                 t2
         );
         SellerProfile p3 = SellerProfile.submit(
@@ -153,6 +157,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                 actorOf(owner3),
                 individual(digits(3, 12)),
                 shop("Gian hàng 3"),
+                UUID.randomUUID(),
                 t3
         );
         SellerProfile p4 = SellerProfile.submit(
@@ -160,6 +165,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                 actorOf(owner4),
                 individual(digits(4, 12)),
                 shop("Gian hàng 4"),
+                UUID.randomUUID(),
                 t4
         );
 
@@ -196,6 +202,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                     actorOf(UUID.randomUUID()),
                     individual(digits(i, 12)),
                     shop("Gian hàng " + i),
+                    UUID.randomUUID(),
                     NOW
             ));
         }
@@ -227,6 +234,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                         actorOf(UUID.randomUUID()),
                         individual(digits(i + 1, 12)),
                         shop("Gian hàng " + (i + 1)),
+                        UUID.randomUUID(),
                         NOW.plusSeconds(i * 10)
                 );
                 repository.save(p);
@@ -288,6 +296,7 @@ class PendingSellerProfileQueryIntegrationTest extends SellerPostgresTestBase {
                 actorOf(owner),
                 household(digits(999, 10)),
                 shop("Hộ Kinh Doanh Phát Đạt"),
+                UUID.randomUUID(),
                 submittedAt
         );
 

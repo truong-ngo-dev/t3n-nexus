@@ -1,7 +1,7 @@
 package vn.t3nexus.seller.presentation.sellerprofile;
 
 import tools.jackson.databind.JsonNode;
-import vn.t3nexus.seller.application.sellerprofile.Patch;
+import vn.t3nexus.seller.application.sellerprofile.shared.Patch;
 import vn.t3nexus.seller.domain.sellerprofile.SellerErrorCode;
 import vn.t3nexus.seller.domain.sellerprofile.SellerFieldException;
 import vn.t3nexus.seller.domain.sellerprofile.SellerType;

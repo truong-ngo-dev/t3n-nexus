@@ -2,7 +2,7 @@ import { HttpErrorResponse, HttpInterceptorFn, HttpXsrfTokenExtractor } from '@a
 import { inject } from '@angular/core';
 import { SessionService } from '@t3n/auth';
 import { catchError, switchMap, throwError } from 'rxjs';
-import { toApiError } from './api-error';
+import { toErrorInfo } from './api-error';
 
 const SAFE_METHODS = ['GET', 'HEAD'];
 const XSRF_HEADER = 'X-XSRF-TOKEN';
@@ -24,7 +24,7 @@ export const csrfRecoveryInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((error: unknown) => {
       const recoverable =
         error instanceof HttpErrorResponse &&
-        toApiError(error).kind === 'csrf' &&
+        toErrorInfo(error).kind === 'csrf' &&
         !SAFE_METHODS.includes(req.method);
       if (!recoverable) return throwError(() => error);
 

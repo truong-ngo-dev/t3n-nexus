@@ -38,6 +38,7 @@ class SellerExceptionHandlerTest {
             switch (kind) {
                 case "domain-exists" -> throw new DomainException(SellerErrorCode.SELLER_PROFILE_EXISTS);
                 case "domain-field" -> throw new SellerFieldException(SellerErrorCode.INVALID_IDENTITY_NUMBER, "identityNumber");
+                case "domain-field-nested" -> throw new SellerFieldException(SellerErrorCode.SELLER_FIELD_INVALID, "contact.personName");
                 case "dup-owner" -> throw new DataIntegrityViolationException("could not execute statement; ERROR: duplicate key value violates unique constraint\n  Detail: Key (identity_key)=(079123456789) already exists.",
                         new RuntimeException("ERROR: duplicate key value violates unique constraint \"uq_seller_profiles_owner\"\n  Detail: Key (identity_key)=(079123456789) already exists."));
                 case "dup-shop" -> throw new DataIntegrityViolationException("could not execute statement; ERROR: duplicate key value violates unique constraint\n  Detail: Key (identity_key)=(079123456789) already exists.",
@@ -71,13 +72,28 @@ class SellerExceptionHandlerTest {
         mockMvc.perform(get("/boom/domain-exists"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.code").value("SELLER_PROFILE_EXISTS"));
+                .andExpect(jsonPath("$.code").value("SELLER_PROFILE_EXISTS"))
+                .andExpect(jsonPath("$.errors").isEmpty());
 
         mockMvc.perform(get("/boom/domain-field"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.code").value("INVALID_IDENTITY_NUMBER"))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("identityNumber")));
+    }
+
+    @Test
+    @DisplayName("Lỗi trường: tên trường nằm ở errors[0] để giao diện gắn vào đúng ô, không phải cắt từ message")
+    void fieldErrorCarriesFieldName() throws Exception {
+        mockMvc.perform(get("/boom/domain-field"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0]").value("identityNumber"));
+
+        mockMvc.perform(get("/boom/domain-field-nested"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SELLER_FIELD_INVALID"))
+                .andExpect(jsonPath("$.errors[0]").value("contact.personName"));
     }
 
     @Test

@@ -2,6 +2,7 @@ package vn.t3nexus.seller.application.sellerprofile;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import vn.t3nexus.seller.application.sellerprofile.shared.Patch;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

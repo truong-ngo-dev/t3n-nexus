@@ -106,6 +106,7 @@ class SellerProfileDecisionTest {
                 createActor(OWNER_ID, "USER"),
                 createValidIndividualLegalInfo(),
                 createValidShopInfo("Cửa Hàng Xanh"),
+                UUID.randomUUID(),
                 NOW
         );
         assertThat(submitted.version()).isNull();
@@ -270,6 +271,7 @@ class SellerProfileDecisionTest {
                 createActor(OWNER_ID, "USER"),
                 createValidIndividualLegalInfo(),
                 createValidShopInfo("Cửa Hàng Xanh"),
+                UUID.randomUUID(),
                 NOW
         );
         SellerActor admin = createActor(ADMIN_ID, "ADMIN");
@@ -493,7 +495,7 @@ class SellerProfileDecisionTest {
         ShopInfo newShop = createValidShopInfo("Cửa Hàng Mới");
         Instant resubmitTime = NOW.plusSeconds(3600);
 
-        pending.resubmit(owner, newLegal, newShop, resubmitTime);
+        pending.resubmit(owner, newLegal, newShop, UUID.randomUUID(), resubmitTime);
 
         assertThat(pending.status()).isEqualTo(SellerProfileStatus.PENDING_REVIEW);
         assertThat(pending.rejectionReason()).isNull();

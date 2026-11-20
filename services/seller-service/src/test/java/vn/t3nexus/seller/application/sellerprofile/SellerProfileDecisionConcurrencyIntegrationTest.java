@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import vn.t3nexus.lib.common.domain.exception.DomainException;
 import vn.t3nexus.seller.SellerPostgresTestBase;
 import vn.t3nexus.seller.SellerServiceApplication;
+import vn.t3nexus.seller.application.sellerprofile.shared.Patch;
 import vn.t3nexus.seller.domain.sellerprofile.SellerErrorCode;
 import vn.t3nexus.seller.domain.sellerprofile.SellerProfile;
 import vn.t3nexus.seller.domain.sellerprofile.SellerProfileId;
@@ -25,7 +26,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

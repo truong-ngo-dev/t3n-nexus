@@ -105,7 +105,7 @@ class SellerProfileConcurrentSubmitIntegrationTest extends SellerPostgresTestBas
                     try {
                         transactionTemplate.executeWithoutResult(status -> {
                             new SellerProfileUniqueness(repository).requireCanSubmit(owner, shopInfo.shopName(), legalInfo);
-                            repository.save(SellerProfile.submit(SellerProfileId.of(UUID.randomUUID()), actorOf(owner), legalInfo, shopInfo, NOW));
+                            repository.save(SellerProfile.submit(SellerProfileId.of(UUID.randomUUID()), actorOf(owner), legalInfo, shopInfo, UUID.randomUUID(), NOW));
                         });
                         return SubmissionOutcome.success();
                     } catch (DomainException de) {
@@ -168,7 +168,7 @@ class SellerProfileConcurrentSubmitIntegrationTest extends SellerPostgresTestBas
                     try {
                         transactionTemplate.executeWithoutResult(status -> {
                             new SellerProfileUniqueness(repository).requireCanSubmit(owner, shopInfo.shopName(), legalInfo);
-                            repository.save(SellerProfile.submit(SellerProfileId.of(UUID.randomUUID()), actorOf(owner), legalInfo, shopInfo, NOW));
+                            repository.save(SellerProfile.submit(SellerProfileId.of(UUID.randomUUID()), actorOf(owner), legalInfo, shopInfo, UUID.randomUUID(), NOW));
                         });
                         return SubmissionOutcome.success();
                     } catch (DomainException de) {
@@ -230,7 +230,7 @@ class SellerProfileConcurrentSubmitIntegrationTest extends SellerPostgresTestBas
                     try {
                         transactionTemplate.executeWithoutResult(status -> {
                             new SellerProfileUniqueness(repository).requireCanSubmit(owner, shopInfo.shopName(), legalInfo);
-                            repository.save(SellerProfile.submit(SellerProfileId.of(UUID.randomUUID()), actorOf(owner), legalInfo, shopInfo, NOW));
+                            repository.save(SellerProfile.submit(SellerProfileId.of(UUID.randomUUID()), actorOf(owner), legalInfo, shopInfo, UUID.randomUUID(), NOW));
                         });
                         return SubmissionOutcome.success();
                     } catch (DomainException de) {

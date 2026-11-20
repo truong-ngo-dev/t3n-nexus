@@ -1,6 +1,6 @@
 import {Injectable, inject, signal} from '@angular/core';
 import {Observable, map, catchError, of, tap} from 'rxjs';
-import {toApiError} from '@t3n/http';
+import {toErrorInfo} from '@t3n/http';
 import {SellerProfile} from '../model/seller';
 import {SellerApiService} from './seller-api.service';
 
@@ -27,8 +27,8 @@ function stateOf(profile: SellerProfile): SellerProfileState {
 
 /** Chỉ 404 kèm đúng mã nghiệp vụ mới là "chưa có hồ sơ"; mọi lỗi khác là không xác định (R2, R3). */
 function stateFromError(error: unknown): SellerProfileState {
-  const apiError = toApiError(error);
-  const notFound = apiError.status === 404 && apiError.code === 'SELLER_PROFILE_NOT_FOUND';
+  const errorInfo = toErrorInfo(error);
+  const notFound = errorInfo.status === 404 && errorInfo.code === 'SELLER_PROFILE_NOT_FOUND';
   return notFound ? { kind: 'none' } : { kind: 'unknown' };
 }
 
