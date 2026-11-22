@@ -1,8 +1,8 @@
 # T3Nexus — Documentation
 
-Cấu trúc tài liệu, quy tắc phân loại, template cho mọi loại doc: [`global/4.convention/doc-structure.md`](global/4.convention/doc-structure.md).
+Cấu trúc tài liệu, quy tắc phân loại, template cho mọi loại doc: [`5.convention`](5.convention/doc-structure.md).
 
-AI agent bắt đầu session: đọc [`global/4.convention/agent-workflow.md`](global/4.convention/agent-workflow.md) trước tiên — file đó định nghĩa chính xác cần đọc gì tiếp theo tuỳ theo scenario.
+AI agent bắt đầu session: đọc [`5.convention`](5.convention/agent-workflow.md) trước tiên — file đó định nghĩa chính xác cần đọc gì tiếp theo tuỳ theo scenario.
 
 ```
 docs/

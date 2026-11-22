@@ -62,3 +62,14 @@
     color: var(--mat-sys-on-surface-variant);
   }
 }
+
+.app-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: 24px;
+
+  .active {
+    --mat-button-text-label-text-color: var(--mat-sys-primary);
+    font-weight: 600;
+  }
+}

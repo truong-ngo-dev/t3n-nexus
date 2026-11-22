@@ -4,7 +4,7 @@
 >
 > Tài liệu giữ nghiệp vụ **kèm lý do**, phản ánh trạng thái hiện tại, không ghi lịch sử thay đổi. Bản này phủ phần thuộc chặng C1a (hồ sơ người bán và quy trình duyệt); phần của chặng sau ở mức tên (mục 13).
 >
-> **Nguồn:** `4-context-map.md` B10, `5-ui-analysis.md`, `7-roadmap.md` C1a · **Chặng:** [`stage.md` của C1a](../../stage/c1a-listing/stage.md)
+> **Nguồn:** `4-context-map.md` B10, `5-ui-analysis.md`, `0-roadmap.md` C1a · **Chặng:** [`stage.md` của C1a](../../stage/c1a-listing/stage.md)
 
 ## 1. Nhiệm vụ và ranh giới
 
@@ -322,5 +322,5 @@ Dùng để hình dung, không phải chứng cứ chính thức. Ngày truy c�
 ## 16. Tài liệu liên quan
 
 - [`stage.md` của C1a](../../stage/c1a-listing/stage.md) — yêu cầu và kịch bản của chặng
-- [`4-context-map.md`](../../global/1.requirement/4-context-map.md) — B10
+- [`4-context-map.md`](../../1.requirement/4-context-map.md) — B10
 - [`oauth2-service/analysis/0.overview.md`](../oauth2-service/analysis/0.overview.md) — Xác thực, hợp đồng danh tính

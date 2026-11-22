@@ -3,7 +3,7 @@ import { rawLogTail, waitForLogLine } from './support/logs';
 
 const AUTH = 'http://auth.localhost:8000';
 
-test.describe('truy vết lỗi qua cổng (feature 06 và 07)', () => {
+test.describe('truy vết lỗi qua cổng (features 06 và 07)', () => {
   test('KT-23: yêu cầu lỗi qua cổng trả traceId; log của cổng và của Xác thực có đúng trace.id đó và mã lỗi; mật khẩu không vào log', async ({ request }) => {
     const secret = `LeakCheck${Date.now().toString(36)}Pwd`;
     // JSON hỏng (thiếu dấu đóng) có kèm mật khẩu: Xác thực trả 400 MALFORMED_REQUEST
@@ -32,7 +32,7 @@ test.describe('truy vết lỗi qua cổng (feature 06 và 07)', () => {
     expect(rawLogTail('api-gateway')).not.toContain(secret);
   });
 
-  // Đã sửa ở feature 07 sau khi feature 09 tìm ra: nội dung là một chuỗi JSON hợp lệ (JSON mã hóa hai lần, lỗi hay gặp ở phía gọi) từng lọt mật khẩu vào log
+  // Đã sửa ở features 07 sau khi features 09 tìm ra: nội dung là một chuỗi JSON hợp lệ (JSON mã hóa hai lần, lỗi hay gặp ở phía gọi) từng lọt mật khẩu vào log
   // ở dòng hoàn tất của yêu cầu (BodySanitizer che theo tên trường, chuỗi trơn không có tên) và ở thông báo của GlobalExceptionHandler (Jackson đưa giá trị vào thông báo).
   test('KT-24: nội dung là chuỗi JSON hợp lệ có mật khẩu bên trong: mật khẩu không vào log', async ({ request }) => {
     const secret = `LeakCheck${Date.now().toString(36)}Str`;

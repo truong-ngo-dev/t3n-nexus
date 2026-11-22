@@ -3,6 +3,7 @@ package vn.t3nexus.lib.web.commons.response;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import org.slf4j.MDC;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -16,6 +17,10 @@ import java.util.List;
  *                only present on errors that have one, omitted from the JSON otherwise
  * @param traceId the trace id of the request, on error responses, so a user can quote it and the logs can be found;
  *                omitted from the JSON when there is no trace
+ * @param error   structured detail of a failure that does not fit in one {@code code}: a {@link String}, an object, or a list
+ *                of detail objects (e.g. {@code field}/{@code code}/{@code params}); never an exception or an entity; omitted
+ *                from the JSON when absent (see {@code docs/global/4.convention/api-response.md})
+ * @param timestamp the instant the server produced an error response (ISO-8601 UTC in the JSON); omitted on success
  * @param <T>     the type of the response data
  */
 public record ApiResponse<T>(
@@ -24,27 +29,36 @@ public record ApiResponse<T>(
         String message,
         List<String> errors,
         @JsonInclude(JsonInclude.Include.NON_NULL) String code,
-        @JsonInclude(JsonInclude.Include.NON_NULL) String traceId
+        @JsonInclude(JsonInclude.Include.NON_NULL) String traceId,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Object error,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Instant timestamp
 ) {
+    /**
+     * Keeps the original six-component form so existing callers compile unchanged; {@code error} and {@code timestamp} stay absent.
+     */
+    public ApiResponse(boolean success, T data, String message, List<String> errors, String code, String traceId) {
+        this(success, data, message, errors, code, traceId, null, null);
+    }
+
     /**
      * Creates a successful response with data.
      */
     public static <T> ApiResponse<T> ok(T data) {
-        return new ApiResponse<>(true, data, null, List.of(), null, null);
+        return new ApiResponse<>(true, data, null, List.of(), "OK", null);
     }
 
     /**
      * Creates an error response with a message.
      */
     public static <T> ApiResponse<T> error(String message) {
-        return new ApiResponse<>(false, null, message, List.of(), null, currentTraceId());
+        return new ApiResponse<>(false, null, message, List.of(), null, currentTraceId(), null, Instant.now());
     }
 
     /**
      * Creates an error response with a message and a stable error code.
      */
     public static <T> ApiResponse<T> error(String message, String code) {
-        return new ApiResponse<>(false, null, message, List.of(), code, currentTraceId());
+        return new ApiResponse<>(false, null, message, List.of(), code, currentTraceId(), null, Instant.now());
     }
 
     /**
@@ -52,14 +66,14 @@ public record ApiResponse<T>(
      * so a client can attach the error to the right input without parsing the message text.
      */
     public static <T> ApiResponse<T> error(String message, String code, List<String> errors) {
-        return new ApiResponse<>(false, null, message, errors, code, currentTraceId());
+        return new ApiResponse<>(false, null, message, errors, code, currentTraceId(), null, Instant.now());
     }
 
     /**
      * Creates a validation error response with detailed messages.
      */
     public static <T> ApiResponse<T> validationError(List<String> errors) {
-        return new ApiResponse<>(false, null, "Validation failed", errors, "VALIDATION_FAILED", currentTraceId());
+        return new ApiResponse<>(false, null, "Validation failed", errors, "VALIDATION_FAILED", currentTraceId(), null, Instant.now());
     }
 
     /** Read from the logging context so this module does not depend on a tracing library. */

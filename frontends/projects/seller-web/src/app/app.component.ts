@@ -1,17 +1,17 @@
 import {Component, ChangeDetectionStrategy, signal, inject, computed} from '@angular/core';
 import {Location} from '@angular/common';
-import {Router, RouterOutlet} from '@angular/router';
+import {Router, RouterLink, RouterLinkActive, RouterOutlet} from '@angular/router';
 import {SessionService} from '@t3n/auth';
-import {SellerBootstrapService} from './shared/service/seller-bootstrap.service';
-import {SellerStatusService} from './shared/service/seller-status.service';
-import {STATUS_LABEL} from './shared/status-label';
+import {SellerBootstrapService} from './core/service/bootstrap/seller-bootstrap.service';
+import {SellerStatusService} from './core/service/seller-profile/seller-status.service';
+import {STATUS_LABEL} from './core/service/seller-profile/seller-status.labels';
 import {MatToolbar} from '@angular/material/toolbar';
 import {MatButton} from '@angular/material/button';
 import {MatProgressSpinner} from '@angular/material/progress-spinner';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, MatToolbar, MatButton, MatProgressSpinner],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatToolbar, MatButton, MatProgressSpinner],
   templateUrl: './app.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.component.scss',
@@ -29,6 +29,12 @@ export class AppComponent {
   readonly showStatus = computed(() => {
     const session = this.session.state();
     return session.kind === 'authenticated' && session.session.role === 'USER';
+  });
+
+  /** Mục "Hồ sơ" chỉ hiện khi đã có hồ sơ để xem. */
+  readonly hasProfile = computed(() => {
+    const kind = this.sellerStatus.state().kind;
+    return kind === 'pending' || kind === 'approved' || kind === 'rejected';
   });
 
   // Cặp ghi/đọc: bên ngoài chỉ đọc được, muốn đổi phải gọi logout() hoặc retry().

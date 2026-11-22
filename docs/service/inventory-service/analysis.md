@@ -451,8 +451,8 @@ Bản draft dựa trên `requirement.md`, mô tả BC trong `bounded-contexts.md
 
 ## Tài liệu liên quan
 
-- [`global/1.requirement/requirement.md`](../../global/1.requirement/old/requirement.md) — yêu cầu gốc (§2.1, §2.2, §2.3)
+- [`global/1.requirement/requirement.md`](../../1.requirement/old/requirement.md) — yêu cầu gốc (§2.1, §2.2, §2.3)
 - `../catalog-service/analysis.md` — nguồn của `EVT-CAT-*` và `INV-CAT-044`
 - `../search-service/analysis.md` — bên nhận `EVT-INV-011` (`Q-SRC-05`)
 - `../seller-service/discussion.md` — loại seller và nguồn tồn kho
-- `../../feature/07-place-order/design.md` — saga đặt hàng
+- `../../features` — saga đặt hàng

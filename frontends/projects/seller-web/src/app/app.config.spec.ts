@@ -4,8 +4,8 @@ import {HttpClient} from '@angular/common/http';
 import {TestBed} from '@angular/core/testing';
 import {LOGIN_URL, PAGE_NAVIGATION, SESSION_URL, SessionService} from '@t3n/auth';
 import {appConfig} from './app.config';
-import {SELLER_PROFILE_URL} from './shared/service/seller-api.service';
-import {SellerStatusService} from './shared/service/seller-status.service';
+import {SELLER_PROFILE_URL} from './core/service/seller-profile/seller-profile.api';
+import {SellerStatusService} from './core/service/seller-profile/seller-status.service';
 
 /*
  * Cách đọc một spec (Jest):
@@ -100,7 +100,7 @@ describe('Cấu hình ứng dụng seller-web', () => {
     await Promise.resolve();
     expect(done).toBe(false);                                  // chưa trả lời thì chưa xong
 
-    profile.flush({ success: true, data: { status: 'APPROVED' } });
+    profile.flush({ code: 'OK', data: { status: 'APPROVED' } });
     await init.donePromise;
     expect(TestBed.inject(SellerStatusService).state()).toEqual({ kind: 'approved' });
   });

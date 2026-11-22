@@ -35,7 +35,7 @@ describe('RegistrationService (KT-07)', () => {
       expect(req.request.body).toEqual({ email: 'a@b.vn', password: 'Passw0rd' });
       expect(Object.keys(req.request.body as object).sort()).toEqual(['email', 'password']);
       expect(req.request.withCredentials).toBe(false);
-      req.flush({ success: true, data: { userAccountId: 'id' } }, { status: 201, statusText: 'Created' });
+      req.flush({ code: 'OK', data: { userAccountId: 'id' } }, { status: 201, statusText: 'Created' });
     });
   });
 

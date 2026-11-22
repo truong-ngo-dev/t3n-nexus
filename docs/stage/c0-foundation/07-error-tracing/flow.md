@@ -10,7 +10,7 @@ Truy vết có ba tầng; C0 làm hai tầng đầu.
 
 | Tầng | Nội dung | Ở C0 |
 |---|---|---|
-| 1. Quy tắc log | Log ở đâu, mức nào, ghi gì, không bao giờ ghi gì (mật khẩu, mã băm, token, OTP). Là kỷ luật khi viết mọi feature, ghi vào `4.convention` | Xong: `docs/global/4.convention/logging.md` |
+| 1. Quy tắc log | Log ở đâu, mức nào, ghi gì, không bao giờ ghi gì (mật khẩu, mã băm, token, OTP). Là kỷ luật khi viết mọi feature, ghi vào `5.convention` | Xong: `../../../5.convention` |
 | 2. Bộ tiện ích log dùng chung | Log có cấu trúc (JSON) với `traceId`, `spanId`, tên service là trường riêng (mã tương quan đã có sẵn trong mẫu mặc định, cần đưa thành trường), che dữ liệu nhạy cảm, một chỗ ghi lỗi thống nhất không nuốt lỗi. Đặt ở `observability-starter` | Làm |
 | 3. Hạ tầng tập trung | ELK: gom log về một chỗ, đánh chỉ mục các trường cần tìm, màn hình Kibana | Không làm. Cần từ chặng có luồng xuyên nhiều BC (roadmap C2a). Log JSON từ bây giờ để sau đưa vào Logstash không phải sửa mã |
 
@@ -48,4 +48,4 @@ Từ feature 01 (đăng ký):
   thư viện dùng chung nên ảnh hưởng mọi dịch vụ; làm cùng quy ước lỗi chung của feature này.
 - **Kiểm chứng:** gây một lỗi ở `POST /register`, rồi lần ra nguyên nhân từ log bằng `traceId`; log không chứa mật khẩu, mã băm, token.
 
-Kế hoạch triển khai ở `plan.md`; quy ước log ở `docs/global/4.convention/logging.md`.
+Kế hoạch triển khai ở `plan.md`; quy ước log ở `../../../5.convention`.

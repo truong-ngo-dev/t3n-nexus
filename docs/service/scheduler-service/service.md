@@ -174,8 +174,8 @@ Truyền thẳng port vào `Schedule.nextFireTime()` (không resolve trước �
 
 | Feature                                                           | Role                            | Handles | Publishes                |
 |-------------------------------------------------------------------|---------------------------------|---------|--------------------------|
-| [scheduler-service](../../feature/08-scheduler-service/design.md) | Coordinator — trigger theo lịch | —       | `ScheduledJobFiredEvent` |
-| [place-order](../../feature/07-place-order/implementation.md)     | Heartbeat source cho `order-service` `CREATED`-timeout | — | `ScheduledJobFiredEvent` (`ORDER_INVENTORY_TIMEOUT_REDIS_SCAN`/`ORDER_INVENTORY_TIMEOUT_DB_SCAN`) |
+| [scheduler-service](../../features/08-scheduler-service/design.md) | Coordinator — trigger theo lịch | —       | `ScheduledJobFiredEvent` |
+| [place-order](../../features/07-place-order/implementation.md)     | Heartbeat source cho `order-service` `CREATED`-timeout | — | `ScheduledJobFiredEvent` (`ORDER_INVENTORY_TIMEOUT_REDIS_SCAN`/`ORDER_INVENTORY_TIMEOUT_DB_SCAN`) |
 
 ---
 
@@ -208,4 +208,4 @@ Không có. `scheduler-service` không nằm trong 4 cặp sync đã duyệt (`4
 ## Tài liệu liên quan
 
 - [`data.md`](data.md) — DB schema, Redis key design
-- [scheduler-service (feature)](../../feature/08-scheduler-service/design.md) — implementation plan, phase checklist
+- [scheduler-service (feature)](../../features/08-scheduler-service/design.md) — implementation plan, phase checklist

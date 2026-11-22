@@ -183,7 +183,7 @@ C0 không nhận event của BC khác. Các phản ứng với event trong cùng
 | Mã thiết bị | Cookie `DEVICE_KEY` ngẫu nhiên 256 bit do Xác thực cấp khi trình duyệt vào trang đăng nhập, trước khi nhập mật khẩu; `HttpOnly`, `Secure`, `SameSite=Lax`, hạn 12 tháng gia hạn mỗi lần đăng nhập; chỉ lưu bản băm; ứng dụng di động tự sinh khi cài | ADR-0005 |
 | Đăng xuất từ xa | Xóa phiên người dùng, phiên ứng dụng và mã làm mới, báo từng BFF xóa mã của nó; mã truy cập đã lộ ngoài luồng hết theo hạn ngắn; khóa khẩn: danh sách chặn nếu cần (C1b) | ADR-0003 |
 | Event | Ghi nhận trong miền; hộp thư và bus làm ở chặng có bên nhận | Chờ |
-| Giới hạn tần suất | Đăng ký giới hạn theo địa chỉ mạng, do cổng truy cập thực hiện (feature 06); đăng nhập đếm mọi lần thử theo (email, địa chỉ mạng) và theo email, trong bước đăng nhập, Redis lỗi thì mở; mô hình ở `docs/global/3.technical/rate-limiting-layers.md` | Chờ |
+| Giới hạn tần suất | Đăng ký giới hạn theo địa chỉ mạng, do cổng truy cập thực hiện (feature 06); đăng nhập đếm mọi lần thử theo (email, địa chỉ mạng) và theo email, trong bước đăng nhập, Redis lỗi thì mở; mô hình ở `../../4.technical` | Chờ |
 
 ### 7.1 Hành vi lỗi theo người gọi
 

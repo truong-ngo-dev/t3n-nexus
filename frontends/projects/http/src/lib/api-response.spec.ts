@@ -1,10 +1,10 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { NEVER, Subject, TimeoutError, lastValueFrom, of, throwError } from 'rxjs';
-import { DEFAULT_REQUEST_TIMEOUT_MS, FailureClass, InvalidApiResponse, InvalidApiResponseReason, classifyFailure, expectNoBody, expectSuccess, expectSuccessEnvelope, requestTimeout, unwrapApiResponse, unwrapData } from '@t3n/http';
+import { DEFAULT_REQUEST_TIMEOUT_MS, FailureClass, InvalidApiResponse, InvalidApiResponseReason, classifyFailure, ignoreBody, requestTimeout, unwrapApiResponse, unwrapData } from '@t3n/http';
 
 /** Thân thành công đúng khuôn `ApiResponse` (api-response.ts của `@t3n/model`). */
 function ok(data: unknown): object {
-  return { success: true, data, message: null, errors: null, traceId: 't-1' };
+  return { code: 'OK', data, message: null, errors: null, traceId: 't-1' };
 }
 
 /** Hàm kiểm `data` điển hình: chỉ nhận đối tượng có `status` kiểu chuỗi, còn lại `null`. */
@@ -27,18 +27,18 @@ function reasonOf(run: () => unknown): InvalidApiResponseReason {
 
 describe('InvalidApiResponse', () => {
   it('là một Error, mang lý do và tên riêng để log và phân loại', () => {
-    const error = new InvalidApiResponse('success-false');
+    const error = new InvalidApiResponse('data-mismatch');
 
     expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(InvalidApiResponse);
     expect(error.name).toBe('InvalidApiResponse');
-    expect(error.reason).toBe('success-false');
-    expect(error.message).toContain('success-false');
+    expect(error.reason).toBe('data-mismatch');
+    expect(error.message).toContain('data-mismatch');
   });
 });
 
-describe('unwrapApiResponse (nhánh thành công: ba cửa)', () => {
-  it('qua đủ ba cửa: trả đúng kết quả của hàm kiểm data', () => {
+describe('unwrapApiResponse (nhánh thành công: một cửa kiểm data)', () => {
+  it('data đúng khuôn: trả đúng kết quả của hàm kiểm data', () => {
     const data = { status: 'PENDING_REVIEW', id: 'p-1' };
 
     expect(unwrapApiResponse(ok(data), parseStatus)).toBe(data);
@@ -54,40 +54,61 @@ describe('unwrapApiResponse (nhánh thành công: ba cửa)', () => {
     expect(parse).toHaveBeenCalledWith(data);
   });
 
-  describe('cửa 1: thân phải là một khung', () => {
+  describe('cửa 1: thân phải là một đối tượng để đọc được data', () => {
     it.each([
       ['null', null],
       ['undefined', undefined],
       ['chuỗi (vd trang HTML trả 200)', '<html>Đăng nhập</html>'],
       ['số', 42],
-      ['mảng', [{ success: true }]],
-      ['đối tượng không có success', { data: { status: 'APPROVED' } }],
-      ['success là chuỗi "true"', { success: 'true', data: { status: 'APPROVED' } }],
-      ['success là số 1', { success: 1, data: { status: 'APPROVED' } }],
-      ['success là null', { success: null, data: { status: 'APPROVED' } }],
+      ['mảng', [{ code: 'OK' }]],
     ])('%s: not-envelope', (_name, body) => {
       expect(reasonOf(() => unwrapApiResponse(body, parseStatus))).toBe('not-envelope');
     });
-  });
 
-  describe('cửa 2: success phải đúng là true', () => {
-    it('success là false (200 nhưng failed): success-false', () => {
-      const body = { success: false, code: 'SHOP_NAME_TAKEN', message: 'trùng', errors: [], data: { status: 'APPROVED' } };
-
-      expect(reasonOf(() => unwrapApiResponse(body, parseStatus))).toBe('success-false');
-    });
-
-    it('success-false thắng cả khi data trông hợp lệ (không đọc data của một phản hồi đã báo thất bại)', () => {
+    it('thân không phải đối tượng thì hàm kiểm không bao giờ chạy', () => {
       const parse = jest.fn(parseStatus);
 
-      expect(reasonOf(() => unwrapApiResponse({ success: false, data: { status: 'APPROVED' } }, parse))).toBe('success-false');
+      reasonOf(() => unwrapApiResponse(null, parse));
+
       expect(parse).not.toHaveBeenCalled();
     });
   });
 
-  describe('cửa 3: data phải đúng khuôn endpoint cần', () => {
+  describe('không đánh giá thành công từ thân: 2xx là thành công', () => {
     it.each([
-      ['thiếu data', { success: true }],
+      ['không có code', { data: { status: 'APPROVED' } }],
+      ['code là mã lỗi', { code: 'SHOP_NAME_TAKEN', data: { status: 'APPROVED' } }],
+      ['success là false', { success: false, data: { status: 'APPROVED' } }],
+    ])('thân %s: vẫn đọc data như bình thường', (_name, body) => {
+      expect(unwrapApiResponse(body, parseStatus)).toEqual({ status: 'APPROVED' });
+    });
+  });
+
+  describe('chế độ không kiểm: (data) => data, bóc data nhưng không ràng buộc hình dạng', () => {
+    const passthrough = (data: unknown): unknown => data;
+
+    it.each([
+      ['đối tượng', { a: 1 }],
+      ['mảng', [1, 2]],
+      ['chuỗi', 'abc'],
+      ['số 0', 0],
+    ])('data là %s: trả nguyên', (_name, data) => {
+      expect(unwrapApiResponse(ok(data), passthrough)).toEqual(data);
+    });
+
+    it('thân không phải đối tượng vẫn là not-envelope, không lặng lẽ trả undefined', () => {
+      expect(reasonOf(() => unwrapApiResponse('<html></html>', passthrough))).toBe('not-envelope');
+    });
+
+    it('data: null bị coi là sai khuôn (null là tín hiệu của parseData); bọc lại thì qua', () => {
+      expect(reasonOf(() => unwrapApiResponse(ok(null), passthrough))).toBe('data-mismatch');
+      expect(unwrapApiResponse(ok(null), (data) => ({ value: data }))).toEqual({ value: null });
+    });
+  });
+
+  describe('data phải đúng khuôn endpoint cần', () => {
+    it.each([
+      ['thiếu data', { code: 'OK' }],
       ['data là null', ok(null)],
       ['data không phải đối tượng', ok('abc')],
       ['data thiếu trường quyết định luồng', ok({ id: 'p-1' })],
@@ -99,15 +120,6 @@ describe('unwrapApiResponse (nhánh thành công: ba cửa)', () => {
     it('hàm kiểm trả null thì là data-mismatch, kể cả khi data không rỗng', () => {
       expect(reasonOf(() => unwrapApiResponse(ok({ status: 'APPROVED' }), () => null))).toBe('data-mismatch');
     });
-  });
-
-  it('cửa 1 và 2 chạy trước cửa 3: thân hỏng không bao giờ làm hàm kiểm chạy', () => {
-    const parse = jest.fn(parseStatus);
-
-    reasonOf(() => unwrapApiResponse(null, parse));
-    reasonOf(() => unwrapApiResponse({ success: false }, parse));
-
-    expect(parse).not.toHaveBeenCalled();
   });
 
   it('lỗi do chính hàm kiểm ném ra không bị nuốt hay đổi thành data-mismatch (đó là lỗi lập trình)', () => {
@@ -123,29 +135,6 @@ describe('unwrapApiResponse (nhánh thành công: ba cửa)', () => {
     unwrapApiResponse(body, parseStatus);
 
     expect(JSON.stringify(body)).toBe(snapshot);
-  });
-});
-
-describe('expectSuccessEnvelope (endpoint không dùng data: chỉ cửa 1 và 2)', () => {
-  it.each([
-    ['có data', ok({ status: 'APPROVED' })],
-    ['data là null', ok(null)],
-    ['không có data', { success: true }],
-  ])('thân thành công %s: không ném', (_name, body) => {
-    expect(() => expectSuccessEnvelope(body)).not.toThrow();
-  });
-
-  it('không đọc data: data sai khuôn vẫn qua', () => {
-    expect(() => expectSuccessEnvelope(ok({ khongPhaiStatus: true }))).not.toThrow();
-  });
-
-  it.each([
-    ['null', null, 'not-envelope'],
-    ['chuỗi', 'oops', 'not-envelope'],
-    ['thiếu success', { data: 1 }, 'not-envelope'],
-    ['success false', { success: false }, 'success-false'],
-  ])('%s: %s', (_name, body, reason) => {
-    expect(reasonOf(() => expectSuccessEnvelope(body))).toBe(reason);
   });
 });
 
@@ -178,40 +167,20 @@ describe('toán tử RxJS', () => {
     });
   });
 
-  describe('expectSuccess', () => {
-    it('thân thành công: phát một giá trị void rồi hoàn tất', async () => {
-      await expect(lastValueFrom(of(ok({ gi: 'do' })).pipe(expectSuccess()))).resolves.toBeUndefined();
-    });
-
-    it('success false: phát InvalidApiResponse success-false', async () => {
-      const error = await lastValueFrom(of({ success: false }).pipe(expectSuccess())).catch((e: unknown) => e);
-
-      expect(error).toBeInstanceOf(InvalidApiResponse);
-      expect((error as InvalidApiResponse).reason).toBe('success-false');
-    });
-
-    it('lỗi HTTP đi qua nguyên vẹn', async () => {
-      const httpError = new HttpErrorResponse({ status: 503 });
-
-      const error = await lastValueFrom(throwError(() => httpError).pipe(expectSuccess())).catch((e: unknown) => e);
-
-      expect(error).toBe(httpError);
-    });
-  });
-
-  describe('expectNoBody (endpoint cố ý không có thân)', () => {
+  describe('ignoreBody (không dùng thân: 2xx là thành công)', () => {
     it.each([
       ['thân rỗng (204)', null],
       ['khung thành công', ok({ gi: 'do' })],
+      ['thân mang mã khác OK', { code: 'SHOP_NAME_TAKEN' }],
       ['thân lạ vẫn không bị kiểm (chỉ HttpClient mới kiểm được)', '<html></html>'],
     ])('%s: phát một giá trị void rồi hoàn tất', async (_name, body) => {
-      await expect(lastValueFrom(of(body).pipe(expectNoBody()))).resolves.toBeUndefined();
+      await expect(lastValueFrom(of(body).pipe(ignoreBody()))).resolves.toBeUndefined();
     });
 
     it('lỗi HTTP đi qua nguyên vẹn', async () => {
       const httpError = new HttpErrorResponse({ status: 503 });
 
-      const error = await lastValueFrom(throwError(() => httpError).pipe(expectNoBody())).catch((e: unknown) => e);
+      const error = await lastValueFrom(throwError(() => httpError).pipe(ignoreBody())).catch((e: unknown) => e);
 
       expect(error).toBe(httpError);
     });
@@ -262,7 +231,6 @@ describe('classifyFailure: phân loại theo bản chất lỗi, không theo tí
 
     it('InvalidApiResponse: 2xx nhưng thân không đáng tin, thao tác có thể đã được ghi', () => {
       expect(classifyFailure(new InvalidApiResponse('not-envelope'))).toBe<FailureClass>('unknown-outcome');
-      expect(classifyFailure(new InvalidApiResponse('success-false'))).toBe<FailureClass>('unknown-outcome');
       expect(classifyFailure(new InvalidApiResponse('data-mismatch'))).toBe<FailureClass>('unknown-outcome');
     });
 

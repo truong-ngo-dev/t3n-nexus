@@ -9,7 +9,7 @@ Feature này **không có mã ứng dụng mới**: sản phẩm là một scrip
 ## Từ luồng đến giải pháp
 
 Mỗi dòng là một bước của luồng (`flow.md` mục 3). Ba cột đầu viết **trước khi code**; cột cuối điền **sau khi làm xong**
-(quy trình: `docs/global/4.convention/work-process.md` mục 3.4).
+(quy trình: `../../../5.convention` mục 3.4).
 
 | Bước của luồng | Hướng giải | Gộp vào thành phần | Triển khai (điền sau khi xong) |
 |---|---|---|---|

@@ -5,14 +5,15 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { LOGIN_URL, PAGE_NAVIGATION, SessionService, SessionState } from '@t3n/auth';
 import { Role } from '@t3n/model';
 import { routes } from './app.routes';
-import { ForbiddenAccountComponent } from './pages/forbidden-account/forbidden-account.component';
-import { HomeComponent } from './pages/home/home.component';
-import { LoginComponent } from './pages/login/login.component';
-import { NotFoundComponent } from './pages/not-found/not-found.component';
+import { ForbiddenAccountComponent } from './core/pages/forbidden-account/forbidden-account.component';
+import { HomeComponent } from './features/home/home.component';
+import { LoginComponent } from './core/pages/login/login.component';
+import { NotFoundComponent } from './core/pages/not-found/not-found.component';
+import { SellerProfileState, SellerStatusService } from './core/service/seller-profile/seller-status.service';
 
 /*
  * KT-02 (phần bảng route): dùng đúng `routes` của ứng dụng, chỉ giả phiên và điều hướng cấp cao.
- * Spec guard (shared/guard) kiểm từng guard; spec này kiểm guard được GẮN ĐÚNG route và đường không khớp.
+ * Spec guard (core/guard) kiểm từng guard; spec này kiểm guard được GẮN ĐÚNG route và đường không khớp.
  * RouterTestingHarness: điều hướng thật tới một URL và trả về component đang hiện.
  */
 describe('Bảng route của seller-web', () => {
@@ -28,6 +29,8 @@ describe('Bảng route của seller-web', () => {
         provideRouter(routes),
         { provide: SessionService, useValue: { state: session.asReadonly() } },
         { provide: PAGE_NAVIGATION, useValue: { assign } },
+        // trang chủ đọc trạng thái hồ sơ; spec này chỉ kiểm bảng route nên giữ trạng thái ở 'loading', không gọi API
+        { provide: SellerStatusService, useValue: { state: signal<SellerProfileState>({ kind: 'loading' }).asReadonly() } },
       ],
     });
   });

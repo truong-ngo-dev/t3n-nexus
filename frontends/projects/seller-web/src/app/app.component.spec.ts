@@ -4,7 +4,7 @@ import { Router, provideRouter } from '@angular/router';
 import { LogoutResult, SessionService, SessionState } from '@t3n/auth';
 import { Subject } from 'rxjs';
 import { AppComponent } from './app.component';
-import { SellerProfileState, SellerStatusService } from './shared/service/seller-status.service';
+import { SellerProfileState, SellerStatusService } from './core/service/seller-profile/seller-status.service';
 
 /*
  * KT-04 (khung). Kiểm LỚP `AppComponent` (signal và phương thức), không kiểm mẫu HTML (tech.md T7).

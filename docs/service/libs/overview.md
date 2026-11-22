@@ -97,9 +97,8 @@ Redis-based idempotency key checking. Bắt buộc cho:
 
 ## `common-web`
 
-- `ApiResponse<T>` — standard response wrapper
-- `ApiError` — standard error format
-- `GlobalExceptionHandler` — `@ControllerAdvice`
+- `ApiResponse<T>` — phản hồi chuẩn cho thành công và lỗi (`code`, `message`, `traceId`, `timestamp`, `data`, `error`); hình dạng và quy tắc: `global/4.convention/api-response.md`
+- `GlobalExceptionHandler` — `@ControllerAdvice`, sinh các mã lỗi chung (`VALIDATION_FAILED`, `MALFORMED_REQUEST`, `INVALID_PARAMETER`, `HTTP_<mã>`, `INTERNAL_ERROR`)
 - Correlation ID / Request ID filter
 
 ---

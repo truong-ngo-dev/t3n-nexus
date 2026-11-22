@@ -452,5 +452,5 @@ cần kiểm chứng trước khi coi là đã chốt.
 
 ## Tài liệu liên quan
 
-- [`global/1.requirement/requirement.md`](../../global/1.requirement/old/requirement.md) — yêu cầu gốc (§2.2, §2.3, §2.5)
+- [`global/1.requirement/requirement.md`](../../1.requirement/old/requirement.md) — yêu cầu gốc (§2.2, §2.3, §2.5)
 - [`../catalog-service/analysis.md`](../catalog-service/analysis.md) — nguồn của mọi `EVT-CAT-*` và `INV-CAT-*` được tham chiếu

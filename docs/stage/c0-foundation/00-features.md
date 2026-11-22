@@ -113,7 +113,7 @@ Ghi dần khi mỗi feature đóng; tổng kết khi đóng chặng.
 - **Khung phản hồi lỗi có mã chữ ổn định** (`code`), thêm vào khung chung theo hướng cộng thêm để giao diện rẽ nhánh và dịch lỗi
   mà các dịch vụ khác không phải sửa.
 - **Giới hạn tần suất có hai nhóm** (bị động ở biên, nghiệp vụ trong BC); cấu hình bằng thuộc tính nạp lúc khởi động, chưa đổi
-  lúc chạy. Mô hình ở `../../global/3.technical/rate-limiting-layers.md`.
+  lúc chạy. Mô hình ở `../../4.technical`.
 - **Còn nợ:** phép đo tải của đăng ký (trần máy đã có từ feature 08); các cột và trạng thái tạm trong `user_accounts` (xem `data.md`).
   Giao diện đăng ký (gửi trường thừa, đọc mã lỗi `code`) thuộc feature 05. JSON hỏng trả 400 `MALFORMED_REQUEST` (feature 07).
 
@@ -213,7 +213,7 @@ Ghi dần khi mỗi feature đóng; tổng kết khi đóng chặng.
 
 Chín feature (01 đến 09) đều xong. Phần này gom điều học được xuyên suốt, không lặp từng feature ở trên.
 
-**Điều kiện "Xong khi" của roadmap C0 (`7-roadmap.md`):**
+**Điều kiện "Xong khi" của roadmap C0 (`0-roadmap.md`):**
 
 | Điều kiện | Bằng chứng |
 |---|---|

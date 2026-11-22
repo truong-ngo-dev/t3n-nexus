@@ -67,40 +67,40 @@ cần chặn (roadmap xếp phân quyền ở C1b).
 **2.6. Điều gì có thể sai.** Mỗi hành vi dưới đây cần một điều được bảo đảm. Phát biểu chính thức, kèm lý do, nằm ở
 `analysis.md` dưới dạng INV.
 
-| Tình huống | Điều cần bảo đảm |
-|---|---|
-| Hai người dùng chung một email, hoặc một người đăng ký hai lần với email khác chữ hoa | R1. Một email, một tài khoản |
-| Dữ liệu bị lộ | R2. Mật khẩu không bao giờ tồn tại ở dạng đọc được |
-| Kẻ xấu thử email để biết ai có tài khoản | R3. Đăng nhập sai email hay sai mật khẩu cho cùng một kết quả |
-| Người dùng bấm đăng ký hai lần, hoặc mạng chậm nên gửi lại | R4. Gửi lặp không tạo hai tài khoản |
-| Đăng xuất khi phiên đã hết hạn | R5. Đăng xuất luôn thành công |
-| Vai ngoài tập quy định, hoặc người đăng ký tự chọn vai quản trị | R6. Mỗi tài khoản có đúng một vai thuộc tập đã quy định; người đăng ký công khai không chọn được vai |
-| Người ngoài đăng ký bằng email trông như của nội bộ để giả mạo | R7. Email thuộc miền nội bộ chỉ dành cho tài khoản nội bộ |
+| Tình huống                                                                            | Điều cần bảo đảm                                                                                     |
+|---------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| Hai người dùng chung một email, hoặc một người đăng ký hai lần với email khác chữ hoa | R1. Một email, một tài khoản                                                                         |
+| Dữ liệu bị lộ                                                                         | R2. Mật khẩu không bao giờ tồn tại ở dạng đọc được                                                   |
+| Kẻ xấu thử email để biết ai có tài khoản                                              | R3. Đăng nhập sai email hay sai mật khẩu cho cùng một kết quả                                        |
+| Người dùng bấm đăng ký hai lần, hoặc mạng chậm nên gửi lại                            | R4. Gửi lặp không tạo hai tài khoản                                                                  |
+| Đăng xuất khi phiên đã hết hạn                                                        | R5. Đăng xuất luôn thành công                                                                        |
+| Vai ngoài tập quy định, hoặc người đăng ký tự chọn vai quản trị                       | R6. Mỗi tài khoản có đúng một vai thuộc tập đã quy định; người đăng ký công khai không chọn được vai |
+| Người ngoài đăng ký bằng email trông như của nội bộ để giả mạo                        | R7. Email thuộc miền nội bộ chỉ dành cho tài khoản nội bộ                                            |
 
 > **Chốt:** bảy điều cần bảo đảm. → `analysis.md` nâng chúng thành INV kèm lý do và bổ sung đường lỗi chi tiết. INV là đầu
 > vào của aggregate ở `service.md` (bước 3) và của test (bước 6).
 
 ## 3. Hành vi và BC
 
-| Hành vi | BC | Vì sao ở BC đó |
-|---|---|---|
-| H1. Đăng ký tài khoản (tự đăng ký) | Xác thực | Tạo ra danh tính |
-| H2. Có sẵn tài khoản Quản trị | Xác thực | Như trên; là dữ liệu khởi tạo khi dựng hệ thống, không phải thao tác của người dùng |
-| H3. Đăng nhập | Xác thực | Xác thực danh tính |
-| H4. Giữ phiên | Xác thực | Phiên (ở nơi xác thực và ở từng ứng dụng) là hệ quả của xác thực |
-| H5. Đăng xuất | Xác thực | Kết thúc phiên |
-| H6. Ghi nhận vai | Xác thực | Vai là một phần của danh tính |
+| Hành vi                            | BC       | Vì sao ở BC đó                                                                      |
+|------------------------------------|----------|-------------------------------------------------------------------------------------|
+| H1. Đăng ký tài khoản (tự đăng ký) | Xác thực | Tạo ra danh tính                                                                    |
+| H2. Có sẵn tài khoản Quản trị      | Xác thực | Như trên; là dữ liệu khởi tạo khi dựng hệ thống, không phải thao tác của người dùng |
+| H3. Đăng nhập                      | Xác thực | Xác thực danh tính                                                                  |
+| H4. Giữ phiên                      | Xác thực | Phiên (ở nơi xác thực và ở từng ứng dụng) là hệ quả của xác thực                    |
+| H5. Đăng xuất                      | Xác thực | Kết thúc phiên                                                                      |
+| H6. Ghi nhận vai                   | Xác thực | Vai là một phần của danh tính                                                       |
 
 Mọi hành vi rơi vào một BC. Các BC có liên quan tới người dùng nhưng chưa làm ở C0, vì chưa có việc cần chúng:
 
-| BC | Vì sao chưa cần |
-|---|---|
-| Định danh | Tên hiển thị, thiết bị và lịch sử đăng nhập chỉ có người xem khi Quản trị cần quản lý người dùng (tên hiển thị, danh sách người dùng: C1b; thiết bị, lịch sử đăng nhập: C3c); cần bus sự kiện (C1a) để nhận event phiên |
-| Khách hàng | Hồ sơ giao hàng chỉ cần khi đặt hàng (C2a) |
-| Người bán | Đăng ký làm người bán và duyệt là phần của niêm yết (C1a) |
-| Shipper | Đăng ký làm shipper là phần của giao hàng (C3a) |
-| Nhật ký kiểm toán | Chỉ có ý nghĩa khi Quản trị bắt đầu khóa hoặc mở tài khoản (C1b) |
-| Thông báo | Chỉ cần khi hệ thống phải gửi thư cho người dùng (xác minh email, đặt lại mật khẩu); C0 không gửi thư |
+| BC                | Vì sao chưa cần                                                                                                                                                                                                         |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Định danh         | Tên hiển thị, thiết bị và lịch sử đăng nhập chỉ có người xem khi Quản trị cần quản lý người dùng (tên hiển thị, danh sách người dùng: C1b; thiết bị, lịch sử đăng nhập: C3c); cần bus sự kiện (C1a) để nhận event phiên |
+| Khách hàng        | Hồ sơ giao hàng chỉ cần khi đặt hàng (C2a)                                                                                                                                                                              |
+| Người bán         | Đăng ký làm người bán và duyệt là phần của niêm yết (C1a)                                                                                                                                                               |
+| Shipper           | Đăng ký làm shipper là phần của giao hàng (C3a)                                                                                                                                                                         |
+| Nhật ký kiểm toán | Chỉ có ý nghĩa khi Quản trị bắt đầu khóa hoặc mở tài khoản (C1b)                                                                                                                                                        |
+| Thông báo         | Chỉ cần khi hệ thống phải gửi thư cho người dùng (xác minh email, đặt lại mật khẩu); C0 không gửi thư                                                                                                                   |
 
 Mọi thứ ngoài H1–H6 không thuộc C0. Phần Xác thực chưa làm (phân quyền, khóa/mở tài khoản, tạo tài khoản nội bộ...)
 được ghi ở mục "Chưa làm" của [`analysis/0.overview.md`](../../service/oauth2-service/analysis/0.overview.md).
@@ -115,13 +115,13 @@ cho người đã đăng nhập, để chứng minh người dùng đã vào đ�
 
 Mỗi kịch bản là một cách chứng minh hành vi hoặc điều cần bảo đảm ở mục 2 đã đúng.
 
-| # | Kịch bản | Chứng minh |
-|---|---|---|
-| S1 | Khách vãng lai đăng ký, đăng nhập, thấy mình đã đăng nhập, rồi đăng xuất; sau đó không vào được trang cần đăng nhập | H1, H3, H4, H5 |
-| S2 | Đăng ký bằng email đã có (kể cả khác chữ hoa) hoặc email thuộc miền nội bộ bị từ chối với lý do rõ; bấm đăng ký hai lần liên tiếp chỉ ra một tài khoản | R1, R4, R7 |
-| S3 | Đăng nhập sai email và đăng nhập sai mật khẩu nhận cùng một thông báo | R3 |
-| S4 | Đăng nhập bằng tài khoản Quản trị có sẵn, hệ thống nhận ra vai Quản trị; tài khoản vừa tự đăng ký có vai khác Quản trị, kể cả khi yêu cầu đăng ký gửi kèm vai quản trị | H2, H6, R6 |
-| S5 | Đăng xuất khi phiên đã hết hạn vẫn đưa người dùng về trạng thái chưa đăng nhập | R5 |
+| #  | Kịch bản                                                                                                                                                               | Chứng minh     |
+|----|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------|
+| S1 | Khách vãng lai đăng ký, đăng nhập, thấy mình đã đăng nhập, rồi đăng xuất; sau đó không vào được trang cần đăng nhập                                                    | H1, H3, H4, H5 |
+| S2 | Đăng ký bằng email đã có (kể cả khác chữ hoa) hoặc email thuộc miền nội bộ bị từ chối với lý do rõ; bấm đăng ký hai lần liên tiếp chỉ ra một tài khoản                 | R1, R4, R7     |
+| S3 | Đăng nhập sai email và đăng nhập sai mật khẩu nhận cùng một thông báo                                                                                                  | R3             |
+| S4 | Đăng nhập bằng tài khoản Quản trị có sẵn, hệ thống nhận ra vai Quản trị; tài khoản vừa tự đăng ký có vai khác Quản trị, kể cả khi yêu cầu đăng ký gửi kèm vai quản trị | H2, H6, R6     |
+| S5 | Đăng xuất khi phiên đã hết hạn vẫn đưa người dùng về trạng thái chưa đăng nhập                                                                                         | R5             |
 
 R2 không có kịch bản nghiệp vụ vì không quan sát được từ ngoài; nó kiểm bằng test ở bước thiết kế. Tương tự, việc phiên hết
 hạn và việc đăng xuất cắt cả hai tầng phiên kiểm bằng test từ bất biến của `analysis.md`.
@@ -134,11 +134,11 @@ hạn và việc đăng xuất cắt cả hai tầng phiên kiểm bằng test t
 
 C0 chỉ có một BC nên chưa có luồng xuyên BC. Ba luồng nằm trọn trong Xác thực:
 
-| Luồng | Bước |
-|---|---|
-| Đăng ký | Khách vãng lai gửi email và mật khẩu → Xác thực kiểm email chưa dùng và không thuộc miền nội bộ (R1, R7) và mật khẩu hợp lệ → tạo tài khoản vai Người dùng, đang hoạt động → báo kết quả |
+| Luồng     | Bước                                                                                                                                                                                                                                                     |
+|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Đăng ký   | Khách vãng lai gửi email và mật khẩu → Xác thực kiểm email chưa dùng và không thuộc miền nội bộ (R1, R7) và mật khẩu hợp lệ → tạo tài khoản vai Người dùng, đang hoạt động → báo kết quả                                                                 |
 | Đăng nhập | Người dùng vào một ứng dụng, gửi email và mật khẩu → Xác thực kiểm thông tin (R3), mở phiên người dùng rồi phiên ứng dụng bên dưới → người dùng vào ứng dụng, mang vai của mình. Đã có phiên ở nơi xác thực thì vào ứng dụng khác không hỏi lại mật khẩu |
-| Đăng xuất | Người dùng yêu cầu → phiên người dùng của lần đăng nhập này và các phiên ứng dụng bên dưới bị hủy (R5), lần đăng nhập ở thiết bị khác giữ nguyên → người dùng về trạng thái chưa đăng nhập |
+| Đăng xuất | Người dùng yêu cầu → phiên người dùng của lần đăng nhập này và các phiên ứng dụng bên dưới bị hủy (R5), lần đăng nhập ở thiết bị khác giữ nguyên → người dùng về trạng thái chưa đăng nhập                                                               |
 
 > **Chốt:** cả ba luồng nằm trong một BC, chưa có BC nào nhận kết quả. → `analysis.md` lấy ba luồng làm khung viết từng
 > năng lực. `service.md` ở C0 ghi sẵn các event "tài khoản đã đăng ký", "phiên được cấp", "phiên kết thúc" (chưa có bên

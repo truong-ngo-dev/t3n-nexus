@@ -1,5 +1,13 @@
 <mat-toolbar class="app-header">
   <span class="app-title">Người bán</span>
+  @if (showStatus()) {
+    <nav class="app-nav" data-testid="nav">
+      <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" data-testid="nav-home">Trang chủ</a>
+      @if (hasProfile()) {
+        <a mat-button routerLink="/profile" routerLinkActive="active" data-testid="nav-profile">Hồ sơ</a>
+      }
+    </nav>
+  }
   <span class="spacer"></span>
 
   @if (showStatus()) {

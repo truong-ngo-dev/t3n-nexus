@@ -190,9 +190,9 @@ Quyết định riêng của feature 06 nằm ở [`tech.md`](../../stage/c0-fou
 | `T-02` | Làm mới kèm `sid`, tự phục hồi, tuần tự hóa | → `tech.md` T5 | `Q-05`, `C-01` |
 | `T-03` | Ánh xạ phiên theo `sid`, hạn, nhận báo | → `tech.md` T6 | `Q-03`, `Q-04` |
 | `T-04` | Địa chỉ client tin cậy và log | → `tech.md` T7 | Mục 12.2 |
-| — | Nguồn gốc theo subdomain, đặt tên BFF | → [`ADR-0006`](../../global/2.architecture/adr/0006-application-origins-and-host-routing.md) | Mọi mục |
-| — | CSRF ở BFF, cookie phiên | → [`ADR-0005`](../../global/2.architecture/adr/0005-browser-request-protection.md) | `Q-01` |
-| — | Hợp đồng danh tính, làm mới theo `sid` | → [`ADR-0003`](../../global/2.architecture/adr/0003-login-session-and-identity-contract.md) | `Q-03`, `Q-05` |
+| — | Nguồn gốc theo subdomain, đặt tên BFF | → [`ADR-0006`](../../3.architecture/adr/0006-application-origins-and-host-routing.md) | Mọi mục |
+| — | CSRF ở BFF, cookie phiên | → [`ADR-0005`](../../3.architecture/adr/0005-browser-request-protection.md) | `Q-01` |
+| — | Hợp đồng danh tính, làm mới theo `sid` | → [`ADR-0003`](../../3.architecture/adr/0003-login-session-and-identity-contract.md) | `Q-03`, `Q-05` |
 
 ---
 

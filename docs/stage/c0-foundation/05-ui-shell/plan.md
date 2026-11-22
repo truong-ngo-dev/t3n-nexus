@@ -11,7 +11,7 @@ sau mỗi bước ghi trạng thái, test mới và điều tìm thấy. Thêm h
 ## Từ luồng đến giải pháp
 
 Mỗi dòng là một bước của luồng (`flow.md` mục 3). Ba cột đầu viết **trước khi code**; cột cuối điền **sau khi làm xong**
-(quy trình: `docs/global/4.convention/work-process.md` mục 3.4).
+(quy trình: `../../../5.convention` mục 3.4).
 
 | Bước của luồng | Hướng giải | Gộp vào thành phần | Triển khai (điền sau khi xong) |
 |---|---|---|---|

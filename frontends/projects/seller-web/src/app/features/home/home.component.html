@@ -1,0 +1,39 @@
+@let s = state();
+@switch (s.kind) {
+  @case ('none') {
+    <section class="home-state" data-testid="home-none">
+      <h1>Bắt đầu bán hàng</h1>
+      <p>Bạn chưa có hồ sơ người bán. Nộp hồ sơ để được duyệt và mở gian hàng.</p>
+      <a mat-flat-button routerLink="/profile/new" data-testid="submit-profile">Nộp hồ sơ</a>
+    </section>
+  }
+
+  @case ('pending') {
+    <section class="home-state" data-testid="home-pending">
+      <h1>Hồ sơ đang chờ duyệt</h1>
+      <p>Chúng tôi sẽ xem xét hồ sơ của bạn. Bạn bán hàng được sau khi hồ sơ được duyệt.</p>
+      <a mat-flat-button routerLink="/profile/edit" data-testid="edit-profile">Sửa hồ sơ</a>
+      <a mat-button routerLink="/profile" data-testid="view-profile">Xem hồ sơ</a>
+    </section>
+  }
+
+  @case ('rejected') {
+    <section class="home-state" data-testid="home-rejected">
+      <h1>Hồ sơ chưa được duyệt</h1>
+      <p>Lý do:</p>
+      <blockquote class="reject-reason" data-testid="reject-reason">{{ s.reason }}</blockquote>
+      <a mat-flat-button routerLink="/profile/resubmit" data-testid="resubmit-profile">Sửa và nộp lại</a>
+      <a mat-button routerLink="/profile" data-testid="view-profile">Xem hồ sơ</a>
+    </section>
+  }
+
+  @case ('approved') {
+    <section class="home-state" data-testid="home-approved">
+      <h1>Gian hàng của bạn đã được duyệt</h1>
+      <p>Bạn có thể bắt đầu đăng sản phẩm.</p>
+      <a mat-button routerLink="/profile" data-testid="view-profile">Xem hồ sơ</a>
+      <!-- 11c: nút "Quản lý sản phẩm" -->
+    </section>
+  }
+}
+

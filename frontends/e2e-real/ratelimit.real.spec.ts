@@ -4,10 +4,10 @@ const AUTH = 'http://auth.localhost:8000';
 const LIMIT = 10; // luật mặc định của cổng: POST /register ở host auth, 10 yêu cầu mỗi giờ mỗi địa chỉ mạng (06-access-gateway)
 
 /**
- * Chỉ chạy khi cổng chạy với luật mặc định (`scenarios/up.sh --rules default`, pha B của feature 09) và đặt `E2E_GATEWAY_RULES=default`.
+ * Chỉ chạy khi cổng chạy với luật mặc định (`scenarios/up.sh --rules default`, pha B của features 09) và đặt `E2E_GATEWAY_RULES=default`.
  * Bộ thật thường ngày chạy cổng với luật đăng ký được nâng lên 100.000 (nếu không 10 lần đăng ký mỗi giờ là hết), nên test này bị bỏ qua ở đó.
  */
-test.describe('giới hạn tần suất của đăng ký qua cổng (feature 01 và 06)', () => {
+test.describe('giới hạn tần suất của đăng ký qua cổng (features 01 và 06)', () => {
   test.skip(process.env["E2E_GATEWAY_RULES"] !== 'default', 'Cần cổng chạy luật mặc định (E2E_GATEWAY_RULES=default)');
 
   test('KT-25: vượt 10 yêu cầu POST /register mỗi giờ thì 429 kèm Retry-After và thân lỗi chuẩn', async ({ request }) => {

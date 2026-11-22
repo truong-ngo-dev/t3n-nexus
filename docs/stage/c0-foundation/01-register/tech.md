@@ -47,7 +47,7 @@
 
 - **Quyết định:** 10 yêu cầu mỗi giờ cho mỗi địa chỉ mạng. Đây là giới hạn **nhóm 1** (bảo vệ, không phải luật nghiệp vụ): một luật theo
   đường dẫn trong cấu hình của cổng truy cập, nạp từ thuộc tính lúc khởi động. Mô hình đầy đủ (hai nhóm, cấu hình, hiệu năng, khi
-  lỗi) ở `../../../global/3.technical/rate-limiting-layers.md`.
+  lỗi) ở `../../../4.technical`.
 - **Địa chỉ mạng:** do cổng truy cập xác định; dịch vụ không tự đoán từ `X-Forwarded-For` của client.
 - **Loại:** giới hạn theo email (kẻ xấu đổi email dễ dàng); CAPTCHA (hoãn, xem `deferred.md`).
 - **Vì sao 10:** tải đăng ký thật chỉ ~1 yêu cầu/giây toàn hệ thống (NFR 3.3), nên một địa chỉ dùng chung cho cả trăm

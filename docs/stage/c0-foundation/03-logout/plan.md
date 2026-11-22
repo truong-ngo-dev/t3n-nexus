@@ -11,7 +11,7 @@ cho miền mới và rà lỗ hổng** (`flow.md` mục 4), cộng use case kế
 
 Mỗi dòng là một bước của luồng (`flow.md` mục 3). Ba cột đầu là phần thiết kế, viết **trước khi code**: hướng giải ngắn (chi tiết ở `tech.md` và ADR, không chép lại ở đây),
 rồi các hướng giải gộp thành thành phần nào. Cột cuối điền **sau khi làm xong**. Các bước 1 đến 9 bên dưới là thứ tự thi công; trạng thái từng bước ở đó là bản gốc
-(quy trình: `docs/global/4.convention/work-process.md` mục 3.4).
+(quy trình: `../../../5.convention` mục 3.4).
 
 | Bước của luồng | Hướng giải | Gộp vào thành phần | Triển khai (điền sau khi xong) |
 |---|---|---|---|

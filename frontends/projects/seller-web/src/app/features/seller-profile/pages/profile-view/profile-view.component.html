@@ -1,0 +1,56 @@
+@switch (loadState()) {
+  @case ('loading') {
+    <section class="state" data-testid="profile-loading">
+      <mat-spinner diameter="32"></mat-spinner>
+      <p>Đang tải hồ sơ…</p>
+    </section>
+  }
+  @case ('error') {
+    <section class="state" data-testid="profile-error">
+      <p>Không tải được hồ sơ. Kiểm tra kết nối rồi thử lại.</p>
+      <button mat-flat-button type="button" data-testid="profile-retry" (click)="load()">Thử lại</button>
+    </section>
+  }
+  @case ('loaded') {
+    @let p = profile();
+    @if (p) {
+      <section class="profile-view" data-testid="profile-view">
+        <header>
+          <h1>Hồ sơ người bán</h1>
+          <span class="status" data-testid="profile-status">{{ statusLabel() }}</span>
+        </header>
+
+        @if (p.status === 'REJECTED' && p.rejectionReason) {
+          <aside class="reject-reason" data-testid="reject-reason">
+            <strong>Hồ sơ bị từ chối</strong>
+            <blockquote>{{ p.rejectionReason }}</blockquote>
+          </aside>
+        }
+
+        <dl>
+          <dt>Loại hình</dt>
+          <dd data-testid="row-sellerType">{{ typeLabel() }}</dd>
+          @for (row of rows(); track row.field) {
+            <dt>{{ row.label }}</dt>
+            <dd [attr.data-testid]="'row-' + row.field">{{ row.value }}</dd>
+          }
+        </dl>
+
+        <div class="actions">
+          @switch (p.status) {
+            @case ('PENDING_REVIEW') {
+              <a mat-flat-button routerLink="/profile/edit" data-testid="edit-profile">Sửa hồ sơ</a>
+            }
+            @case ('REJECTED') {
+              <a mat-flat-button routerLink="/profile/resubmit" data-testid="resubmit-profile">Sửa và nộp lại</a>
+            }
+            @case ('APPROVED') {
+              <a mat-flat-button routerLink="/profile/edit-shop" data-testid="edit-shop">Sửa thông tin gian hàng</a>
+            }
+          }
+          <a mat-button routerLink="/">Về trang chủ</a>
+        </div>
+      </section>
+    }
+  }
+}

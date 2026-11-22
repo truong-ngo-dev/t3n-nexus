@@ -14,8 +14,8 @@
 | 2 | `technical/` chỉ chứa pattern/cookbook cách-làm cho cross-cutting concern — không chứa quyết định, không chứa bảng tra cứu tĩnh                                                                                                          |
 | 3 | `tech-stack.md` chuyển từ `technical/` sang `architecture/` — nó là bảng tra cứu, không phải cách-làm                                                                                                                                    |
 | 4 | `security-architecture.md` giữ nguyên 1 file trong `architecture/` — đã tự tuân thủ đúng ranh giới, không cần tách                                                                                                                       |
-| 5 | `feature/{name}/design.md` nhúng sequence diagram trực tiếp (fenced `plantuml` block) — không còn `sequence.puml` rời                                                                                                                    |
-| 6 | `feature/{name}/` bỏ thư mục `progress/phase-N-*.md` — thay bằng 1 mục "Session Log" nén trong `implementation.md`, chỉ ghi khi có blocker/deviation thật, checklist tick trực tiếp trong `implementation.md`                            |
+| 5 | `features` nhúng sequence diagram trực tiếp (fenced `plantuml` block) — không còn `sequence.puml` rời                                                                                                                    |
+| 6 | `features` bỏ thư mục `progress/phase-N-*.md` — thay bằng 1 mục "Session Log" nén trong `implementation.md`, chỉ ghi khi có blocker/deviation thật, checklist tick trực tiếp trong `implementation.md`                            |
 | 7 | Mỗi file phụ của 1 service (`cache.md`, `flashsale.md`...) bắt buộc được `service.md` trỏ tới qua mục "Tài liệu liên quan"                                                                                                               |
 | 8 | `docs/design/` (cấu trúc cũ) migrate hết sang `global/ + service/ + feature/` rồi xoá                                                                                                                                                    |
 
@@ -26,9 +26,9 @@
 **Status:** `DONE`
 
 ### Checklist
-- [x] `global/4.convention/doc-structure.md` — viết lại theo 8 quyết định trên: tier definition, mục "Phân biệt architecture/technical/adr", template `service.md`/`data.md`/`feature/design.md`/`feature/implementation.md` mới (Tài liệu liên quan, sequence nhúng, Session Log)
-- [x] `global/4.convention/agent-workflow.md` — sửa reading-list/trigger-table cho khớp path mới, bỏ mọi ref `sequence.puml`/`progress/`, trỏ `dlq-strategy.md` sang `dlq-implementation-notes.md` (target Phase 1), thêm pointer sang boundary table
-- [x] `global/4.convention/feature-implementation.md` — viết lại: bỏ hẳn `progress/phase-N-*.md`, thay bằng phase-section + Session Log trong `implementation.md`, giữ nguyên tiêu chí phân tách phase
+- [x] `5.convention` — viết lại theo 8 quyết định trên: tier definition, mục "Phân biệt architecture/technical/adr", template `service.md`/`data.md`/`features`/`features` mới (Tài liệu liên quan, sequence nhúng, Session Log)
+- [x] `5.convention` — sửa reading-list/trigger-table cho khớp path mới, bỏ mọi ref `sequence.puml`/`progress/`, trỏ `dlq-strategy.md` sang `dlq-implementation-notes.md` (target Phase 1), thêm pointer sang boundary table
+- [x] `5.convention` — viết lại: bỏ hẳn `progress/phase-N-*.md`, thay bằng phase-section + Session Log trong `implementation.md`, giữ nguyên tiêu chí phân tách phase
 
 ### Verify
 3 file convention nhất quán với nhau, không còn mô tả `progress/` hay path cũ. ✓ Đã rà lại — không còn ref `sequence.puml` hay `progress/` trong cả 3 file.
@@ -46,7 +46,7 @@ Ví dụ áp dụng khung ADR/architecture/technical: file này hiện trộn c�
 ### Checklist
 - [x] Tạo `adr/011-dlq-per-service-strategy.md` — quyết định "1 DLQ/service, ngoại lệ email-worker tách theo tier" + rationale rút gọn (từ mục 4 file gốc)
 - [x] Thêm mục "DLQ Topics" vào `5. event-catalog.md` (bảng riêng cuối file, không phải cột trong bảng per-producer — DLQ là khái niệm theo consumer, không theo producer/event, gộp cột sẽ lặp lại giá trị nhiều lần)
-- [x] Tạo `global/3.technical/dlq-implementation-notes.md` từ mục 6 file gốc (partition key preserved, debug header, infinite-loop, retry config table)
+- [x] Tạo `4.technical` từ mục 6 file gốc (partition key preserved, debug header, infinite-loop, retry config table)
 - [x] Cập nhật `adr/000-README.md` với entry 011
 - [x] Xoá `6. dlq-strategy.md`
 
@@ -140,7 +140,7 @@ Mỗi trong 4 service có đúng 1 `service.md`, không còn file trùng ở `de
 - [x] Sửa toàn bộ path cũ phát hiện thêm ngoài dự kiến: `payment-checkout` (5 chỗ: ADR-010 link 3-level→2-level, UC gốc link thiếu `global/`, `docs/design/services/notification-service.md`, 2 chỗ `docs/design/features/payment-checkout/*` trỏ chính nó), `user-auth` (3 chỗ link `spring-security-*-bff.md` 3-level→2-level), `place-order/implementation.md` (ref `sequence.puml` đã xoá)
 
 ### Verify
-Mỗi feature có `design.md` (+ diagram nhúng nếu có) + `implementation.md`, không còn `.puml` trong `feature/`. Grep `docs/design\|docs/architecture` trong `feature/` chỉ còn match ở `catalogue_feature` (Phase 8 xử lý). ✓
+Mỗi feature có `design.md` (+ diagram nhúng nếu có) + `implementation.md`, không còn `.puml` trong `features`. Grep `docs/design\|docs/architecture` trong `features` chỉ còn match ở `catalogue_feature` (Phase 8 xử lý). ✓
 
 ---
 
@@ -181,7 +181,7 @@ Không còn file `.md` lạc ngoài 3 tier ở `docs/` root, trừ `README.md` v
 - [x] `service/catalog-service/service.md` — đã trỏ `cache.md` + `downstream-effects.md` (làm ở Phase 4/9)
 - [x] `service/inventory-service/service.md` — thêm mục "Tài liệu liên quan" trỏ `data.md` + `flashsale.md`
 - [x] `service/order-service/` — hiện chỉ có `implementation.md`, chưa có `service.md`/`data.md` — ghi nhận gap, không tạo ngay (cần đọc code thật để viết đúng, ngoài scope đợt dọn doc)
-- [x] **Phát hiện thêm ngoài checklist gốc:** `inventory-service/service.md` §Use Cases tham gia có 3 link trỏ `feature/checkout-saga/design.md` và `feature/limited-offer/design.md` — **cả 2 feature này không tồn tại** trong `docs/feature/`. Không tự sửa vì đây là quyết định nội dung (có thể `place-order` đã là "checkout-saga" dưới tên khác, hoặc 2 feature này thật sự chưa được viết) — cần user quyết định hướng, ghi nhận vào báo cáo cuối
+- [x] **Phát hiện thêm ngoài checklist gốc:** `inventory-service/service.md` §Use Cases tham gia có 3 link trỏ `features` và `features` — **cả 2 feature này không tồn tại** trong `features`. Không tự sửa vì đây là quyết định nội dung (có thể `place-order` đã là "checkout-saga" dưới tên khác, hoặc 2 feature này thật sự chưa được viết) — cần user quyết định hướng, ghi nhận vào báo cáo cuối
 
 ### Verify
 Mọi file phụ trong `service/{name}/` được ít nhất 1 dòng trong `service.md` trỏ tới. Broken link tới feature chưa tồn tại — đã ghi nhận, chưa xử lý (cần quyết định nội dung).
@@ -207,4 +207,4 @@ Mọi file phụ trong `service/{name}/` được ít nhất 1 dòng trong `serv
 _(ghi khi có blocker/deviation thật so với plan trên — không ghi routine progress)_
 
 - **2026-08-04:** Toàn bộ 12 phase (0-11) hoàn thành trong 1 phiên. Bug tự phát hiện ở Phase 11 sweep: Phase 7 đã nhúng nội dung 3 file `sequence.puml` (customer-registration, personal-info, place-order) vào `design.md` nhưng quên xoá file `.puml` gốc — `git mv` khi chuyển thư mục đã mang theo file rỗng-về-mặt-chức-năng này. Phát hiện qua `find docs -name "*.puml"` ở bước verify cuối, đã xoá cả 3. Bài học: bước "xoá file .puml" trong checklist nhúng diagram cần tách thành 1 dòng riêng, không gộp ngầm vào "nhúng nội dung" — dễ quên khi làm nhiều feature liên tiếp.
-- **2026-08-04:** Phát hiện 2 gap nội dung: (1) `inventory-service/service.md` link chết tới `feature/checkout-saga/` + `feature/limited-offer/` — đã sửa: `checkout-saga` trỏ về `place-order` (cùng nội dung Saga order/inventory/payment/fulfillment, tên kỹ thuật khác), `limited-offer` trỏ `flashsale.md` (chưa có feature doc cross-service riêng, nội dung kỹ thuật đã có ở đây). (2) `service/order-service/` thiếu `service.md`/`data.md` — **để lại, chưa làm** — cần đọc code thật, không phải việc di chuyển file, để phiên riêng.
+- **2026-08-04:** Phát hiện 2 gap nội dung: (1) `inventory-service/service.md` link chết tới `features` + `features` — đã sửa: `checkout-saga` trỏ về `place-order` (cùng nội dung Saga order/inventory/payment/fulfillment, tên kỹ thuật khác), `limited-offer` trỏ `flashsale.md` (chưa có feature doc cross-service riêng, nội dung kỹ thuật đã có ở đây). (2) `service/order-service/` thiếu `service.md`/`data.md` — **để lại, chưa làm** — cần đọc code thật, không phải việc di chuyển file, để phiên riêng.

@@ -134,7 +134,7 @@ Xong khi: đăng nhập thật ra được mã đăng nhập; test API xanh; tes
 
 **Trạng thái:** Đã làm `2026-10-16`: `LoginRateLimitFilter` (gói `extension/authentication`) chặn `POST /login` trước bộ xác thực; mức và cửa sổ đọc từ `LoginRateLimitProperties` (`app.login.rate-limit.*`, kiểm lúc khởi động); vượt thì chuyển tiếp tới `/login/throttled` (`LoginPageController.throttled`) trả **HTTP 429 kèm `Retry-After`** và dựng lại trang đăng nhập; bộ đếm lỗi thì mở cửa kèm cảnh báo. 11 test bộ lọc (KT-15, 16, 17 và các ca phụ), 3 test trang 429, 2 test đầu-cuối trong `LoginFlowIntegrationTest` (429 dù mật khẩu đúng và không mở phiên nào; bộ đếm lỗi vẫn đăng nhập được). Điều quyết khi cài: xem `tech.md` T3
 
-Giới hạn nhóm 2 (`docs/global/3.technical/rate-limiting-layers.md`): trong bước đăng nhập, sau khi chuẩn hóa email và trước khi tìm tài khoản, đếm **mọi lần thử** theo hai khóa, cặp
+Giới hạn nhóm 2 (`../../../4.technical`): trong bước đăng nhập, sau khi chuẩn hóa email và trước khi tìm tài khoản, đếm **mọi lần thử** theo hai khóa, cặp
 (email, địa chỉ mạng) với mức thấp và riêng email với mức cao hơn, vượt thì 429 kèm thời gian chờ và không kiểm mật khẩu. Áp như nhau cho mọi email kể cả email không tồn tại.
 Dùng bộ đếm cửa sổ trượt của thư viện chung gọi trực tiếp (đăng nhập đi qua bộ lọc bảo mật, không phải `CommandHandler`, nên chưa dùng chú thích). Mức và khoảng thời gian đọc từ thuộc tính,
 nạp lúc khởi động. **Đã chốt:** Redis lỗi thì mở cửa và ghi cảnh báo (khác phân quyền; ở đây đóng cửa sẽ khóa cả đăng nhập). Trong lúc lỗi, giới hạn theo địa chỉ mạng ở cổng cũng dùng Redis nên cả hai lớp cùng tạm mất; đây là rủi ro đã chấp nhận. Địa chỉ mạng lấy từ tiêu đề do cổng đặt, không tin tiêu đề do client gửi.

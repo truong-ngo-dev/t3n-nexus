@@ -4,7 +4,7 @@
 >
 > Tài liệu giữ nghiệp vụ **kèm lý do**, phản ánh trạng thái hiện tại, không ghi lịch sử thay đổi. Bản này phủ phần thuộc chặng C1a (hai nhóm hành động quản trị); các nhóm hành động của chặng sau ở mức tên (mục 12).
 >
-> **Nguồn:** `4-context-map.md` B25, `7-roadmap.md` C1a và C1b · **Chặng:** [`stage.md` của C1a](../../stage/c1a-listing/stage.md)
+> **Nguồn:** `4-context-map.md` B25, `0-roadmap.md` C1a và C1b · **Chặng:** [`stage.md` của C1a](../../stage/c1a-listing/stage.md)
 
 ## 1. Nhiệm vụ và ranh giới
 
@@ -252,6 +252,6 @@ Nhật ký không phụ thuộc BC nào: nó không gọi ra ngoài và không b
 ## 15. Tài liệu liên quan
 
 - [`stage.md` của C1a](../../stage/c1a-listing/stage.md) — yêu cầu và kịch bản của chặng (S8, S9; R11 đến R13)
-- [`4-context-map.md`](../../global/1.requirement/4-context-map.md) — B25
+- [`4-context-map.md`](../../1.requirement/4-context-map.md) — B25
 - [`seller-service/analysis.md`](../seller-service/analysis.md) — `EVT-SEL-04`, hành động của hồ sơ người bán
-- [`logging.md`](../../global/4.convention/logging.md) — ranh giới với log ứng dụng
+- [`logging.md`](../../5.convention/logging.md) — ranh giới với log ứng dụng

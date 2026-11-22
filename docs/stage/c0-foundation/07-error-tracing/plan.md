@@ -3,7 +3,7 @@
 Làm theo thứ tự dưới đây. Mỗi bước nêu việc phải làm, ai làm (**Người** viết điểm cần insight và quyết định thiết kế;
 **Agent** viết phần thường, người rà), điều cần trao đổi trong bước đó (nếu có), và cách biết bước đã xong.
 
-Quy ước log đã chốt ở `docs/global/4.convention/logging.md` (điểm đặt, mức, nội dung được ghi, log yêu cầu HTTP, định dạng, ngữ cảnh khi chạy
+Quy ước log đã chốt ở `../../../5.convention` (điểm đặt, mức, nội dung được ghi, log yêu cầu HTTP, định dạng, ngữ cảnh khi chạy
 song song). Phạm vi, hiện trạng và việc giao từ feature khác ở `flow.md`. Feature này xây bộ tiện ích dùng chung trong `observability-starter`
 và `common-web`, rồi áp dụng vào `oauth2-service`.
 
